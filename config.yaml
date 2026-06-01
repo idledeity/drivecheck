@@ -1,0 +1,14 @@
+# config.yaml — default settings
+# Override any of these locally by creating config.local.yaml (gitignored) or edit directly
+
+auth:
+  username: admin
+  password_hash: ""  # bcrypt hash — generate with scripts/hash_password.py (TODO)
+
+data:
+  dir: ./data
+
+server:
+  host: 127.0.0.1
+  port: 4343
+  debug: false

@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend",
+      "type": "shell",
+      "command": "source backend/.venv/bin/activate && python backend/app.py",
+      "isBackground": true,
+      "group": "build",
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Frontend",
+      "type": "shell",
+      "command": "cd frontend && npm run dev",
+      "isBackground": true,
+      "group": "build",
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Start All",
+      "dependsOn": ["Backend", "Frontend"],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

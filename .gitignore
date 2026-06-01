@@ -12,7 +12,7 @@ frontend/dist/
 data/
 
 # Config — has credentials
-config.yaml
+config.local.yaml
 
 # OS
 .DS_Store
