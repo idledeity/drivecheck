@@ -2,25 +2,30 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Backend",
+      "label": "Kill Backend",
       "type": "shell",
-      "command": "source backend/.venv/bin/activate && python backend/app.py",
-      "isBackground": true,
-      "group": "build",
-      "presentation": { "panel": "dedicated", "reveal": "always" }
+      "command": "lsof -ti:5000 | xargs kill -9 || true",
+      "presentation": { "panel": "shared", "reveal": "silent" }
     },
     {
-      "label": "Frontend",
+      "label": "Start Frontend",
       "type": "shell",
       "command": "cd frontend && npm run dev",
       "isBackground": true,
-      "group": "build",
+      "problemMatcher": {
+        "pattern": { "regexp": "." },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
+        }
+      },
       "presentation": { "panel": "dedicated", "reveal": "always" }
     },
     {
       "label": "Start All",
-      "dependsOn": ["Backend", "Frontend"],
-      "group": { "kind": "build", "isDefault": true }
+      "dependsOn": ["Kill Backend", "Start Frontend"],
+      "dependsOrder": "sequence"
     }
   ]
 }

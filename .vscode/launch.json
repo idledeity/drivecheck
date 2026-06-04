@@ -1,4 +1,4 @@
-{
+json{
   "version": "0.2.0",
   "configurations": [
     {
@@ -7,20 +7,28 @@
       "request": "launch",
       "program": "${workspaceFolder}/backend/app.py",
       "python": "${workspaceFolder}/backend/.venv/bin/python",
-      "env": { "FLASK_ENV": "development" }
+      "preLaunchTask": "Kill Backend"
     },
     {
       "name": "Frontend",
-      "type": "chrome",
+      "type": "node",
       "request": "launch",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}/frontend/src"
-    }
-  ],
-  "compounds": [
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend"
+    },
     {
-      "name": "Full Stack",
-      "configurations": ["Backend", "Frontend"]
+      "name": "Full Stack (external)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/app.py",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "preLaunchTask": "Start All",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Running on http://127.0.0.1:(\\d+)",
+        "uriFormat": "http://127.0.0.1:5173/%s"
+      }
     }
   ]
 }
