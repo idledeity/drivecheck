@@ -31,16 +31,18 @@ drives" for ongoing monitoring.
 | Term | Definition |
 |---|---|
 | **DriveDescriptor** | Minimal scan output — device path, access type, info name. Produced by scan probes. No GUID, no traits. |
-| **DriveContext** | Collector-assembled identity object — GUID + DriveDescriptor + DriveTraits. Passed to scrape probes, operations, and jobs. |
-| **DriveSnapshot** | Full in-memory view of a drive — DriveContext + live telemetry + health + extras + probe log. Lives in the registry. |
+| **DriveContext** | Collector-assembled identity object — GUID + DriveDescriptor + DriveTraits. Passed to traits probes, telemetry probes, operations, and jobs. |
+| **DriveSnapshot** | Point-in-time capture of a single collector poll — telemetry + health + extras + probe log. Persisted to SQLite. |
+| **DriveState** | Live in-memory view of a drive — DriveContext + DriveTraits + DriveAttachment + current DriveSnapshot. Lives in the registry. |
 | **DCSignals** | Drivecheck-normalized health signals mapped from raw protocol data. Protocol-agnostic. |
 | **Scan probe** | A configurable script that discovers attached drives and returns DriveDescriptors. |
-| **Scrape probe** | A configurable script that receives a DriveContext + DriveSnapshot, enriches the snapshot, and returns it. |
-| **Probe chain** | Ordered list of scrape probes run per drive per collector cycle. Last probe has final authority. |
+| **Traits probe** | A configurable script that receives a DriveContext and returns DriveTraits. Run on drive discovery and at a reduced interval. |
+| **Telemetry probe** | A configurable script that receives a DriveContext + DriveSnapshot, enriches the snapshot, and returns it. Run every collector cycle. |
+| **Probe chain** | Ordered list of telemetry probes run per drive per collector cycle. Last probe has final authority over any field. |
 | **Operation** | A user-initiated task performed on a drive (SMART test, badblocks scan, etc.). Distinct from probes. |
 | **Job** | A running or completed instance of an operation against a specific drive. |
 | **Drive Record** | The persistent SQLite entry for a known drive, keyed by GUID. |
-| **Registry** | Module-level dict in collector.py holding the current DriveSnapshot for every attached drive. Source of truth for all live API responses. |
+| **Registry** | Module-level dict in collector.py holding the current DriveState for every attached drive. Source of truth for all live API responses. |
 
 ---
 
@@ -50,7 +52,7 @@ drives" for ongoing monitoring.
 - **Language:** Python 3.x
 - **Framework:** Flask (minimal, no async, no ORM)
 - **Concurrency:** Python `threading` module (standard library)
-  - Collector runs as a daemon thread; dispatches per-drive scrape threads via `ThreadPoolExecutor`
+  - Collector runs as a daemon thread; dispatches per-drive telemetry threads via `ThreadPoolExecutor`
   - Long-running jobs (badblocks, SMART extended test) run in dedicated daemon threads
   - A shared in-memory job registry tracks all active jobs
 - **Subprocess:** Standard `subprocess` module wraps all CLI tools
@@ -107,16 +109,18 @@ activity or job execution.
 - Deduplicate discovered drives by serial number; prefer earlier access paths, fall
   back to later ones if the earlier path yields less data
 - For each discovered drive, look up or assign a GUID in SQLite and build a DriveContext
-- Dispatch one scrape thread per drive via ThreadPoolExecutor
-- Each scrape thread runs the configured scrape probe chain in order, passing the
-  evolving DriveSnapshot through each probe
-- Commit the final DriveSnapshot to the in-memory registry
-- Write dc_signals and periodic raw snapshots to SQLite
+- Run traits probes for newly discovered drives (and at a reduced refresh interval)
+  to populate DriveTraits on the DriveState
+- Dispatch one telemetry thread per drive via ThreadPoolExecutor each collector cycle
+- Each telemetry thread runs the configured telemetry probe chain in order, passing
+  the evolving DriveSnapshot through each probe
+- Commit the final DriveState to the in-memory registry; persist the DriveSnapshot to SQLite
+- Write dc_signals to SQLite
 
 **Threading:**
 - Collector loop runs as a daemon thread started at Flask startup
-- Per-drive scrape threads run inside a ThreadPoolExecutor (max_workers configurable)
-- Each scrape thread has its own timeout — a hanging drive does not block others
+- Per-drive telemetry threads run inside a ThreadPoolExecutor (max_workers configurable)
+- Each telemetry thread has its own timeout — a hanging drive does not block others
 - Uses a `threading.Event` for clean shutdown signaling
 - WAL mode ensures collector writes don't block API request threads
 
@@ -145,11 +149,12 @@ drivecheck/
 │   ├── collector.py            (background polling thread + registry)
 │   ├── job_registry.py         (in-memory job state)
 │   ├── db.py                   (SQLite access)
-│   ├── models.py               (DriveDescriptor, DriveContext, DriveSnapshot, DCSignals, etc.)
+│   ├── models.py               (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
 │   ├── probes/
 │   │   ├── __init__.py         (probe loader — imports probe modules by dotted path from config)
 │   │   ├── smartctl_scan.py    (default scan probe)
-│   │   └── smartctl_scrape.py  (default scrape probe)
+│   │   ├── smartctl_traits.py  (default traits probe)
+│   │   └── smartctl_telemetry.py (default telemetry probe)
 │   └── drive_tools/
 │       ├── __init__.py
 │       ├── base.py             (OperationBase class)
@@ -185,11 +190,21 @@ def run() -> list[DriveDescriptor]:
     ...
 ```
 
-### Scrape probes
-Enrich a DriveSnapshot with data about a specific drive. Receive a `DriveContext`
-and the current `DriveSnapshot`; return the enriched snapshot. The probe chain passes
-the snapshot through each probe in config list order — last probe has final authority
-over any field.
+### Traits probes
+Populate `DriveTraits` for a specific drive. Receive a `DriveContext`; return a
+`DriveTraits`. Run by the collector on drive discovery and at a reduced refresh
+interval — not every poll cycle.
+
+```python
+def run(context: DriveContext) -> DriveTraits:
+    ...
+```
+
+### Telemetry probes
+Enrich a `DriveSnapshot` with health data for a specific drive. Receive a
+`DriveContext` and the current `DriveSnapshot`; return the enriched snapshot.
+The probe chain passes the snapshot through each probe in config list order —
+last probe has final authority over any field.
 
 ```python
 def run(context: DriveContext, snapshot: DriveSnapshot) -> DriveSnapshot:
@@ -197,7 +212,7 @@ def run(context: DriveContext, snapshot: DriveSnapshot) -> DriveSnapshot:
 ```
 
 Probes write to:
-- First-class fields (`snapshot.traits`, `snapshot.telemetry.signals`, etc.)
+- `snapshot.telemetry.signals` — normalized DCSignals fields
 - `snapshot.extras` — free-form dict for anything without a first-class field
   (raw smartctl JSON, lsblk output, vendor data, etc.)
 - `snapshot.probe_log` — append a `ProbeRecord` on completion
@@ -207,17 +222,20 @@ Probes write to:
 scan_probes:
   - drivecheck.probes.smartctl_scan
 
-scrape_probes:
-  - drivecheck.probes.smartctl_scrape
+traits_probes:
+  - drivecheck.probes.smartctl_traits
+
+telemetry_probes:
+  - drivecheck.probes.smartctl_telemetry
 ```
 
 ### Deduplication
 Multiple scan probes or a single scan probe may return multiple descriptors for the
 same physical drive (e.g. `/dev/sdb` and `/dev/bus/1 -d megaraid,0` for the same
 drive behind a MegaRAID controller). The collector deduplicates by serial number
-after the first scrape probe that populates traits. All access paths are preserved
-in `DriveContext.attachment.descriptors`; the preferred path (first successful one)
-is in `DriveContext.attachment.device_path`.
+after the traits probe populates `DriveTraits`. All access paths are preserved
+in `DriveState.attachment.descriptors`; the preferred path (first successful one)
+is in `DriveState.attachment.device_path`.
 
 If two access paths return different data for the same drive, both raw results are
 stored in `extras` and merged at the dc_signals layer with defined precedence.
@@ -231,8 +249,10 @@ stored in `extras` and merged at the dc_signals layer with defined precedence.
 | Class | Created by | Contains | Passed to |
 |---|---|---|---|
 | `DriveDescriptor` | Scan probes | device path, access type, info name | Collector |
-| `DriveContext` | Collector | GUID + DriveDescriptor + DriveTraits | Scrape probes, Operations, Jobs |
-| `DriveSnapshot` | Scrape probe chain | DriveContext + telemetry + health + extras + probe_log | Registry, API, SQLite |
+| `DriveContext` | Collector | GUID + DriveDescriptor + DriveTraits | Traits probes, Telemetry probes, Operations, Jobs |
+| `DriveTraits` | Traits probes | serial, model, capacity, drive_type, etc. | DriveState, DriveContext, SQLite |
+| `DriveSnapshot` | Telemetry probe chain | telemetry + health + extras + probe_log | SQLite (persisted per poll) |
+| `DriveState` | Collector | DriveContext + DriveTraits + DriveAttachment + current DriveSnapshot | Registry, API |
 
 ### DriveDescriptor
 Minimal scan output — just enough to identify and reach a drive.
@@ -278,14 +298,19 @@ Named without a `dc_` prefix — the `DCSignals` namespace makes them unambiguou
 Note: `pending` is an imperfect mapping for SAS — the UI surfaces this distinction.
 
 ### DriveSnapshot
-Full in-memory view. The probe chain passes this object through each scrape probe.
-- `context` — DriveContext
-- `traits` — DriveTraits (may be enriched by probes)
-- `attachment` — DriveAttachment
+Point-in-time capture of one collector poll. Persisted to SQLite; one row per poll per drive.
 - `telemetry` — DriveTelemetry (contains DCSignals + last_polled_at)
 - `health` — DriveHealth (health_pct, health_status)
 - `extras` — free-form dict for arbitrary probe output; raw JSON blobs live here
 - `probe_log` — list of ProbeRecord (one per probe that ran)
+
+### DriveState
+Live in-memory view. The probe chain passes this object through each scrape probe.
+Lives in the collector registry; read by API endpoints.
+- `context` — DriveContext (stable identity)
+- `traits` — DriveTraits (may be enriched by probes)
+- `attachment` — DriveAttachment
+- `snapshot` — current DriveSnapshot (replaced each poll)
 
 ---
 
@@ -460,6 +485,7 @@ ORDER BY captured_at
 | SQLite WAL mode | Collector writes concurrently with API request readers. Required; set once at init. |
 | No ORM | Raw sqlite3. No dependency, no learning cost, no magic at this scale. |
 | Probe system for collection | User-configurable data collection without modifying core. Supports any tool (smartctl, lsblk, nvme-cli, vendor tools). Chain ordering gives clear authority. |
+| Traits / Telemetry probe split | Traits are stable; polling them every cycle wastes I/O. Traits probes run on discovery + reduced interval. Telemetry probes run every cycle. Keeps probe signatures clean — telemetry probes never touch DriveTraits. |
 | Operations separate from probes | Probes are passive collection. Operations are active user-initiated tasks. Different lifecycles, different ownership. |
 | DriveContext as universal context | Single object passed to probes, operations, and jobs. Everyone gets the same view of what a drive is and where it is. |
 | DCSignals as normalized layer | Protocol differences (ATA vs SAS) resolved once in the scrape probe. Everything above the probe layer is protocol-agnostic. |
@@ -467,6 +493,7 @@ ORDER BY captured_at
 | GUID assigned on first detection | Drive identity established as soon as the collector sees the drive, not deferred to first operation. Simpler lifecycle. |
 | Serial as lookup key | Used for deduplication, not identity. Returns a list to handle rare duplicates. |
 | extras dict on DriveSnapshot | Escape hatch for probe output that has no first-class field. Raw JSON, vendor data, lsblk output. Never discarded. |
+| DriveSnapshot split from DriveState | DriveSnapshot is the persisted poll record; DriveState is the live registry entry. Enables historical trend queries without conflating mutable live state with immutable history. |
 | Minimal dependencies | "Works in 10 years" is an explicit goal. Every dependency is a future maintenance burden. |
 | JSON output from smartctl (-j) | More stable than text parsing. Schema-versioned. Defensive .get() calls handle missing keys gracefully. json_format_version checked at startup. |
 | History retention configurable | Monitoring is supported but not the lead. User controls how much history to keep. |
