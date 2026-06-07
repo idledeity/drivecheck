@@ -1,0 +1,21 @@
+# config.yaml — drivecheck configuration
+# Copy this file to config.yaml and edit before running.
+
+# Flask session secret — change this to a long random string.
+# Generate one with: python3 -c "import secrets; print(secrets.token_hex(32))"
+secret_key: "CHANGE_ME_to_a_long_random_string"
+
+# Single-user authentication
+auth:
+  username: "admin"
+  # SHA-256 hex digest of your password.
+  # Generate: python3 -c "import hashlib; print(hashlib.sha256(b'yourpassword').hexdigest())"
+  password_sha256: "REPLACE_WITH_SHA256_OF_YOUR_PASSWORD"
+
+# Data directory (reports stored here). Relative to project root or absolute.
+data_dir: "./data"
+
+# Flask server settings
+host: "0.0.0.0"
+port: 5000
+debug: false

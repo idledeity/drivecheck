@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>drivecheck — Health Workspace Mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bp: #191b20;
+  --bt: #30323a;
+  --bb: #272930;
+  --bi: #1e2028;
+  --bd: #3e4050;
+  --bd2: #575b70;
+  --t1: #f0f0f2;
+  --t2: #c8ccd6;
+  --t3: #a0a8b4;
+  --t4: #888fa0;
+  --t5: #454858;
+  --cy: #18c4ee;
+  --cn: #00eeff;
+  --gn: #14c050;
+  --gnb: #28ee84;
+  --gbg: rgba(20,192,80,0.12);
+  --wa: #ff9d2e;
+  --wbg: rgba(255,157,46,0.12);
+  --re: #ff7070;
+  --rbg: rgba(255,112,112,0.12);
+  --se: #a855f7;
+  --sbg: rgba(168,85,247,0.12);
+  --ir: #48ccff;
+  --iw: #b878ff;
+}
+
+body {
+  background: var(--bp);
+  color: var(--t1);
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+/* ── LAYOUT ── */
+.layout {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.page-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--t5);
+  padding-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-label span { color: var(--t4); font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 11px; }
+
+/* ── CARD STAND-IN (collapsed) ── */
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+}
+.mini-card {
+  background: linear-gradient(180deg, var(--bt), var(--bb));
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px rgba(255,255,255,0.05);
+}
+.mini-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+}
+.mc-green::before { background: var(--gn); }
+.mc-warn::before  { background: var(--wa); }
+.mc-red::before   { background: var(--re); }
+.mc-grey::before  { background: var(--bd2); }
+.mini-card.sel { border-color: var(--se); box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 0 0 2px rgba(168,85,247,0.15); }
+.mc-sel-ring {
+  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--bd2);
+  display: flex; align-items: center; justify-content: center;
+}
+.mini-card.sel .mc-sel-ring { border-color: #8060b8; }
+.mc-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: transparent;
+}
+.mini-card.sel .mc-dot { background: var(--se); box-shadow: 0 0 4px rgba(168,85,247,0.6); }
+.mc-info { flex: 1; min-width: 0; }
+.mc-name { font-size: 12px; font-weight: 600; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-sub { font-size: 10px; color: var(--t4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.mc-badge { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
+.bg { background: var(--gbg); color: var(--gnb); }
+.bw { background: var(--wbg); color: var(--wa); }
+.br { background: var(--rbg); color: var(--re); }
+.bn { background: rgba(255,255,255,0.06); color: var(--t3); border: 0.5px solid var(--bd); }
+
+/* ── PANEL ── */
+.panel {
+  background: linear-gradient(180deg, var(--bt) 0%, var(--bb) 100%);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 4px 20px rgba(0,0,0,0.35);
+}
+
+/* ── WORKSPACE TABS (top) ── */
+.topbar {
+  display: flex;
+  align-items: stretch;
+  background: var(--bi);
+  border-bottom: 1px solid var(--bd);
+  padding: 0 4px;
+  min-height: 36px;
+}
+.wtab {
+  font-size: 11.5px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--t4);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color .1s;
+}
+.wtab:hover { color: var(--t2); }
+.wtab.on { color: var(--t1); border-bottom-color: var(--cy); font-weight: 500; }
+.wtab.run { margin-left: auto; color: var(--cy); font-weight: 500; }
+.wtab.run.on { border-bottom-color: var(--se); color: var(--t1); }
+.qbadge {
+  font-size: 9px;
+  background: var(--bb);
+  border: 0.5px solid var(--bd2);
+  border-radius: 99px;
+  padding: 1px 5px;
+  color: var(--t3);
+}
+
+/* ── HEALTH SUB-TABS ── */
+.subbar {
+  display: flex;
+  align-items: center;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--bd);
+  padding: 0 14px;
+}
+.stab {
+  font-size: 11px;
+  padding: 7px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--t4);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .1s;
+}
+.stab:hover { color: var(--t2); }
+.stab.on { color: var(--cy); border-bottom-color: var(--cy); font-weight: 500; }
+.stab-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.icon-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 0.5px solid var(--bd2);
+  background: none;
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color .1s, border-color .1s;
+}
+.icon-btn:hover { color: var(--t1); border-color: var(--t3); }
+
+/* ── DRIVE SELECTOR STRIP ── */
+.dstrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--bd);
+  background: rgba(0,0,0,0.12);
+  flex-wrap: wrap;
+}
+.dstrip-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--t4);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.dchip {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  border: 0.5px solid var(--bd2);
+  background: none;
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: background .1s, color .1s;
+}
+.dchip:hover { color: var(--t2); }
+.dchip.on { background: var(--sbg); border-color: rgba(168,85,247,0.4); color: #c084fc; }
+.dchip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.dchip-dev { font-size: 9px; color: var(--t5); font-family: 'SF Mono', monospace; }
+
+/* ── BODY ── */
+.body { padding: 14px 16px; }
+
+/* ── SECTION HEADER (per-drive) ── */
+.sh {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.sh-badge { font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.sh-name { font-size: 12.5px; font-weight: 600; color: var(--t1); }
+.sh-serial { font-size: 10px; color: var(--t4); font-family: 'SF Mono', 'Fira Mono', monospace; }
+.sh-right { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--t4); }
+.sh-temp-ok { color: var(--t2); }
+.sh-temp-warn { color: var(--re); }
+.sh-mount-yes { color: var(--gnb); font-size: 10.5px; font-weight: 600; }
+.sh-mount-no  { color: var(--t4); font-size: 10.5px; font-weight: 600; }
+.io-r { color: var(--ir); }
+.io-w { color: var(--iw); }
+
+.sec { margin-bottom: 20px; }
+.sec:last-child { margin-bottom: 0; }
+
+/* ── OVERVIEW TILES ── */
+.ov-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.ot {
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 10px 11px;
+  position: relative;
+  overflow: hidden;
+}
+.ot::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+}
+.ot-g::before { background: var(--gn); }
+.ot-w::before { background: var(--wa); }
+.ot-r::before { background: var(--re); }
+.ot-c::before { background: var(--cy); }
+.ot-n::before { background: var(--bd2); }
+.ot-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t4);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.ot-val {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--t1);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.ot-sub { font-size: 10px; color: var(--t3); line-height: 1.4; }
+
+/* sparklines */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 28px;
+  margin: 4px 0 3px;
+}
+.spark-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; }
+
+/* ── FLAGGED SECTION ── */
+.section-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--t4);
+  font-weight: 600;
+  padding: 8px 0 5px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 6px;
+}
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(62,64,80,0.45);
+  font-size: 11px;
+}
+.flag-row:last-child { border-bottom: none; }
+.flag-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.flag-id { font-size: 10px; color: var(--t5); font-family: 'SF Mono', monospace; width: 24px; flex-shrink: 0; }
+.flag-name { flex: 1; color: var(--t2); }
+.flag-val { font-size: 11px; font-weight: 600; }
+.warn-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 99px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.wb-w { background: var(--wbg); color: var(--wa); }
+.wb-c { background: var(--rbg); color: var(--re); }
+
+/* no-flags message */
+.all-clear {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--gnb);
+  padding: 8px 0 2px;
+}
+
+/* ── SMART ATTRIBUTES TABLE ── */
+.smart-header, .smart-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 72px 72px 42px 86px;
+  gap: 0;
+}
+.smart-header {
+  padding: 3px 0 5px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 3px;
+}
+.sm-th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t4);
+  font-weight: 600;
+}
+.smart-row {
+  padding: 4.5px 0;
+  border-bottom: 1px solid rgba(62,64,80,0.4);
+  transition: background .08s;
+  cursor: default;
+}
+.smart-row:hover { background: rgba(255,255,255,0.015); }
+.smart-row:last-child { border-bottom: none; }
+.sm-id { font-size: 10px; color: var(--t5); font-family: 'SF Mono', monospace; }
+.sm-name { font-size: 11px; color: var(--t3); }
+.sm-name.flagged { color: var(--t2); font-weight: 500; }
+.sm-val { font-size: 11px; font-weight: 500; color: var(--t2); }
+.sm-val.warn { color: var(--wa); }
+.sm-val.crit { color: var(--re); }
+.sm-raw { font-size: 10px; color: var(--t5); font-family: 'SF Mono', monospace; }
+.sm-thresh { font-size: 10px; color: var(--t5); font-family: 'SF Mono', monospace; }
+.sm-norm-cell { display: flex; align-items: center; gap: 5px; }
+.sm-bar-track { flex: 1; height: 2px; background: var(--bp); border-radius: 99px; overflow: hidden; }
+.sm-bar-fill { height: 100%; border-radius: 99px; }
+.sm-norm-val { font-size: 9px; color: var(--t4); min-width: 22px; text-align: right; }
+
+/* ── REPORT ── */
+.report-wrap {
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bd);
+}
+.report-title { font-size: 14px; font-weight: 700; color: var(--t1); margin-bottom: 5px; }
+.report-meta { font-size: 10px; color: var(--t4); font-family: 'SF Mono', monospace; line-height: 1.9; }
+.report-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.rbtn {
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 0.5px solid var(--bd2);
+  background: none;
+  color: var(--t2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color .1s, border-color .1s;
+}
+.rbtn:hover { color: var(--t1); border-color: var(--t3); }
+.rbtn.primary {
+  background: var(--cy);
+  border-color: var(--cy);
+  color: #081820;
+  font-weight: 700;
+}
+.rbtn.primary:hover { background: var(--cn); border-color: var(--cn); }
+
+.verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.verdict.vg { background: var(--gbg); border: 1px solid rgba(20,192,80,0.22); }
+.verdict.vw { background: var(--wbg); border: 1px solid rgba(255,157,46,0.22); }
+.verdict.vr { background: var(--rbg); border: 1px solid rgba(255,112,112,0.22); }
+.verdict-icon { font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.verdict-text { font-size: 12.5px; font-weight: 600; color: var(--t1); margin-bottom: 3px; }
+.verdict-sub { font-size: 11px; color: var(--t3); line-height: 1.5; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.stat-cell {
+  background: var(--bp);
+  border: 1px solid var(--bd);
+  border-radius: 7px;
+  padding: 7px 10px;
+}
+.stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--t4);
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.stat-val { font-size: 14px; font-weight: 700; color: var(--t1); }
+
+.report-section-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--t4);
+  font-weight: 600;
+  margin: 12px 0 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--bd);
+}
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(62,64,80,0.4);
+  font-size: 11px;
+}
+.hist-row:last-child { border-bottom: none; }
+.hist-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.hist-name { flex: 1; color: var(--t2); }
+.hist-result { font-size: 11px; font-weight: 500; }
+.hist-dur { font-size: 10px; color: var(--t4); font-family: 'SF Mono', monospace; min-width: 52px; text-align: right; }
+.hist-when { font-size: 10px; color: var(--t4); min-width: 80px; text-align: right; }
+
+.report-footer {
+  font-size: 10px;
+  color: var(--t5);
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--bd);
+  line-height: 1.6;
+}
+
+.empty { padding: 28px; text-align: center; color: var(--t4); font-size: 12px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div class="page-label">
+    drivecheck
+    <span>/ workspace panel — health tab mockup</span>
+  </div>
+
+  <!-- DRIVE CARDS (stand-in) -->
+  <div class="card-row" id="card-row"></div>
+
+  <!-- WORKSPACE PANEL -->
+  <div class="panel">
+
+    <!-- Workspace tab bar -->
+    <div class="topbar">
+      <button class="wtab"><i class="ti ti-history"></i> History</button>
+      <button class="wtab on"><i class="ti ti-heart-rate-monitor"></i> Health</button>
+      <button class="wtab"><i class="ti ti-list-check"></i> Queue <span class="qbadge">5</span></button>
+      <button class="wtab run"><i class="ti ti-player-play"></i> Run task</button>
+    </div>
+
+    <!-- Health sub-tabs -->
+    <div class="subbar">
+      <button class="stab on" onclick="goSub('overview', this)">Overview</button>
+      <button class="stab" onclick="goSub('smart', this)">SMART attributes</button>
+      <button class="stab" onclick="goSub('report', this)">Report</button>
+      <div class="stab-right">
+        <button class="icon-btn" onclick="goSub('report', document.querySelectorAll('.stab')[2])">
+          <i class="ti ti-file-export"></i> Export report
+        </button>
+      </div>
+    </div>
+
+    <!-- Drive selector strip -->
+    <div class="dstrip" id="dstrip"></div>
+
+    <!-- Sub-page body -->
+    <div id="sub-body"></div>
+
+  </div>
+</div>
+
+<script>
+const drives = [
+  {
+    id: 0, name: "WD Red Plus 4TB", lbl: "NAS pool #3",
+    dev: "/dev/sda", ser: "WD-WX21D94HK3L2",
+    type: "HDD", cap: "4 TB", bus: "SATA III · 6 Gb/s",
+    temp: 34, tw: false, mt: true,
+    hlth: "Healthy", hp: 94, hcls: "bg", hbar: "ot-g", mccls: "mc-green", poh: 14302,
+    sm: [
+      { id:"01", n:"Read error rate",       v:"0",         r:"0000000000", t:"6",  nm:200, f:null },
+      { id:"03", n:"Spin-up time",          v:"141 ms",    r:"000000008d", t:"0",  nm:97,  f:null },
+      { id:"04", n:"Start/stop count",      v:"312",       r:"0000000138", t:"0",  nm:99,  f:null },
+      { id:"05", n:"Reallocated sectors",   v:"0",         r:"0000000000", t:"36", nm:200, f:null },
+      { id:"07", n:"Seek error rate",       v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"09", n:"Power-on hours",        v:"14,302 h",  r:"0000003806", t:"0",  nm:83,  f:null },
+      { id:"0A", n:"Spin retry count",      v:"2",         r:"0000000002", t:"0",  nm:100, f:null },
+      { id:"0C", n:"Power cycle count",     v:"89",        r:"0000000059", t:"0",  nm:100, f:null },
+      { id:"BB", n:"Uncorrectable errors",  v:"0",         r:"0000000000", t:"0",  nm:100, f:null },
+      { id:"BC", n:"Command timeout",       v:"0",         r:"0000000000", t:"0",  nm:100, f:null },
+      { id:"BE", n:"Airflow temperature",   v:"34°C",      r:"001a162200", t:"45", nm:71,  f:null },
+      { id:"C0", n:"Power-off retract ct.", v:"0",         r:"0000000000", t:"0",  nm:100, f:null },
+      { id:"C1", n:"Load/unload cycles",    v:"4,291",     r:"0000010c3",  t:"0",  nm:95,  f:null },
+      { id:"C2", n:"Temperature",           v:"34°C",      r:"0000000022", t:"0",  nm:71,  f:null },
+      { id:"C4", n:"Realloc. event count",  v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"C5", n:"Pending sectors",       v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"C6", n:"Offline uncorrectable", v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"C7", n:"UDMA CRC errors",       v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"F0", n:"Head flying hours",     v:"13,901 h",  r:"0000003645", t:"0",  nm:100, f:null },
+      { id:"F1", n:"Total LBAs written",    v:"24.8 TB",   r:"0018f4e291", t:"0",  nm:100, f:null },
+      { id:"F2", n:"Total LBAs read",       v:"31.2 TB",   r:"001ee12a08", t:"0",  nm:100, f:null },
+    ],
+    io: { r:"12.4", w:"0" },
+    hist: [
+      ["Extended SMART test", "Passed",  "2 days ago",  "14m 22s", "#14c050"],
+      ["Badblocks read-only", "Passed",  "9 days ago",  "6h 14m",  "#14c050"],
+      ["SMART short test",    "Passed",  "16 days ago", "2m 04s",  "#14c050"],
+      ["Extended SMART test", "Passed",  "30 days ago", "14m 11s", "#14c050"],
+    ],
+    th: [31,32,33,34,33,34,35,34,34,33,34,34],
+    rl: [0,0,0,0,0,0,0,0,0,0,0,0],
+  },
+  {
+    id: 1, name: "Seagate Barracuda 2TB", lbl: "spare pool",
+    dev: "/dev/sdc", ser: "Z3054MQK",
+    type: "HDD", cap: "2 TB", bus: "USB 3.0 · 5 Gb/s",
+    temp: 51, tw: true, mt: false,
+    hlth: "Degraded", hp: 61, hcls: "bw", hbar: "ot-w", mccls: "mc-warn", poh: 38901,
+    sm: [
+      { id:"01", n:"Read error rate",       v:"3",         r:"0000000003", t:"6",  nm:73,  f:"warn" },
+      { id:"03", n:"Spin-up time",          v:"588 ms",    r:"0000000248", t:"0",  nm:62,  f:null },
+      { id:"04", n:"Start/stop count",      v:"1,204",     r:"0000004b4",  t:"0",  nm:88,  f:null },
+      { id:"05", n:"Reallocated sectors",   v:"47",        r:"000000002f", t:"36", nm:68,  f:"warn" },
+      { id:"07", n:"Seek error rate",       v:"0",         r:"0000000000", t:"0",  nm:70,  f:null },
+      { id:"09", n:"Power-on hours",        v:"38,901 h",  r:"0000009795", t:"0",  nm:28,  f:null },
+      { id:"0C", n:"Power cycle count",     v:"831",       r:"000000033f", t:"0",  nm:88,  f:null },
+      { id:"BB", n:"Uncorrectable errors",  v:"0",         r:"0000000000", t:"0",  nm:100, f:null },
+      { id:"BC", n:"Command timeout",       v:"12",        r:"000000000c", t:"0",  nm:99,  f:null },
+      { id:"BE", n:"Airflow temperature",   v:"51°C",      r:"003301140a", t:"45", nm:42,  f:"warn" },
+      { id:"C0", n:"Power-off retract ct.", v:"42",        r:"000000002a", t:"0",  nm:100, f:null },
+      { id:"C1", n:"Load/unload cycles",    v:"18,442",    r:"000047ca",   t:"0",  nm:71,  f:null },
+      { id:"C2", n:"Temperature",           v:"51°C",      r:"0000000033", t:"0",  nm:42,  f:"warn" },
+      { id:"C4", n:"Realloc. event count",  v:"47",        r:"000000002f", t:"0",  nm:68,  f:"warn" },
+      { id:"C5", n:"Pending sectors",       v:"9",         r:"0000000009", t:"0",  nm:200, f:"warn" },
+      { id:"C6", n:"Offline uncorrectable", v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"C7", n:"UDMA CRC errors",       v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"F1", n:"Total LBAs written",    v:"8.2 TB",    r:"000800a291", t:"0",  nm:100, f:null },
+      { id:"F2", n:"Total LBAs read",       v:"12.1 TB",   r:"000c1b2a08", t:"0",  nm:100, f:null },
+    ],
+    io: { r:"3.1", w:"0" },
+    hist: [
+      ["Badblocks read-only", "Running", "today",       "—",       "#18c4ee"],
+      ["SMART short test",    "Passed",  "5 days ago",  "2m 08s",  "#14c050"],
+      ["Extended SMART test", "Passed",  "21 days ago", "15m 33s", "#14c050"],
+      ["Badblocks read-only", "Passed",  "42 days ago", "6h 02m",  "#14c050"],
+    ],
+    th: [38,40,42,44,46,47,49,50,51,51,52,51],
+    rl: [0,0,0,4,4,12,12,28,28,38,47,47],
+  },
+  {
+    id: 2, name: "Toshiba X300 8TB", lbl: "archive-cold",
+    dev: "/dev/sdd", ser: "Y8JKT2A1F03",
+    type: "HDD", cap: "8 TB", bus: "SATA III · 6 Gb/s",
+    temp: 38, tw: false, mt: false,
+    hlth: "Failing", hp: 12, hcls: "br", hbar: "ot-r", mccls: "mc-red", poh: 52108,
+    sm: [
+      { id:"01", n:"Read error rate",       v:"7",         r:"0000000007", t:"6",  nm:51,  f:"crit" },
+      { id:"05", n:"Reallocated sectors",   v:"284",       r:"000000011c", t:"36", nm:1,   f:"crit" },
+      { id:"09", n:"Power-on hours",        v:"52,108 h",  r:"000000cbd4", t:"0",  nm:11,  f:null },
+      { id:"0A", n:"Spin retry count",      v:"0",         r:"0000000000", t:"0",  nm:100, f:null },
+      { id:"BB", n:"Uncorrectable errors",  v:"3",         r:"0000000003", t:"0",  nm:100, f:"crit" },
+      { id:"BE", n:"Airflow temperature",   v:"38°C",      r:"001a1a2600", t:"45", nm:62,  f:null },
+      { id:"C4", n:"Realloc. event count",  v:"284",       r:"000000011c", t:"0",  nm:1,   f:"crit" },
+      { id:"C5", n:"Pending sectors",       v:"18",        r:"0000000012", t:"0",  nm:200, f:"warn" },
+      { id:"C6", n:"Offline uncorrectable", v:"3",         r:"0000000003", t:"0",  nm:200, f:"crit" },
+      { id:"C7", n:"UDMA CRC errors",       v:"0",         r:"0000000000", t:"0",  nm:200, f:null },
+      { id:"F1", n:"Total LBAs written",    v:"61.4 TB",   r:"003d8c4291", t:"0",  nm:45,  f:null },
+      { id:"F2", n:"Total LBAs read",       v:"82.7 TB",   r:"0052b1aa08", t:"0",  nm:38,  f:null },
+    ],
+    io: { r:"18", w:"12" },
+    hist: [
+      ["SMART short test",    "Failed",  "today",       "2m 14s",  "#ff7070"],
+      ["Extended SMART test", "Failed",  "3 days ago",  "15m 02s", "#ff7070"],
+      ["Badblocks read-only", "Passed",  "18 days ago", "11h 44m", "#14c050"],
+      ["SMART short test",    "Passed",  "25 days ago", "2m 09s",  "#14c050"],
+    ],
+    th: [35,36,36,37,37,38,38,39,38,38,38,38],
+    rl: [12,28,44,80,120,160,200,230,258,270,280,284],
+  },
+];
+
+let selDrive = 0;
+let subPage = "overview";
+
+// ── MINI CARDS ──
+function renderCards() {
+  document.getElementById('card-row').innerHTML = drives.map(d => `
+    <div class="mini-card ${d.mccls}${selDrive===d.id?' sel':''}" onclick="setDrive(${d.id})">
+      <div class="mc-sel-ring"><div class="mc-dot"></div></div>
+      <div class="mc-info">
+        <div class="mc-name">${d.name} <span style="font-size:10px;font-weight:400;color:var(--t4)">(${d.lbl})</span></div>
+        <div class="mc-sub">${d.type} · ${d.cap} · ${d.dev}</div>
+      </div>
+      <span class="mc-badge ${d.hcls}">${d.hp}% · ${d.hlth}</span>
+    </div>`).join('');
+}
+
+// ── DRIVE STRIP ──
+function renderStrip() {
+  const colorOf = d => d.hbar==='ot-g' ? 'var(--gn)' : d.hbar==='ot-w' ? 'var(--wa)' : 'var(--re)';
+  document.getElementById('dstrip').innerHTML =
+    '<span class="dstrip-label">Viewing</span>' +
+    drives.map(d => `
+      <button class="dchip${selDrive===d.id?' on':''}" onclick="setDrive(${d.id})">
+        <span class="dchip-dot" style="background:${colorOf(d)}"></span>
+        ${d.name}
+        <span class="dchip-dev">${d.dev}</span>
+      </button>`).join('');
+}
+
+// ── SECTION HEADER ──
+function sectionHead(d) {
+  return `<div class="sh">
+    <span class="sh-badge ${d.hcls}">${d.hp}% · ${d.hlth}</span>
+    <span class="sh-name">${d.name}</span>
+    <span class="sh-serial">${d.ser}</span>
+    <div class="sh-right">
+      <span class="${d.tw ? 'sh-temp-warn' : 'sh-temp-ok'}">${d.temp}°C${d.tw?' ⚠':''}</span>
+      <span>${d.dev} · ${d.type} · ${d.cap}</span>
+      <span class="${d.mt ? 'sh-mount-yes' : 'sh-mount-no'}">${d.mt ? '● mounted' : '● unmounted'}</span>
+      <span class="io-r"><i class="ti ti-arrow-up" style="font-size:9px"></i> ${d.io.r} MB/s</span>
+      <span class="io-w"><i class="ti ti-arrow-down" style="font-size:9px"></i> ${d.io.w} MB/s</span>
+    </div>
+  </div>`;
+}
+
+// ── SPARKLINE ──
+function sparkLine(vals, colorFn) {
+  const mn = Math.min(...vals), mx = Math.max(...vals) || 1;
+  return vals.map(v => {
+    const h = Math.max(3, Math.round(((v - mn) / (mx - mn || 1)) * 22 + 3));
+    return `<div class="spark-bar" style="height:${h}px;background:${colorFn(v)};opacity:.8"></div>`;
+  }).join('');
+}
+
+// ── OVERVIEW ──
+function overviewHTML() {
+  const d = drives[selDrive];
+  const flags = d.sm.filter(s => s.f);
+  const critCount = flags.filter(s => s.f === 'crit').length;
+  const warnCount = flags.filter(s => s.f === 'warn').length;
+  const rlNow = d.rl[d.rl.length - 1];
+  const rlTrend = (() => {
+    const tail = d.rl.slice(-4);
+    return tail[tail.length-1] > tail[0] ? 'increasing' : 'stable';
+  })();
+  const lastTest = d.hist[0];
+  const lastResultColor = lastTest[1]==='Passed' ? 'var(--gnb)' : lastTest[1]==='Running' ? 'var(--cy)' : 'var(--re)';
+  const lastTileBar = (lastTest[1]==='Passed'||lastTest[1]==='Running') ? 'ot-g' : 'ot-r';
+
+  return `
+    <div class="body">
+      <div class="sec">
+        ${sectionHead(d)}
+        <div class="ov-grid">
+
+          <div class="ot ${d.hbar}">
+            <div class="ot-label">Health score</div>
+            <div class="ot-val">${d.hp}%</div>
+            <div class="ot-sub">${d.hlth} · updated just now</div>
+          </div>
+
+          <div class="ot ${d.tw ? 'ot-w' : 'ot-g'}">
+            <div class="ot-label">Temperature · 12h trend</div>
+            <div class="spark">${sparkLine(d.th, v => v>=50?'var(--re)':v>=45?'var(--wa)':'var(--cy)')}</div>
+            <div class="ot-sub" style="color:${d.tw?'var(--wa)':'var(--t3)'}">${d.temp}°C now &nbsp;·&nbsp; ${Math.min(...d.th)}–${Math.max(...d.th)}°C range</div>
+          </div>
+
+          <div class="ot ${(critCount+warnCount) > 0 ? (critCount > 0 ? 'ot-r' : 'ot-w') : 'ot-g'}">
+            <div class="ot-label">SMART flags</div>
+            <div class="ot-val" style="color:${critCount>0?'var(--re)':warnCount>0?'var(--wa)':'var(--gnb)'}">${critCount + warnCount}</div>
+            <div class="ot-sub">${critCount} critical &nbsp;·&nbsp; ${warnCount} warning</div>
+          </div>
+
+          <div class="ot ot-n">
+            <div class="ot-label">Power-on time</div>
+            <div class="ot-val">${d.poh.toLocaleString()}<span style="font-size:11px;font-weight:400;color:var(--t3)">h</span></div>
+            <div class="ot-sub">${(d.poh / 24 / 365).toFixed(1)} years estimated</div>
+          </div>
+
+          <div class="ot ${rlNow > 0 ? 'ot-w' : 'ot-g'}">
+            <div class="ot-label">Reallocated sectors · trend</div>
+            <div class="spark">${sparkLine(d.rl.map(v => v || 0.5), v => v > 0 ? 'var(--wa)' : 'var(--bd2)')}</div>
+            <div class="ot-sub" style="color:${rlNow>0?'var(--wa)':'var(--t3)'}">${rlNow} current &nbsp;·&nbsp; ${rlTrend}</div>
+          </div>
+
+          <div class="ot ${lastTileBar}">
+            <div class="ot-label">Last test run</div>
+            <div class="ot-val" style="font-size:13px;line-height:1.2">${lastTest[0]}</div>
+            <div class="ot-sub" style="color:${lastResultColor}">${lastTest[1]} &nbsp;·&nbsp; ${lastTest[2]}</div>
+          </div>
+
+        </div>
+
+        ${flags.length > 0 ? `
+          <div class="section-label">Flagged attributes</div>
+          ${flags.map(s => `
+            <div class="flag-row">
+              <span class="flag-dot" style="background:${s.f==='crit'?'var(--re)':'var(--wa)'}"></span>
+              <span class="flag-id">${s.id}</span>
+              <span class="flag-name">${s.n}</span>
+              <span class="flag-val" style="color:${s.f==='crit'?'var(--re)':'var(--wa)'}">${s.v}</span>
+              <span class="warn-badge ${s.f==='crit'?'wb-c':'wb-w'}">${s.f}</span>
+            </div>`).join('')}
+        ` : `
+          <div class="all-clear">
+            <i class="ti ti-circle-check" style="font-size:14px"></i>
+            All SMART attributes within normal thresholds
+          </div>
+        `}
+      </div>
+    </div>`;
+}
+
+// ── SMART ATTRIBUTES ──
+function smartHTML() {
+  const d = drives[selDrive];
+  const flagged = d.sm.filter(s => s.f);
+  const clean   = d.sm.filter(s => !s.f);
+
+  function rows(list) {
+    return list.map(s => `
+      <div class="smart-row">
+        <div class="sm-id">${s.id}</div>
+        <div class="sm-name${s.f?' flagged':''}">${s.n}</div>
+        <div class="sm-val${s.f==='crit'?' crit':s.f==='warn'?' warn':''}">${s.v}${s.f ? ' ⚠' : ''}</div>
+        <div class="sm-raw">${s.r}</div>
+        <div class="sm-thresh">${s.t}</div>
+        <div class="sm-norm-cell">
+          <div class="sm-bar-track">
+            <div class="sm-bar-fill" style="width:${Math.min(s.nm,100)}%;background:${s.f==='crit'?'var(--re)':s.f==='warn'?'var(--wa)':'var(--cy)'}"></div>
+          </div>
+          <span class="sm-norm-val">${s.nm}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  return `
+    <div class="body">
+      ${sectionHead(d)}
+      <div class="smart-header">
+        <div class="sm-th">ID</div>
+        <div class="sm-th">Attribute</div>
+        <div class="sm-th">Value</div>
+        <div class="sm-th">Raw hex</div>
+        <div class="sm-th">Thresh</div>
+        <div class="sm-th">Normalized</div>
+      </div>
+      ${flagged.length ? `
+        <div class="section-label" style="padding-top:4px">Flagged</div>
+        ${rows(flagged)}
+        <div class="section-label">All attributes</div>
+      ` : ''}
+      ${rows(clean)}
+    </div>`;
+}
+
+// ── REPORT ──
+function reportHTML() {
+  const d = drives[selDrive];
+  const flags = d.sm.filter(s => s.f);
+  const critCount = flags.filter(s => s.f === 'crit').length;
+
+  const verdict = critCount > 0
+    ? { cls:'vr', icon:'✗', col:'var(--re)',
+        text: 'Drive is failing',
+        sub: `${critCount} critical SMART attribute${critCount>1?'s':''} exceeded failure threshold. Replace immediately and begin data recovery.` }
+    : flags.length > 0
+    ? { cls:'vw', icon:'⚠', col:'var(--wa)',
+        text: 'Drive showing signs of degradation',
+        sub: `${flags.length} attribute${flags.length>1?'s':''} outside normal range. Back up data now and monitor closely. Schedule extended testing.` }
+    : { cls:'vg', icon:'✓', col:'var(--gnb)',
+        text: 'Drive appears healthy',
+        sub: 'No SMART attributes outside thresholds. Recommend routine testing every 30 days.' };
+
+  const now = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  return `
+    <div class="body">
+      <div class="report-wrap">
+
+        <div class="report-head">
+          <div>
+            <div class="report-title">
+              ${d.name}
+              <span style="font-size:10px;font-weight:400;color:var(--t4)">(${d.lbl})</span>
+            </div>
+            <div class="report-meta">
+              Serial: ${d.ser} &nbsp;·&nbsp; ${d.type} &nbsp;·&nbsp; ${d.cap} &nbsp;·&nbsp; ${d.bus}<br>
+              Path: ${d.dev} &nbsp;·&nbsp; POH: ${d.poh.toLocaleString()}h &nbsp;·&nbsp; Generated: ${now} &nbsp;·&nbsp; drivecheck v0.1
+            </div>
+          </div>
+          <div class="report-actions">
+            <button class="rbtn"><i class="ti ti-world"></i> Open in browser</button>
+            <button class="rbtn primary"><i class="ti ti-download"></i> Export HTML</button>
+          </div>
+        </div>
+
+        <div class="verdict ${verdict.cls}">
+          <div class="verdict-icon" style="color:${verdict.col}">${verdict.icon}</div>
+          <div>
+            <div class="verdict-text">${verdict.text}</div>
+            <div class="verdict-sub">${verdict.sub}</div>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-cell">
+            <div class="stat-label">Health score</div>
+            <div class="stat-val" style="color:${d.hbar==='ot-g'?'var(--gnb)':d.hbar==='ot-w'?'var(--wa)':'var(--re)'}">${d.hp}%</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">Power-on time</div>
+            <div class="stat-val">${d.poh.toLocaleString()}h</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">SMART flags</div>
+            <div class="stat-val" style="color:${flags.length>0?(critCount>0?'var(--re)':'var(--wa)'):'var(--gnb)'}">${flags.length}</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">Temperature</div>
+            <div class="stat-val" style="color:${d.tw?'var(--re)':'var(--t1)'}">${d.temp}°C</div>
+          </div>
+        </div>
+
+        <div class="report-section-label">Test history</div>
+        ${d.hist.map(([n,r,w,dur,c]) => `
+          <div class="hist-row">
+            <span class="hist-dot" style="background:${c}"></span>
+            <span class="hist-name">${n}</span>
+            <span class="hist-result" style="color:${c}">${r}</span>
+            <span class="hist-dur">${dur}</span>
+            <span class="hist-when">${w}</span>
+          </div>`).join('')}
+
+        ${flags.length > 0 ? `
+          <div class="report-section-label">Flagged SMART attributes</div>
+          ${flags.map(s => `
+            <div class="hist-row">
+              <span class="hist-dot" style="background:${s.f==='crit'?'var(--re)':'var(--wa)'}"></span>
+              <span class="flag-id">${s.id}</span>
+              <span class="hist-name">${s.n}</span>
+              <span class="hist-result" style="color:${s.f==='crit'?'var(--re)':'var(--wa)'}">${s.v}</span>
+              <span class="warn-badge ${s.f==='crit'?'wb-c':'wb-w'}" style="margin-left:4px">${s.f}</span>
+            </div>`).join('')}
+        ` : ''}
+
+        <div class="report-footer">
+          SMART data sourced directly from kernel driver via libata/nvme. Raw values are device-reported and may vary by firmware interpretation.<br>
+          This report is informational only and is not a substitute for professional data recovery assessment.
+        </div>
+
+      </div>
+    </div>`;
+}
+
+// ── ROUTING ──
+function setDrive(id) {
+  selDrive = id;
+  renderCards();
+  renderStrip();
+  renderSub();
+}
+
+function goSub(s, el) {
+  subPage = s;
+  document.querySelectorAll('.stab').forEach(x => x.classList.remove('on'));
+  el.classList.add('on');
+  renderSub();
+}
+
+function renderSub() {
+  const b = document.getElementById('sub-body');
+  if (subPage === 'overview') b.innerHTML = overviewHTML();
+  else if (subPage === 'smart') b.innerHTML = smartHTML();
+  else b.innerHTML = reportHTML();
+}
+
+renderCards();
+renderStrip();
+renderSub();
+</script>
+</body>
+</html>

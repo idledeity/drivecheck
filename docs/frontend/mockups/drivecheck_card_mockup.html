@@ -1,0 +1,308 @@
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+
+.section-label {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 1rem 0;
+}
+
+.drive-card {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.drive-card.active {
+  border-color: #378ADD;
+  border-width: 1.5px;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.drive-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drive-path {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.health-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+
+.health-good { background: #EAF3DE; color: #3B6D11; }
+.health-warn { background: #FAEEDA; color: #854F0B; }
+.health-bad  { background: #FCEBEB; color: #A32D2D; }
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.meta-item i { font-size: 13px; color: var(--color-text-tertiary); }
+
+.meta-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.temp-hot { color: #D85A30; }
+.temp-ok  { color: #1D9E75; }
+
+.serial-row {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.divider {
+  height: 0.5px;
+  background: var(--color-border-tertiary);
+}
+
+.progress-section {}
+
+.progress-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.progress-task {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.progress-task i { font-size: 13px; }
+
+.progress-pct {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.progress-bar-bg {
+  height: 5px;
+  background: var(--color-background-secondary);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: #378ADD;
+}
+
+.progress-bar-fill.complete { background: #1D9E75; }
+
+.idle-label {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.action-btn i { font-size: 13px; }
+.action-btn:hover { background: var(--color-background-tertiary); }
+
+.compact-card {
+  padding: 10px 12px;
+  gap: 7px;
+}
+
+.compact-card .drive-name { font-size: 13px; }
+.compact-card .meta-row { gap: 8px; }
+.compact-card .meta-item { font-size: 11px; }
+
+.label-above {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 12px;
+}
+</style>
+
+<h2 class="sr-only">Drive card mockup showing two states: default comfortable width and compressed width</h2>
+
+<p class="section-label">Default — comfortable width (2-col landscape grid)</p>
+
+<div class="card-grid">
+
+  <div class="drive-card active">
+    <div class="card-row">
+      <div class="health-dot" style="background:#639922;"></div>
+      <span class="drive-name">WD Red 4TB</span>
+      <span class="health-badge health-good">94% healthy</span>
+    </div>
+
+    <div class="meta-row">
+      <span class="meta-item"><i class="ti ti-cpu" aria-hidden="true"></i><span class="meta-value">HDD</span></span>
+      <span class="meta-item"><i class="ti ti-database" aria-hidden="true"></i><span class="meta-value">4 TB</span></span>
+      <span class="meta-item"><i class="ti ti-temperature" aria-hidden="true"></i><span class="meta-value temp-ok">34°C</span></span>
+      <span class="meta-item"><i class="ti ti-server" aria-hidden="true"></i><span class="meta-value">/dev/sda</span></span>
+    </div>
+
+    <div class="serial-row">S/N: WD-WX21D94HK3L2</div>
+
+    <div class="divider"></div>
+
+    <div class="progress-section">
+      <div class="progress-label-row">
+        <span class="progress-task"><i class="ti ti-player-play" aria-hidden="true"></i>Extended SMART test</span>
+        <span class="progress-pct">62%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:62%;"></div>
+      </div>
+    </div>
+
+    <div class="card-actions">
+      <button class="action-btn"><i class="ti ti-chart-bar" aria-hidden="true"></i>SMART</button>
+      <button class="action-btn"><i class="ti ti-file-text" aria-hidden="true"></i>Report</button>
+      <button class="action-btn"><i class="ti ti-history" aria-hidden="true"></i>History</button>
+      <button class="action-btn"><i class="ti ti-list" aria-hidden="true"></i>Tasks</button>
+    </div>
+  </div>
+
+  <div class="drive-card">
+    <div class="card-row">
+      <div class="health-dot" style="background:#E24B4A;"></div>
+      <span class="drive-name">Seagate Barracuda 2TB</span>
+      <span class="health-badge health-bad">Failing</span>
+    </div>
+
+    <div class="meta-row">
+      <span class="meta-item"><i class="ti ti-cpu" aria-hidden="true"></i><span class="meta-value">HDD</span></span>
+      <span class="meta-item"><i class="ti ti-database" aria-hidden="true"></i><span class="meta-value">2 TB</span></span>
+      <span class="meta-item"><i class="ti ti-temperature" aria-hidden="true"></i><span class="meta-value temp-hot">51°C</span></span>
+      <span class="meta-item"><i class="ti ti-server" aria-hidden="true"></i><span class="meta-value">/dev/sdc</span></span>
+    </div>
+
+    <div class="serial-row">S/N: Z3054MQK</div>
+
+    <div class="divider"></div>
+
+    <div class="progress-section">
+      <span class="idle-label"><i class="ti ti-clock" aria-hidden="true"></i>Last test: 2 days ago</span>
+    </div>
+
+    <div class="card-actions">
+      <button class="action-btn"><i class="ti ti-chart-bar" aria-hidden="true"></i>SMART</button>
+      <button class="action-btn"><i class="ti ti-file-text" aria-hidden="true"></i>Report</button>
+      <button class="action-btn"><i class="ti ti-history" aria-hidden="true"></i>History</button>
+      <button class="action-btn"><i class="ti ti-list" aria-hidden="true"></i>Tasks</button>
+    </div>
+  </div>
+
+</div>
+
+<p class="section-label" style="margin-top:1.5rem;">Compressed — narrow width (details panel expanded, or portrait mobile)</p>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; padding-bottom:1rem;">
+
+  <div class="drive-card compact-card">
+    <div class="card-row">
+      <div class="health-dot" style="background:#639922;"></div>
+      <span class="drive-name">WD Red 4TB</span>
+      <span class="health-badge health-good">94%</span>
+    </div>
+    <div class="meta-row">
+      <span class="meta-item"><i class="ti ti-database" aria-hidden="true"></i><span class="meta-value">4 TB</span></span>
+      <span class="meta-item"><i class="ti ti-temperature" aria-hidden="true"></i><span class="meta-value temp-ok">34°C</span></span>
+      <span class="meta-item"><i class="ti ti-server" aria-hidden="true"></i><span class="meta-value">/dev/sda</span></span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" style="width:62%;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--color-text-tertiary);">Extended SMART test · 62%</div>
+  </div>
+
+  <div class="drive-card compact-card">
+    <div class="card-row">
+      <div class="health-dot" style="background:#E24B4A;"></div>
+      <span class="drive-name">Seagate 2TB</span>
+      <span class="health-badge health-bad">Fail</span>
+    </div>
+    <div class="meta-row">
+      <span class="meta-item"><i class="ti ti-database" aria-hidden="true"></i><span class="meta-value">2 TB</span></span>
+      <span class="meta-item"><i class="ti ti-temperature" aria-hidden="true"></i><span class="meta-value temp-hot">51°C</span></span>
+      <span class="meta-item"><i class="ti ti-server" aria-hidden="true"></i><span class="meta-value">/dev/sdc</span></span>
+    </div>
+    <div style="font-size:11px; color:var(--color-text-tertiary); display:flex; align-items:center; gap:4px;"><i class="ti ti-clock" style="font-size:12px;" aria-hidden="true"></i>Idle · last test 2d ago</div>
+  </div>
+
+</div>

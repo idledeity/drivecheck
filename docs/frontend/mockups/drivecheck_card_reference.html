@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>drivecheck — Card & Palette Reference</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ============================================================
+   PALETTE
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg-page:        #191b20;
+  --bg-card-top:    #30323a;
+  --bg-card-btm:    #272930;
+  --bg-inset:       #1e2028;
+
+  /* Borders */
+  --bdr:            #3e4050;
+  --bdr2:           #575b70;  /* selector ring */
+
+  /* Text */
+  --t1:             #f0f0f2;  /* primary — drive name */
+  --t2:             #c8ccd6;  /* secondary — status values, task name */
+  --t3:             #a0a8b4;  /* tertiary — task status */
+  --t4:             #888fa0;  /* muted — identity row, serial, footer */
+
+  /* Accent — task/interaction */
+  --cyan-neon:      #00eeff;  /* task % */
+  --cyan-mid:       #18c4ee;  /* task bar accent, icons, progress bar */
+
+  /* Health */
+  --green:          #14c050;  /* left bar */
+  --green-neon:     #28ee84;  /* badge text, mounted indicator */
+  --green-bg:       rgba(20,192,80,0.15);
+
+  --warn:           #ff9d2e;  /* left bar */
+  --warn-bg:        rgba(255,157,46,0.14);
+
+  --red:            #ff7070;  /* left bar */
+  --red-bg:         rgba(255,112,112,0.14);
+
+  /* Selection */
+  --sel:            #a855f7;  /* ring dot + card border when selected */
+  --sel-ring-unsel: #575b70;  /* ring border when unselected */
+  --sel-ring-sel:   #8060b8;  /* ring border when selected */
+
+  /* IO */
+  --io-read:        #48ccff;
+  --io-write:       #b878ff;
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--t1);
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 32px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1 { font-size: 18px; font-weight: 700; color: var(--t1); margin-bottom: 4px; }
+.subtitle { font-size: 12px; color: var(--t4); margin-bottom: 40px; }
+
+h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--t4); margin-bottom: 14px; }
+
+/* ── Palette swatches ── */
+.palette-section { margin-bottom: 48px; }
+.swatch-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+.swatch-group h3 { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t4); margin-bottom: 8px; }
+.swatch { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.swatch-dot { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.08); }
+.swatch-info { display: flex; flex-direction: column; gap: 1px; }
+.swatch-name { font-size: 11px; color: var(--t2); }
+.swatch-hex  { font-size: 10px; color: var(--t4); font-family: 'SF Mono', 'Fira Mono', monospace; }
+
+/* ── Cards ── */
+.cards-section { margin-bottom: 48px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
+
+.drive-card {
+  background: linear-gradient(180deg, var(--bg-card-top) 0%, var(--bg-card-btm) 100%);
+  border: 1px solid var(--bdr);
+  border-radius: 12px;
+  padding: 8px 10px 0 10px;
+  display: flex; flex-direction: column; gap: 0;
+  overflow: hidden; position: relative;
+  box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 4px 14px rgba(0,0,0,0.4);
+}
+.drive-card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius:12px 0 0 12px; }
+.bar-green::before { background: var(--green); }
+.bar-warn::before  { background: var(--warn); }
+.bar-red::before   { background: var(--red); }
+.bar-grey::before  { background: var(--bdr2); }
+
+.drive-card.sel {
+  border-color: var(--sel);
+  box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 0 0 2px rgba(168,85,247,0.15), 0 4px 14px rgba(0,0,0,0.4);
+}
+
+/* Selector */
+.sel-btn {
+  width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--sel-ring-unsel);
+  display: flex; align-items: center; justify-content: center;
+}
+.sel-btn::after { content:""; width:7px; height:7px; border-radius:50%; background:transparent; }
+.drive-card.sel .sel-btn { border-color: var(--sel-ring-sel); }
+.drive-card.sel .sel-btn::after { background: var(--sel); box-shadow: 0 0 5px rgba(168,85,247,0.65); }
+
+.gap { height: 5px; }
+
+.hrow { display:flex; align-items:flex-start; gap:7px; min-width:0; }
+.tcol { flex:1; min-width:0; }
+.dname { display:flex; align-items:center; gap:7px; min-width:0; font-size:13px; font-weight:600; color:var(--t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+.dlabel { color:var(--t3); font-weight:400; }
+.irow { display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; margin-top:2px; }
+.ival { font-size:10.5px; color:var(--t4); }
+.isep { font-size:9px; color:#454858; }
+.ldr { position:relative; height:0; overflow:visible; margin-top:4px; }
+.ldr-line { position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent 0%,rgba(255,238,210,0.05) 15%,rgba(255,238,210,0.14) 55%,rgba(255,238,210,0.20) 82%,transparent 100%); }
+.ldr-line::after { content:""; position:absolute; right:1px; top:-1.5px; width:3px; height:3px; border-radius:50%; background:rgba(255,238,210,0.22); }
+
+.rcol { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0; padding-top:1px; }
+.badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; white-space:nowrap; }
+.bg { background:var(--green-bg); color:var(--green-neon); }
+.bw { background:var(--warn-bg); color:var(--warn); }
+.br { background:var(--red-bg); color:var(--red); }
+.bn { background:rgba(255,255,255,0.06); color:var(--t3); border:0.5px solid var(--bdr); }
+.sn { font-size:10px; color:var(--t4); font-family:'SF Mono','Fira Mono',monospace; white-space:nowrap; }
+
+.srow { display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
+.si { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.si i { font-size:12px; color:var(--cyan-mid); opacity:.75; }
+.sv { font-size:12px; font-weight:500; color:var(--t2); }
+.ss { font-size:10px; color:#454858; }
+.my { font-size:11.5px; font-weight:600; color:var(--green-neon); }
+.mn { font-size:11.5px; color:var(--t4); }
+.th { color:var(--red) !important; }
+
+.tz { padding:5px 0 3px 10px; display:flex; flex-direction:column; gap:4px; border-left:2px solid var(--cyan-mid); }
+.iz { border-left-color:#484c5e; }
+.th2 { display:flex; align-items:center; gap:5px; }
+.tn { font-size:11.5px; color:var(--t2); display:flex; align-items:center; gap:4px; flex:1; min-width:0; }
+.tn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tn i { font-size:11px; color:var(--cyan-mid); flex-shrink:0; }
+.tr { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.tp { font-size:11px; font-weight:600; color:var(--cyan-neon); }
+.tc { font-size:10px; background:var(--bg-inset); border:0.5px solid var(--bdr); border-radius:99px; padding:1px 6px; color:var(--t3); }
+.pb { height:3px; background:var(--bg-inset); border-radius:99px; overflow:hidden; }
+.pf { height:100%; border-radius:99px; background:linear-gradient(90deg,#0ab8e0,#00eeff); }
+.tsr { display:flex; align-items:center; min-width:0; }
+.ts { flex:1; font-size:10px; color:var(--t3); font-family:'SF Mono','Fira Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:13px; }
+.td { font-size:10px; font-weight:600; color:var(--t2); white-space:nowrap; flex-shrink:0; padding-left:6px; }
+
+.tq { display:flex; flex-direction:column; gap:3px; margin-top:2px; }
+.qi { display:flex; align-items:center; gap:6px; padding:4px 7px; background:var(--bg-inset); border-radius:6px; }
+.qn { flex:1; font-size:10px; color:var(--t2); display:flex; align-items:center; gap:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.qn i { font-size:11px; flex-shrink:0; }
+.qs { font-size:9px; padding:1px 5px; border-radius:99px; font-weight:600; flex-shrink:0; }
+.qs.run { background:rgba(24,196,238,0.15); color:var(--cyan-mid); }
+.qs.que { background:var(--bg-inset); color:var(--t3); border:0.5px solid var(--bdr); }
+
+.ft { margin:0 -10px; padding:3px 10px 5px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid rgba(255,255,255,0.07); }
+.fs { display:flex; gap:12px; flex:1; min-width:0; overflow:hidden; align-items:flex-start; }
+.ss2 { display:flex; flex-direction:column; gap:0; flex-shrink:0; }
+.sl { font-size:7.5px; color:var(--t4); text-transform:uppercase; letter-spacing:.04em; line-height:1.2; }
+.sv2 { font-size:10px; font-weight:600; color:var(--t2); line-height:1.3; }
+.sv2.w { color:var(--warn); } .sv2.c { color:var(--red); }
+.fi { display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0; }
+.ir { display:flex; align-items:center; gap:2px; font-size:8.5px; white-space:nowrap; line-height:1.4; }
+.ir.rd { color:var(--io-read); } .ir.wr { color:var(--io-write); }
+.ii { font-size:8px; }
+
+/* New drive badge */
+.new-badge { font-size:9px; font-weight:700; background:rgba(168,85,247,0.18); color:#c084fc; padding:1px 6px; border-radius:99px; flex-shrink:0; letter-spacing:.04em; }
+</style>
+</head>
+<body>
+
+<h1>drivecheck — Design Reference</h1>
+<p class="subtitle">Drive card component · Color palette · v1 · 2026</p>
+
+<!-- ═══════════════════════════════ PALETTE ═══════════════════════════════ -->
+<section class="palette-section">
+  <h2>Color Palette</h2>
+  <div class="swatch-groups">
+
+    <div class="swatch-group">
+      <h3>Backgrounds</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#191b20;"></div><div class="swatch-info"><div class="swatch-name">Page</div><div class="swatch-hex">#191b20</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#30323a;"></div><div class="swatch-info"><div class="swatch-name">Card top</div><div class="swatch-hex">#30323a</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#272930;"></div><div class="swatch-info"><div class="swatch-name">Card bottom</div><div class="swatch-hex">#272930</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#1e2028;"></div><div class="swatch-info"><div class="swatch-name">Inset</div><div class="swatch-hex">#1e2028</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Text</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#f0f0f2;"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-hex">#f0f0f2</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#c8ccd6;"></div><div class="swatch-info"><div class="swatch-name">Secondary</div><div class="swatch-hex">#c8ccd6</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#a0a8b4;"></div><div class="swatch-info"><div class="swatch-name">Tertiary</div><div class="swatch-hex">#a0a8b4</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#888fa0;"></div><div class="swatch-info"><div class="swatch-name">Muted</div><div class="swatch-hex">#888fa0</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Accent — Tasks</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#00eeff;"></div><div class="swatch-info"><div class="swatch-name">Cyan neon</div><div class="swatch-hex">#00eeff</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#18c4ee;"></div><div class="swatch-info"><div class="swatch-name">Cyan mid</div><div class="swatch-hex">#18c4ee</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Health — Healthy</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#14c050;"></div><div class="swatch-info"><div class="swatch-name">Green</div><div class="swatch-hex">#14c050</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#28ee84;"></div><div class="swatch-info"><div class="swatch-name">Green neon</div><div class="swatch-hex">#28ee84</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Health — Degraded</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#ff9d2e;"></div><div class="swatch-info"><div class="swatch-name">Warn orange</div><div class="swatch-hex">#ff9d2e</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Health — Failing</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#ff7070;"></div><div class="swatch-info"><div class="swatch-name">Red</div><div class="swatch-hex">#ff7070</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>Selection</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#a855f7;"></div><div class="swatch-info"><div class="swatch-name">Purple</div><div class="swatch-hex">#a855f7</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#575b70;"></div><div class="swatch-info"><div class="swatch-name">Ring unsel</div><div class="swatch-hex">#575b70</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#8060b8;"></div><div class="swatch-info"><div class="swatch-name">Ring sel</div><div class="swatch-hex">#8060b8</div></div></div>
+    </div>
+
+    <div class="swatch-group">
+      <h3>IO</h3>
+      <div class="swatch"><div class="swatch-dot" style="background:#48ccff;"></div><div class="swatch-info"><div class="swatch-name">Read</div><div class="swatch-hex">#48ccff</div></div></div>
+      <div class="swatch"><div class="swatch-dot" style="background:#b878ff;"></div><div class="swatch-info"><div class="swatch-name">Write</div><div class="swatch-hex">#b878ff</div></div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ CARDS ═══════════════════════════════ -->
+<section class="cards-section">
+  <h2>Card States</h2>
+  <div class="card-grid">
+
+    <!-- HEALTHY — selected, task running, queue expanded -->
+    <div class="drive-card bar-green sel">
+      <div class="hrow"><div class="tcol">
+        <div class="dname"><div class="sel-btn"></div>WD Red Plus 4TB <span class="dlabel">(NAS pool #3)</span></div>
+        <div class="irow"><span class="ival">HDD</span><span class="isep">·</span><span class="ival">4 TB</span><span class="isep">·</span><span class="ival">SATA III · 6 Gb/s</span></div>
+        <div class="ldr"><div class="ldr-line"></div></div>
+      </div><div class="rcol"><span class="badge bg">94% · Healthy</span><span class="sn">WD-WX21D94HK3L2</span></div></div>
+      <div class="gap"></div>
+      <div class="srow"><span class="si"><i class="ti ti-temperature"></i><span class="sv">34°C</span></span><span class="ss">·</span><span class="si"><i class="ti ti-server"></i><span class="sv">/dev/sda</span></span><span class="ss">·</span><span class="my">● mounted</span></div>
+      <div class="gap"></div>
+      <div class="tz">
+        <div class="th2"><div class="tn"><i class="ti ti-player-play"></i><span>Extended SMART test</span></div><div class="tr"><span class="tc">1 queued</span><span class="tp">62%</span></div></div>
+        <div class="pb"><div class="pf" style="width:62%;"></div></div>
+        <div class="tsr"><div class="ts">pass 1/1 · block 14,336/28,672</div><div class="td">~47 min</div></div>
+        <div class="tq">
+          <div class="qi"><span class="qn"><i class="ti ti-player-play"></i>Extended SMART test</span><span class="qs run">Running</span></div>
+          <div class="qi"><span class="qn"><i class="ti ti-scan"></i>Badblocks read-only</span><span class="qs que">Queued</span></div>
+        </div>
+      </div>
+      <div class="gap"></div>
+      <div class="ft"><div class="fs">
+        <div class="ss2"><div class="sl">Power-on</div><div class="sv2">14,302h</div></div>
+        <div class="ss2"><div class="sl">Realloc</div><div class="sv2">0</div></div>
+        <div class="ss2"><div class="sl">Read err</div><div class="sv2">0</div></div>
+        <div class="ss2"><div class="sl">Spin</div><div class="sv2">2</div></div>
+      </div><div class="fi">
+        <div class="ir rd"><i class="ti ti-arrow-up ii"></i> 12.4 MB/s</div>
+        <div class="ir wr"><i class="ti ti-arrow-down ii"></i> 0 MB/s</div>
+      </div></div>
+    </div>
+
+    <!-- DEGRADED — unselected, task running -->
+    <div class="drive-card bar-warn">
+      <div class="hrow"><div class="tcol">
+        <div class="dname"><div class="sel-btn"></div>Seagate Barracuda 2TB <span class="dlabel">(spare pool)</span></div>
+        <div class="irow"><span class="ival">HDD</span><span class="isep">·</span><span class="ival">2 TB</span><span class="isep">·</span><span class="ival">USB 3.0 · 5 Gb/s</span></div>
+        <div class="ldr"><div class="ldr-line"></div></div>
+      </div><div class="rcol"><span class="badge bw">61% · Degraded</span><span class="sn">Z3054MQK</span></div></div>
+      <div class="gap"></div>
+      <div class="srow"><span class="si"><i class="ti ti-temperature"></i><span class="sv th">51°C</span></span><span class="ss">·</span><span class="si"><i class="ti ti-server"></i><span class="sv">/dev/sdc</span></span><span class="ss">·</span><span class="mn">● unmounted</span></div>
+      <div class="gap"></div>
+      <div class="tz">
+        <div class="th2"><div class="tn"><i class="ti ti-scan"></i><span>Badblocks read-only</span></div><div class="tr"><span class="tp">8%</span></div></div>
+        <div class="pb"><div class="pf" style="width:8%;"></div></div>
+        <div class="tsr"><div class="ts">test 1/4 · writing 0xff · block 2,048/28,672</div><div class="td">~6h 20m</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="ft"><div class="fs">
+        <div class="ss2"><div class="sl">Power-on</div><div class="sv2">38,901h</div></div>
+        <div class="ss2"><div class="sl">Realloc</div><div class="sv2 w">47</div></div>
+        <div class="ss2"><div class="sl">Read err</div><div class="sv2 w">3</div></div>
+        <div class="ss2"><div class="sl">Spin</div><div class="sv2">0</div></div>
+      </div><div class="fi">
+        <div class="ir rd"><i class="ti ti-arrow-up ii"></i> 3.1 MB/s</div>
+        <div class="ir wr"><i class="ti ti-arrow-down ii"></i> 0 MB/s</div>
+      </div></div>
+    </div>
+
+    <!-- FAILING — unselected, idle -->
+    <div class="drive-card bar-red">
+      <div class="hrow"><div class="tcol">
+        <div class="dname"><div class="sel-btn"></div>Toshiba MQ04 1TB <span class="dlabel">(failed)</span></div>
+        <div class="irow"><span class="ival">HDD</span><span class="isep">·</span><span class="ival">1 TB</span><span class="isep">·</span><span class="ival">SATA III · 6 Gb/s</span></div>
+        <div class="ldr"><div class="ldr-line"></div></div>
+      </div><div class="rcol"><span class="badge br">12% · Failing</span><span class="sn">Y8PAK9QBF</span></div></div>
+      <div class="gap"></div>
+      <div class="srow"><span class="si"><i class="ti ti-temperature"></i><span class="sv th">58°C</span></span><span class="ss">·</span><span class="si"><i class="ti ti-server"></i><span class="sv">/dev/sdd</span></span><span class="ss">·</span><span class="mn">● unmounted</span></div>
+      <div class="gap"></div>
+      <div class="tz iz">
+        <div class="th2"><div class="tn" style="color:var(--t4);"><i class="ti ti-clock" style="color:var(--t4);"></i><span>Idle · last test 3 days ago</span></div></div>
+        <div class="pb"><div class="pf" style="width:0%;"></div></div>
+        <div class="tsr"><div class="ts">&nbsp;</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="ft"><div class="fs">
+        <div class="ss2"><div class="sl">Power-on</div><div class="sv2">52,108h</div></div>
+        <div class="ss2"><div class="sl">Realloc</div><div class="sv2 c">284</div></div>
+        <div class="ss2"><div class="sl">Read err</div><div class="sv2 c">17</div></div>
+        <div class="ss2"><div class="sl">Spin</div><div class="sv2">0</div></div>
+      </div><div class="fi">
+        <div class="ir rd"><i class="ti ti-arrow-up ii"></i> 0 MB/s</div>
+        <div class="ir wr"><i class="ti ti-arrow-down ii"></i> 0 MB/s</div>
+      </div></div>
+    </div>
+
+    <!-- NEW — unrated, idle, never evaluated -->
+    <div class="drive-card bar-grey">
+      <div class="hrow"><div class="tcol">
+        <div class="dname"><div class="sel-btn"></div>Samsung 870 EVO 1TB <span class="new-badge">NEW</span></div>
+        <div class="irow"><span class="ival">SSD</span><span class="isep">·</span><span class="ival">1 TB</span><span class="isep">·</span><span class="ival">NVMe · PCIe 3.0</span></div>
+        <div class="ldr"><div class="ldr-line"></div></div>
+      </div><div class="rcol"><span class="badge bn">Unrated</span><span class="sn">S59TNX0R604217Z</span></div></div>
+      <div class="gap"></div>
+      <div class="srow"><span class="si"><i class="ti ti-temperature"></i><span class="sv">29°C</span></span><span class="ss">·</span><span class="si"><i class="ti ti-server"></i><span class="sv">/dev/sdb</span></span><span class="ss">·</span><span class="my">● mounted</span></div>
+      <div class="gap"></div>
+      <div class="tz iz">
+        <div class="th2"><div class="tn" style="color:var(--t4);"><i class="ti ti-clock" style="color:var(--t4);"></i><span>Idle · never evaluated</span></div></div>
+        <div class="pb"><div class="pf" style="width:0%;"></div></div>
+        <div class="tsr"><div class="ts">&nbsp;</div></div>
+      </div>
+      <div class="gap"></div>
+      <div class="ft"><div class="fs">
+        <div class="ss2"><div class="sl">Power-on</div><div class="sv2">841h</div></div>
+        <div class="ss2"><div class="sl">Realloc</div><div class="sv2 w">12</div></div>
+        <div class="ss2"><div class="sl">Read err</div><div class="sv2">0</div></div>
+        <div class="ss2"><div class="sl">Media err</div><div class="sv2">0</div></div>
+      </div><div class="fi">
+        <div class="ir rd"><i class="ti ti-arrow-up ii"></i> 0 MB/s</div>
+        <div class="ir wr"><i class="ti ti-arrow-down ii"></i> 0 MB/s</div>
+      </div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ NOTES ═══════════════════════════════ -->
+<section>
+  <h2>Design Notes</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:8px;">
+    <div>
+      <p style="font-size:11px;color:var(--t3);line-height:1.7;"><strong style="color:var(--t2);">Selection model</strong><br>
+      Grey ring always visible as affordance. Purple dot + card border on selection. Purple is purely a UI/interaction color — distinct from all health colors.</p>
+      <br>
+      <p style="font-size:11px;color:var(--t3);line-height:1.7;"><strong style="color:var(--t2);">Health color roles</strong><br>
+      Left bar, badge text, health dot glow. Card background stays neutral cool-dark regardless of health state. Health color never bleeds into card background.</p>
+      <br>
+      <p style="font-size:11px;color:var(--t3);line-height:1.7;"><strong style="color:var(--t2);">Task accent</strong><br>
+      Cyan mid on task bar left border, icons, progress bar. Cyan neon on task %. These are the only two cyan uses — all other elements use grey text hierarchy.</p>
+    </div>
+    <div>
+      <p style="font-size:11px;color:var(--t3);line-height:1.7;"><strong style="color:var(--t2);">Card anatomy (top → bottom)</strong><br>
+      1. Header: selector · drive name · health badge · serial<br>
+      2. Identity row: type · capacity · bus · speed (immutable)<br>
+      3. Status row: temp · /dev/path · mount status (live)<br>
+      4. Task zone: name · progress · status text (expandable)<br>
+      5. Footer: SMART stats · stacked IO</p>
+      <br>
+      <p style="font-size:11px;color:var(--t3);line-height:1.7;"><strong style="color:var(--t2);">Leader line</strong><br>
+      Zero-height warm-white gradient underline of identity row. Bridges the visual gap between left content and right-aligned badge/serial. Decorative only.</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
