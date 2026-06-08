@@ -4,6 +4,9 @@ auth:
   username: admin
   password_hash: ""  # bcrypt hash — generate with scripts/hash_password.py (TODO)
 
+collector:
+  poll_interval: 300  # seconds
+
 data:
   dir: ./data
 

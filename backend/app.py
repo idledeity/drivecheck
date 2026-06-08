@@ -1,21 +1,24 @@
 from flask import Flask, jsonify
 from config import CONFIG
-from models import DriveType
-from probes.scan.smartctl_scan import run as scan_drives
-from probes.traits.smartctl_traits import run as fetch_traits
+from collector import Collector
+
+collector = Collector(poll_interval=CONFIG["collector"]["poll_interval"])
 
 app = Flask(__name__)
 
+
 @app.route("/api/drives")
 def drives():
-    descriptors = scan_drives()
     result = []
-    for d in descriptors:
-        traits = fetch_traits(d)
+    for state in collector.get_drive_states():
+        ctx = state.context
+        traits = state.traits
+        signals = state.snapshot.telemetry.signals
+        polled_at = state.snapshot.telemetry.last_polled_at
         result.append({
-            "device": d.device_name,
-            "access_type": d.access_type,
-            "info_name": d.info_name,
+            "guid": ctx.guid,
+            "device": ctx.descriptor.device_name,
+            "info_name": ctx.descriptor.info_name,
             "serial": traits.serial,
             "model": traits.model,
             "capacity_bytes": traits.capacity_bytes,
@@ -23,14 +26,24 @@ def drives():
             "form_factor": traits.form_factor,
             "rpm": traits.rpm,
             "bus": traits.bus,
+            "power_on_hours": signals.power_on_hours,
+            "temp": signals.temp,
+            "reallocated": signals.reallocated,
+            "pending": signals.pending,
+            "uncorrected": signals.uncorrected,
+            "smart_passed": signals.smart_passed,
+            "last_polled_at": polled_at.isoformat() if polled_at else None,
         })
     return jsonify(result)
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--reload", action="store_true", default=False)
     args = parser.parse_args()
+
+    collector.start()
 
     server_cfg = CONFIG["server"]
     app.run(
