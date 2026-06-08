@@ -28,3 +28,8 @@ def scan() -> dict:
 def info(device_name: str, access_type: str) -> dict:
     """smartctl -i: read static identity fields for a single drive."""
     return run_smartctl("-i", "-d", access_type, device_name)
+
+
+def attributes(device_name: str, access_type: str) -> dict:
+    """smartctl -a: read SMART attributes and health status for a single drive."""
+    return run_smartctl("-a", "-d", access_type, device_name)
