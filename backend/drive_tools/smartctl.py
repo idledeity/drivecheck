@@ -23,3 +23,8 @@ def run_smartctl(*args) -> dict:
 def scan() -> dict:
     """smartctl --scan: discover attached drives."""
     return run_smartctl("--scan")
+
+
+def info(device_name: str, access_type: str) -> dict:
+    """smartctl -i: read static identity fields for a single drive."""
+    return run_smartctl("-i", "-d", access_type, device_name)
