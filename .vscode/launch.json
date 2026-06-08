@@ -1,4 +1,4 @@
-json{
+{
   "version": "0.2.0",
   "configurations": [
     {
@@ -7,6 +7,16 @@ json{
       "request": "launch",
       "program": "${workspaceFolder}/backend/app.py",
       "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "args": [],
+      "preLaunchTask": "Kill Backend"
+    },
+    {
+      "name": "Backend (reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/app.py",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "args": ["--reload"],
       "preLaunchTask": "Kill Backend"
     },
     {
@@ -23,6 +33,7 @@ json{
       "request": "launch",
       "program": "${workspaceFolder}/backend/app.py",
       "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "args": [],
       "preLaunchTask": "Start All",
       "serverReadyAction": {
         "action": "openExternally",

@@ -9,7 +9,7 @@ export default defineConfig({
     open: false,
     // Proxy API calls to Flask during development
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': 'http://localhost:4343',
     },
   },
 })

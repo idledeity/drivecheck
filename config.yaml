@@ -1,5 +1,4 @@
-# config.yaml — default settings
-# Override any of these locally by creating config.local.yaml (gitignored) or edit directly
+# config.yaml — drivecheck configuration
 
 auth:
   username: admin
