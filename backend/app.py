@@ -1,12 +1,12 @@
 from flask import Flask, jsonify
-from drive_tools.smartctl import scan_drives, get_serial
+from probes.scan.smartctl_scan import run as scan_drives
 
 app = Flask(__name__)
 
 @app.route("/api/drives")
 def drives():
-    paths = scan_drives()
-    result = [{"device": p, "serial": get_serial(p)} for p in paths]
+    descriptors = scan_drives()
+    result = [{"device": d.device_name, "access_type": d.access_type, "info_name": d.info_name} for d in descriptors]
     return jsonify(result)
 
 if __name__ == "__main__":

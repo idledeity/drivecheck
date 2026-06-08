@@ -1,25 +1,25 @@
+import json
 import subprocess
 
-from flask import json
 
-def scan_drives():
-    """Run smartctl --scan and return list of device paths."""
+def run_smartctl(*args) -> dict:
+    """Invoke smartctl -j with the given args and return parsed JSON.
+
+    smartctl uses exit codes as a bitmask to signal drive-level error conditions
+    (see smartctl(8) EXIT STATUS). A non-zero exit does not necessarily mean the
+    command failed — bits 0-1 indicate command errors, bits 2-6 indicate drive
+    health findings. Callers that need to distinguish these should inspect
+    result.returncode; this wrapper does not raise on non-zero exits so that
+    partial JSON output (still returned on most error codes) is not lost.
+    """
     result = subprocess.run(
-        ["sudo", "smartctl", "--scan", "--json"],
-        capture_output=True, text=True
+        ["sudo", "smartctl", "-j"] + list(args),
+        capture_output=True,
+        text=True,
     )
-    data = json.loads(result.stdout)
-    return [dev["name"] for dev in data.get("devices", [])]
+    return json.loads(result.stdout)
 
 
-def get_serial(device_path):
-    """Run smartctl -i on a device and extract serial number."""
-    result = subprocess.run(
-        ["sudo", "smartctl", "-i", "--json", device_path],
-        capture_output=True, text=True
-    )
-    try:
-        data = json.loads(result.stdout)
-        return data.get("serial_number", "unknown")
-    except json.JSONDecodeError:
-        return "unknown"
+def scan() -> dict:
+    """smartctl --scan: discover attached drives."""
+    return run_smartctl("--scan")
