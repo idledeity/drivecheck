@@ -57,7 +57,12 @@ def _parse_bus(data: dict) -> str | None:
         gen = gen_map.get(speed_str, "SATA")
         return f"{gen} · {speed_str}"
 
-    # NVMe / SAS: fall back to protocol field
+    # SAS: use transport protocol name for an accurate label ("SAS (SPL-4)" etc.)
+    sas_transport = data.get("scsi_transport_protocol", {}).get("name")
+    if sas_transport:
+        return sas_transport
+
+    # NVMe / other: fall back to protocol field
     protocol = data.get("device", {}).get("protocol")
     return protocol or None
 

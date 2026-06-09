@@ -74,10 +74,16 @@ class DriveContext:
 @dataclass
 class DriveAttachment:
     """How the drive is attached to this system."""
-    device_path: str        | None = None   # /dev/sdX (the preferred access path)
     descriptors: list[DriveDescriptor] = field(default_factory=list)
-                                            # all access paths found for this drive
-    is_mounted: bool                = False
+    active_index: int = 0       # index into descriptors; matches context.descriptor
+    is_mounted: bool  = False
+
+    @property
+    def primary_descriptor(self) -> "DriveDescriptor | None":
+        """Return the active descriptor, or None if no descriptors are recorded yet."""
+        if not self.descriptors:
+            return None
+        return self.descriptors[self.active_index]
 
 
 # ---------------------------------------------------------------------------
