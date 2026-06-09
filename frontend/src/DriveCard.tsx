@@ -69,7 +69,10 @@ export default function DriveCard({ drive, selected, onSelect }: Props) {
         <div className="dc-fs">
           <Stat label="Power-on" value={drive.power_on_hours !== null ? `${drive.power_on_hours.toLocaleString()}h` : "—"} />
           <Stat label="Realloc"  value={drive.reallocated ?? "—"} warn={(drive.reallocated ?? 0) > 0} />
-          <Stat label="Pending"  value={drive.pending    ?? "—"} warn={(drive.pending    ?? 0) > 0} />
+          {drive.drive_type === "SAS"
+            ? <Stat label="Ld/UL" value={drive.load_unload_cycles !== null ? drive.load_unload_cycles.toLocaleString() : "—"} />
+            : <Stat label="Pending" value={drive.pending ?? "—"} warn={(drive.pending ?? 0) > 0} />
+          }
           <Stat label="Uncorr"   value={drive.uncorrected ?? "—"} crit={(drive.uncorrected ?? 0) > 0} />
         </div>
       </div>

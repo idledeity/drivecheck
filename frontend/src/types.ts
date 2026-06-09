@@ -13,6 +13,7 @@ export type Drive = {
   temp: number | null
   reallocated: number | null
   pending: number | null
+  load_unload_cycles: number | null
   uncorrected: number | null
   smart_passed: boolean | null
   last_polled_at: string | null

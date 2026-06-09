@@ -115,14 +115,15 @@ class DCSignals:
     attr C4 raw         → reallocated_events ← (ATA only; None for SAS)
     smart overall       → smart_passed       ← smart_status.passed
     """
-    power_on_hours: int     | None = None
-    temp: int               | None = None
-    reallocated: int        | None = None
-    pending: int            | None = None
-    uncorrected: int        | None = None
-    crc_errors: int         | None = None
-    reallocated_events: int | None = None
-    smart_passed: bool      | None = None
+    power_on_hours: int      | None = None
+    temp: int                | None = None
+    reallocated: int         | None = None
+    pending: int             | None = None   # ATA only (0xC5); None for SAS/NVMe
+    uncorrected: int         | None = None
+    crc_errors: int          | None = None
+    reallocated_events: int  | None = None
+    load_unload_cycles: int  | None = None   # SAS only; None for ATA/NVMe
+    smart_passed: bool       | None = None
 
 
 # ---------------------------------------------------------------------------

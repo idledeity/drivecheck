@@ -53,21 +53,23 @@ def _map_ata(data: dict) -> DCSignals:
 def _map_scsi(data: dict) -> DCSignals:
     """Map SCSI/SAS error counters and log pages to DCSignals."""
     error_log = data.get("scsi_error_counter_log", {})
-    read_errors = error_log.get("read", {}).get("uncorrected_errors")
-    write_errors = error_log.get("write", {}).get("uncorrected_errors")
+    read_errors = error_log.get("read", {}).get("total_uncorrected_errors")
+    write_errors = error_log.get("write", {}).get("total_uncorrected_errors")
     uncorrected = None
     if read_errors is not None or write_errors is not None:
         uncorrected = (read_errors or 0) + (write_errors or 0)
+
+    cycle_counter = data.get("scsi_start_stop_cycle_counter", {})
 
     return DCSignals(
         power_on_hours=data.get("power_on_time", {}).get("hours"),
         temp=data.get("temperature", {}).get("current"),
         reallocated=data.get("scsi_grown_defect_list"),
-        pending=read_errors,
+        pending=None,
         uncorrected=uncorrected,
-        crc_errors=data.get("scsi_error_counter_log", {})
-                       .get("read", {}).get("non_medium_error_count"),
-        reallocated_events=None,  # ATA only
+        crc_errors=None,
+        reallocated_events=None,
+        load_unload_cycles=cycle_counter.get("accumulated_load_unload_cycles"),
         smart_passed=data.get("smart_status", {}).get("passed"),
     )
 

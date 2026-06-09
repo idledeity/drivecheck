@@ -31,6 +31,7 @@ def drives():
             "reallocated": signals.reallocated,
             "pending": signals.pending,
             "uncorrected": signals.uncorrected,
+            "load_unload_cycles": signals.load_unload_cycles,
             "smart_passed": signals.smart_passed,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
         })
