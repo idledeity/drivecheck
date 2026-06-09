@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { IconRefresh } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
+import WorkspacePanel from "./WorkspacePanel"
 import type { Drive } from "./types"
 import "./App.css"
 
@@ -30,6 +31,8 @@ export default function App() {
       .finally(() => setRefreshing(false))
   }
 
+  const selectedDrive = drives.find(d => d.guid === selected) ?? null
+
   if (error) return <div className="status-error">Error: {error}</div>
 
   return (
@@ -53,6 +56,12 @@ export default function App() {
             ))}
           </div>
       }
+      {selectedDrive && (
+        <WorkspacePanel
+          drive={selectedDrive}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }
