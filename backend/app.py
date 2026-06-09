@@ -1,6 +1,7 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from config import CONFIG
 from collector import Collector
+import settings
 
 collector = Collector(poll_interval=CONFIG["collector"]["poll_interval"])
 
@@ -36,6 +37,19 @@ def drives():
             "last_polled_at": polled_at.isoformat() if polled_at else None,
         })
     return jsonify(result)
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    return jsonify(settings.load())
+
+
+@app.route("/api/settings", methods=["PATCH"])
+def patch_settings():
+    current = settings.load()
+    current.update(request.get_json(force=True))
+    settings.save(current)
+    return jsonify(current)
 
 
 @app.route("/api/drives/refresh", methods=["POST"])
