@@ -62,6 +62,8 @@
 .ws-body {
   padding: 16px;
   min-height: 160px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 /* ── Stub tabs ── */
