@@ -42,6 +42,7 @@ class Collector:
         self._poll_interval = poll_interval
         self._drive_states: dict[str, DriveState] = {}
         self._lock = threading.Lock()
+        self._poll_lock = threading.Lock()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="collector")
 
     def start(self) -> None:
@@ -53,12 +54,20 @@ class Collector:
         with self._lock:
             return list(self._drive_states.values())
 
+    def trigger_poll(self) -> None:
+        """Run a poll immediately, blocking until complete."""
+        self._poll()
+
     def _loop(self) -> None:
         while True:
             self._poll()
             time.sleep(self._poll_interval)
 
     def _poll(self) -> None:
+        with self._poll_lock:
+            self._do_poll()
+
+    def _do_poll(self) -> None:
         descriptors = smartctl_scan.run()
         self._reconcile_descriptors(descriptors)
 

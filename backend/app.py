@@ -38,6 +38,12 @@ def drives():
     return jsonify(result)
 
 
+@app.route("/api/drives/refresh", methods=["POST"])
+def drives_refresh():
+    collector.trigger_poll()
+    return jsonify({"status": "ok"})
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()

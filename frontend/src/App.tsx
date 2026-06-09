@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { IconRefresh } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
 import type { Drive } from "./types"
 import "./App.css"
@@ -7,24 +8,38 @@ export default function App() {
   const [drives, setDrives] = useState<Drive[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const loadDrives = () =>
+    fetch("/api/drives")
+      .then(r => r.json())
+      .then(setDrives)
+      .catch(e => setError(String(e)))
 
   useEffect(() => {
-    const load = () =>
-      fetch("/api/drives")
-        .then(r => r.json())
-        .then(setDrives)
-        .catch(e => setError(String(e)))
-
-    load()
-    const id = setInterval(load, 30_000)
+    loadDrives()
+    const id = setInterval(loadDrives, 30_000)
     return () => clearInterval(id)
   }, [])
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetch("/api/drives/refresh", { method: "POST" })
+      .then(() => loadDrives())
+      .catch(e => setError(String(e)))
+      .finally(() => setRefreshing(false))
+  }
 
   if (error) return <div className="status-error">Error: {error}</div>
 
   return (
     <div>
-      <div className="page-label">drivecheck <span>/ drives</span></div>
+      <div className="page-label">
+        drivecheck <span>/ drives</span>
+        <button className="refresh-btn" onClick={handleRefresh} disabled={refreshing} title="Refresh now">
+          <IconRefresh size={13} className={refreshing ? "spinning" : ""} />
+        </button>
+      </div>
       {drives.length === 0
         ? <p className="status-scanning">Scanning…</p>
         : <div className="card-grid">
