@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { IconRefresh } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
 import WorkspacePanel from "./WorkspacePanel"
-import type { Drive } from "./types"
+import type { Drive, Settings } from "./types"
 import "./App.css"
 
 export default function App() {
@@ -10,6 +10,11 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [settings, setSettings] = useState<Settings | null>(null)
+
+  useEffect(() => {
+    fetch("/api/settings").then(r => r.json()).then(setSettings).catch(() => {})
+  }, [])
 
   const loadDrives = () =>
     fetch("/api/drives")
@@ -52,6 +57,7 @@ export default function App() {
                 drive={d}
                 selected={selected === d.guid}
                 onSelect={() => setSelected(selected === d.guid ? null : d.guid)}
+                footerSignals={settings?.footer_signals}
               />
             ))}
           </div>

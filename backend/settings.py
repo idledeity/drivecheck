@@ -7,7 +7,17 @@ from config import CONFIG
 
 _PATH = (Path(__file__).parent.parent / CONFIG["data"]["dir"] / "settings.json").resolve()
 
-DEFAULTS: dict = {}
+DEFAULTS: dict = {
+    "footer_signals": {
+        "default": ["power_on_hours", "reallocated", "pending",            "uncorrected"],
+        "SAS":     ["power_on_hours", "reallocated", "load_unload_cycles", "uncorrected"],
+    }
+}
+
+
+def init() -> None:
+    if not _PATH.exists():
+        save(dict(DEFAULTS))
 
 
 def load() -> dict:

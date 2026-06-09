@@ -1,3 +1,7 @@
+export type Settings = {
+  footer_signals: Record<string, string[]>
+}
+
 export type Drive = {
   guid: string
   device: string

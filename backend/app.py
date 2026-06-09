@@ -64,6 +64,7 @@ if __name__ == "__main__":
     parser.add_argument("--reload", action="store_true", default=False)
     args = parser.parse_args()
 
+    settings.init()
     collector.start()
 
     server_cfg = CONFIG["server"]

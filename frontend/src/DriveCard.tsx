@@ -1,16 +1,20 @@
 import { IconClock, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive } from "./types"
+import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import "./DriveCard.css"
 
 interface Props {
   drive: Drive
   selected: boolean
   onSelect: () => void
+  footerSignals?: Record<string, string[]>
 }
 
-export default function DriveCard({ drive, selected, onSelect }: Props) {
+export default function DriveCard({ drive, selected, onSelect, footerSignals }: Props) {
   const health = deriveHealth(drive)
   const tempHot = (drive.temp ?? 0) >= 45
+  const sigMap = footerSignals ?? DEFAULT_FOOTER_SIGNALS
+  const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
 
   return (
     <div
@@ -67,13 +71,20 @@ export default function DriveCard({ drive, selected, onSelect }: Props) {
 
       <div className="dc-ft">
         <div className="dc-fs">
-          <Stat label="Power-on" value={drive.power_on_hours !== null ? `${drive.power_on_hours.toLocaleString()}h` : "—"} />
-          <Stat label="Realloc"  value={drive.reallocated ?? "—"} warn={(drive.reallocated ?? 0) > 0} />
-          {drive.drive_type === "SAS"
-            ? <Stat label="Ld/UL" value={drive.load_unload_cycles !== null ? drive.load_unload_cycles.toLocaleString() : "—"} />
-            : <Stat label="Pending" value={drive.pending ?? "—"} warn={(drive.pending ?? 0) > 0} />
-          }
-          <Stat label="Uncorr"   value={drive.uncorrected ?? "—"} crit={(drive.uncorrected ?? 0) > 0} />
+          {sigKeys.map(key => {
+            const desc = SIGNALS[key]
+            if (!desc) return null
+            const val = drive[key as keyof Drive]
+            return (
+              <Stat
+                key={key}
+                label={desc.label}
+                value={desc.format(val)}
+                warn={desc.warn?.(val)}
+                crit={desc.crit?.(val)}
+              />
+            )
+          })}
         </div>
       </div>
     </div>
