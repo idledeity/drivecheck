@@ -19,7 +19,8 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
 
     return DriveTraits(
         serial=data.get("serial_number"),
-        model=data.get("model_name"),
+        model=data.get("model_name") or data.get("scsi_product"),
+        manufacturer=data.get("scsi_vendor"),
         capacity_bytes=data.get("user_capacity", {}).get("bytes"),
         drive_type=_infer_drive_type(data),
         form_factor=data.get("form_factor", {}).get("name"),

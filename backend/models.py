@@ -43,6 +43,7 @@ class DriveDescriptor:
 class DriveTraits:
     """Intrinsic physical characteristics as reported by drive firmware."""
     serial: str             | None = None
+    manufacturer: str       | None = None
     model: str              | None = None
     capacity_bytes: int     | None = None
     drive_type: DriveType   | None = None

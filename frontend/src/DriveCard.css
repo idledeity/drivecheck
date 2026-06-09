@@ -5,7 +5,7 @@
   padding: 8px 10px 0 10px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 1px;
   overflow: hidden;
   position: relative;
   box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 4px 14px rgba(0,0,0,0.4);
@@ -33,24 +33,18 @@
     0 4px 14px rgba(0,0,0,0.4);
 }
 
-.dc-gap { height: 5px; }
-
-/* ── Header ── */
-.dc-hrow { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
-.dc-tcol { flex: 1; min-width: 0; }
-
-.dc-dname {
+/* ── Row 1: name + badge ── */
+.dc-r1 {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--t1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1;
+}
+
+.dc-r1 .dc-badge {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .dc-sel-btn {
@@ -74,30 +68,83 @@
   box-shadow: 0 0 5px rgba(168,85,247,0.65);
 }
 
-/* ── Identity row ── */
-.dc-irow {
+.dc-mfr {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dc-mfr::after {
+  content: "·";
+  margin-left: 5px;
+  color: var(--t5);
+}
+
+.dc-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.dc-cap { flex-shrink: 0; }
+
+/* ── Row 2: traits + serial ── */
+.dc-traits {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.dc-traits-left {
   display: flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
   overflow: hidden;
-  margin-top: 2px;
 }
-.dc-ival { font-size: 10.5px; color: var(--t4); }
-.dc-isep { font-size: 9px; color: var(--t5); }
+.dc-tv         { font-size: 10.5px; color: var(--t4); white-space: nowrap; }
+.dc-tsep       { font-size: 9px; color: var(--t5); flex-shrink: 0; }
+.dc-serial {
+  font-size: 10px;
+  color: var(--t4);
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
-/* ── Leader line ── */
-.dc-ldr { position: relative; height: 0; overflow: visible; margin-top: 4px; }
+/* ── Row 3: active state ── */
+.dc-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.dc-sv         { font-size: 10.5px; color: var(--t4); white-space: nowrap; }
+.dc-sv.hot     { color: var(--re); }
+.dc-si         { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.dc-si svg     { color: var(--cy); opacity: 0.75; flex-shrink: 0; }
+
+/* ── Leader line — 2/3 width, left-anchored ── */
+.dc-ldr { position: relative; height: 0; overflow: visible; margin-top: -1px; }
 .dc-ldr-line {
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0; left: 0;
+  width: 85%;
   height: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255,238,210,0.05) 15%,
-    rgba(255,238,210,0.14) 55%,
-    rgba(255,238,210,0.20) 82%,
+    rgba(255,238,210,0.05) 5%,
+    rgba(255,238,210,0.14) 45%,
+    rgba(255,238,210,0.20) 75%,
     transparent 100%
   );
 }
@@ -110,16 +157,7 @@
   background: rgba(255,238,210,0.22);
 }
 
-/* ── Right column ── */
-.dc-rcol {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex-shrink: 0;
-  padding-top: 1px;
-}
-
+/* ── Badge ── */
 .dc-badge {
   font-size: 10px;
   font-weight: 700;
@@ -132,24 +170,9 @@
 .dc-badge-red   { background: var(--rbg); color: var(--re); }
 .dc-badge-grey  { background: rgba(255,255,255,0.06); color: var(--t3); border: 0.5px solid var(--bd); }
 
-.dc-serial {
-  font-size: 10px;
-  color: var(--t4);
-  font-family: ui-monospace, Consolas, monospace;
-  white-space: nowrap;
-}
-
-/* ── Status row ── */
-.dc-srow { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-.dc-si { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.dc-si svg { color: var(--cy); opacity: 0.75; }
-.dc-sv { font-size: 12px; font-weight: 500; color: var(--t2); }
-.dc-sv.hot { color: var(--re); }
-.dc-ss { font-size: 10px; color: var(--t5); }
-
 /* ── Task zone ── */
 .dc-tz {
-  padding: 5px 0 3px 10px;
+  padding: 4px 0 3px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;

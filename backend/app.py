@@ -21,6 +21,7 @@ def drives():
             "device": ctx.descriptor.device_name,
             "info_name": ctx.descriptor.info_name,
             "serial": traits.serial,
+            "manufacturer": traits.manufacturer,
             "model": traits.model,
             "capacity_bytes": traits.capacity_bytes,
             "drive_type": traits.drive_type.value if traits.drive_type else None,

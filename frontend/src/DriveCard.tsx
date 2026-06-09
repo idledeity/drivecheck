@@ -11,9 +11,9 @@ interface Props {
 }
 
 export default function DriveCard({ drive, selected, onSelect, footerSignals }: Props) {
-  const health = deriveHealth(drive)
+  const health  = deriveHealth(drive)
   const tempHot = (drive.temp ?? 0) >= 45
-  const sigMap = footerSignals ?? DEFAULT_FOOTER_SIGNALS
+  const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
 
   return (
@@ -21,45 +21,50 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
       className={`drive-card bar-${health.bar}${selected ? " sel" : ""}`}
       onClick={onSelect}
     >
-      <div className="dc-hrow">
-        <div className="dc-tcol">
-          <div className="dc-dname">
-            <div className="dc-sel-btn" />
-            {drive.model ?? drive.device}
-          </div>
-          <div className="dc-irow">
-            {drive.drive_type && <><span className="dc-ival">{drive.drive_type}</span><span className="dc-isep">·</span></>}
-            <span className="dc-ival">{formatCapacity(drive.capacity_bytes)}</span>
-            {drive.bus && <><span className="dc-isep">·</span><span className="dc-ival">{drive.bus}</span></>}
-          </div>
-          <div className="dc-ldr"><div className="dc-ldr-line" /></div>
-        </div>
-        <div className="dc-rcol">
-          <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
-          {drive.serial && <span className="dc-serial">{drive.serial}</span>}
-        </div>
+      {/* Row 1: name + badge */}
+      <div className="dc-r1">
+        <div className="dc-sel-btn" />
+        {drive.manufacturer && <span className="dc-mfr">{drive.manufacturer}</span>}
+        <span className="dc-model">{drive.model ?? drive.device}</span>
+        {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
+        <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
       </div>
 
-      <div className="dc-gap" />
+      {/* Row 2: traits (left) + serial (right) */}
+      <div className="dc-traits">
+        <div className="dc-traits-left">
+          {drive.drive_type && <span className="dc-tv">{drive.drive_type}</span>}
+          {drive.capacity_bytes != null && (
+            <><span className="dc-tsep">·</span><span className="dc-tv">{formatCapacity(drive.capacity_bytes)}</span></>
+          )}
+          {drive.rpm && (
+            <><span className="dc-tsep">·</span><span className="dc-tv">{(drive.rpm / 1000).toFixed(1)}k RPM</span></>
+          )}
+          {drive.bus && (
+            <><span className="dc-tsep">·</span><span className="dc-tv">{drive.bus}</span></>
+          )}
+        </div>
+        {drive.serial && <span className="dc-serial">S/N {drive.serial}</span>}
+      </div>
 
-      <div className="dc-srow">
+      {/* Decorative leader line — 2/3 width */}
+      <div className="dc-ldr"><div className="dc-ldr-line" /></div>
+
+      {/* Row 3: active state — path + temp */}
+      <div className="dc-state">
+        <span className="dc-si"><IconServer size={11} /><span className="dc-sv">{drive.device}</span></span>
         {drive.temp !== null && (
           <>
+            <span className="dc-tsep">·</span>
             <span className="dc-si">
-              <IconTemperature size={12} />
+              <IconTemperature size={11} />
               <span className={`dc-sv${tempHot ? " hot" : ""}`}>{drive.temp}°C</span>
             </span>
-            <span className="dc-ss">·</span>
           </>
         )}
-        <span className="dc-si">
-          <IconServer size={12} />
-          <span className="dc-sv">{drive.device}</span>
-        </span>
       </div>
 
-      <div className="dc-gap" />
-
+      {/* Task zone */}
       <div className="dc-tz idle">
         <div className="dc-tn">
           <IconClock size={11} />
@@ -67,8 +72,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
         </div>
       </div>
 
-      <div className="dc-gap" />
-
+      {/* Footer */}
       <div className="dc-ft">
         <div className="dc-fs">
           {sigKeys.map(key => {
@@ -103,7 +107,7 @@ function Stat({ label, value, warn, crit }: { label: string; value: string | num
 
 function deriveHealth(drive: Drive): { bar: "green" | "warn" | "red" | "grey"; label: string } {
   if (drive.smart_passed === false)
-    return { bar: "red", label: "Failing" }
+    return { bar: "red",  label: "Failing"  }
   if ((drive.reallocated ?? 0) > 0 || (drive.uncorrected ?? 0) > 0)
     return { bar: "warn", label: "Degraded" }
   if (drive.smart_passed === true)
