@@ -36,8 +36,6 @@ export default function App() {
       .finally(() => setRefreshing(false))
   }
 
-  const selectedDrive = drives.find(d => d.guid === selected) ?? null
-
   if (error) return <div className="status-error">Error: {error}</div>
 
   return (
@@ -62,12 +60,7 @@ export default function App() {
             ))}
           </div>
       }
-      {selectedDrive && (
-        <WorkspacePanel
-          drive={selectedDrive}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      <WorkspacePanel />
     </div>
   )
 }

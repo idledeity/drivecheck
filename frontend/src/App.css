@@ -4,7 +4,8 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--t5);
-  margin-bottom: 16px;
+  line-height: 1;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 8px;

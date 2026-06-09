@@ -41,7 +41,7 @@ body {
 #root {
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 6px 16px 16px;
 }
 
 h1, h2, h3 {
