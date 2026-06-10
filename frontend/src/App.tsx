@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 import { IconRefresh } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
 import WorkspacePanel from "./WorkspacePanel"
-import type { Drive, Settings } from "./types"
+import type { CollectorStatus, Drive, Settings } from "./types"
+import { formatRelativeTime } from "./format"
 import "./App.css"
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [collectorStatus, setCollectorStatus] = useState<CollectorStatus | null>(null)
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(setSettings).catch(() => {})
@@ -22,16 +24,23 @@ export default function App() {
       .then(setDrives)
       .catch(e => setError(String(e)))
 
+  const loadCollectorStatus = () =>
+    fetch("/api/collector/status")
+      .then(r => r.json())
+      .then(setCollectorStatus)
+      .catch(() => {})
+
   useEffect(() => {
     loadDrives()
-    const id = setInterval(loadDrives, 30_000)
+    loadCollectorStatus()
+    const id = setInterval(() => { loadDrives(); loadCollectorStatus() }, 30_000)
     return () => clearInterval(id)
   }, [])
 
   const handleRefresh = () => {
     setRefreshing(true)
     fetch("/api/drives/refresh", { method: "POST" })
-      .then(() => loadDrives())
+      .then(() => Promise.all([loadDrives(), loadCollectorStatus()]))
       .catch(e => setError(String(e)))
       .finally(() => setRefreshing(false))
   }
@@ -42,6 +51,11 @@ export default function App() {
     <div>
       <div className="page-label">
         drivecheck <span>/ drives</span>
+        {collectorStatus?.last_polled_at && (
+          <span className="last-polled">
+            Last polled {formatRelativeTime(collectorStatus.last_polled_at)}
+          </span>
+        )}
         <button className="refresh-btn" onClick={handleRefresh} disabled={refreshing} title="Refresh now">
           <IconRefresh size={13} className={refreshing ? "spinning" : ""} />
         </button>

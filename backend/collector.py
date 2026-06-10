@@ -21,6 +21,7 @@ Discovery is split from steady-state polling:
 import threading
 import time
 import uuid
+from datetime import datetime
 
 from analysis.descriptor_rank import score_descriptor
 from models import DriveContext, DriveDescriptor, DriveState, DriveTraits
@@ -44,6 +45,8 @@ class Collector:
         self._lock = threading.Lock()
         self._poll_lock = threading.Lock()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="collector")
+        self._polling = False
+        self._last_polled_at: datetime | None = None
 
     def start(self) -> None:
         """Start the background poll loop. Polls immediately on first call."""
@@ -58,6 +61,14 @@ class Collector:
         """Run a poll immediately, blocking until complete."""
         self._poll()
 
+    def get_status(self) -> dict:
+        """Return the collector's current poll status."""
+        with self._lock:
+            return {
+                "polling": self._polling,
+                "last_polled_at": self._last_polled_at,
+            }
+
     def _loop(self) -> None:
         while True:
             self._poll()
@@ -65,7 +76,14 @@ class Collector:
 
     def _poll(self) -> None:
         with self._poll_lock:
-            self._do_poll()
+            with self._lock:
+                self._polling = True
+            try:
+                self._do_poll()
+            finally:
+                with self._lock:
+                    self._polling = False
+                    self._last_polled_at = datetime.now()
 
     def _do_poll(self) -> None:
         descriptors = smartctl_scan.run()

@@ -59,6 +59,16 @@ def drives_refresh():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/collector/status")
+def collector_status():
+    status = collector.get_status()
+    last_polled = status["last_polled_at"]
+    return jsonify({
+        "polling": status["polling"],
+        "last_polled_at": last_polled.isoformat() if last_polled else None,
+    })
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()

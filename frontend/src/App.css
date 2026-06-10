@@ -19,8 +19,16 @@
   font-size: 11px;
 }
 
-.refresh-btn {
+.last-polled {
   margin-left: auto;
+  color: var(--t5);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 10.5px;
+}
+
+.refresh-btn {
   display: flex;
   align-items: center;
   justify-content: center;
