@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from config import CONFIG
 from collector import Collector
+import db
 import settings
 
 collector = Collector(poll_interval=CONFIG["collector"]["poll_interval"])
@@ -76,6 +77,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     settings.init()
+    db.init()
     collector.start()
 
     server_cfg = CONFIG["server"]

@@ -21,8 +21,10 @@ Discovery is split from steady-state polling:
 import threading
 import time
 import uuid
+from dataclasses import asdict
 from datetime import datetime
 
+import db
 from analysis.descriptor_rank import score_descriptor
 from models import DriveContext, DriveDescriptor, DriveState, DriveTraits
 from probes.scan import smartctl_scan
@@ -98,6 +100,10 @@ class Collector:
             with self._lock:
                 state.snapshot.telemetry = telemetry
 
+            captured_at = telemetry.last_polled_at.isoformat()
+            db.record_signals(state.context.guid, captured_at, asdict(telemetry.signals))
+            db.record_heartbeat(state.context.guid, captured_at, telemetry.signals.temp)
+
     def _reconcile_descriptors(self, descriptors: list[DriveDescriptor]) -> None:
         """Partition scan results into known/unknown, discover new drives, and remove gone ones."""
         with self._lock:
@@ -161,6 +167,15 @@ class Collector:
                 state.attachment.active_index = 0
                 self._drive_states[guid] = state
         matched_guids.add(guid)
+
+        db.upsert_drive_record(
+            guid=guid,
+            serial=best_traits.serial,
+            model=best_traits.model,
+            capacity_bytes=best_traits.capacity_bytes,
+            drive_type=best_traits.drive_type.value if best_traits.drive_type else None,
+            first_seen=datetime.now().isoformat(),
+        )
 
     def _append_descriptors(self, state: DriveState, descriptors: list[DriveDescriptor]) -> None:
         """Add any descriptors not already recorded to a drive's attachment."""

@@ -577,7 +577,7 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [ ] probes/smartctl_scrape.py
 [ ] drive_tools/base.py (OperationBase)
 [ ] drive_tools/badblocks.py
-[ ] db.py (SQLite schema + access)
+[x] db.py (SQLite schema + access)
 [ ] collector.py
 [ ] job_registry.py
 [ ] app.py routes
