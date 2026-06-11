@@ -188,10 +188,13 @@ Architecture and Project Status).
 
 ### Overview
 The collector delegates data collection to a probe system, organized as
-`probes/scan/`, `probes/traits/`, `probes/telemetry/` subpackages. Currently the
-collector imports one hardcoded probe per stage. The target design (see Probe
-config below) is for probes to be Python modules loaded by dotted path from
-config, so users can write their own and add them to configured lists.
+`probes/scan/`, `probes/traits/`, `probes/telemetry/` subpackages. Scan and traits
+each run one hardcoded probe per stage. Telemetry runs a list of probes
+(`_TELEMETRY_PROBES` in `collector.py`) chained in order — each probe receives and
+returns the `DriveSnapshot`, enriching it before passing it to the next. Today
+that list has a single hardcoded entry. The target design (see Probe config below)
+is for all three stages' probe lists to be Python modules loaded by dotted path
+from config, so users can write their own and add them to configured lists.
 
 ### Scan probes
 Discover attached drives. Take no arguments. Return a list of `DriveDescriptor`s.
@@ -215,21 +218,24 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
 ```
 
 ### Telemetry probes
-Receive a `DriveContext` and return a `DriveTelemetry` (signals + last_polled_at)
-for a specific drive.
+Receive and return the full `DriveSnapshot`, chained in `_TELEMETRY_PROBES` list
+order with the last probe having final authority over any field. Each probe
+enriches:
+- `snapshot.telemetry` — a fresh `DriveTelemetry(signals, last_polled_at)`
+  (normalized DCSignals fields)
+- `snapshot.extras` — free-form dict for anything without a first-class field
+  (e.g. `extras["smartctl"]` holds the full raw `smartctl -a -j` output)
+- `snapshot.probe_log` — append a `ProbeRecord` on completion
 
 ```python
-def run(context: DriveContext) -> DriveTelemetry:
+def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     ...
 ```
 
-Target design (see Project Status): probes receive and return the full
-`DriveSnapshot`, chained in config list order with the last probe having final
-authority over any field, writing to:
-- `snapshot.telemetry.signals` — normalized DCSignals fields (implemented today)
-- `snapshot.extras` — free-form dict for anything without a first-class field
-  (raw smartctl JSON, lsblk output, vendor data, etc.) — unused so far
-- `snapshot.probe_log` — append a `ProbeRecord` on completion — unused so far
+The collector starts each poll with a fresh `DriveSnapshot()` and threads it
+through `_TELEMETRY_PROBES` in order; the result becomes `state.snapshot`. Today
+that list is a single hardcoded entry (`smartctl_telemetry`); dotted-path config
+loading for multiple probes is target design (see Probe config below).
 
 ### Probe config (target design — see Project Status)
 The dotted-path, list-based config loader below would replace the hardcoded
@@ -437,8 +443,7 @@ Implemented in `backend/db.py`; written every poll via `db.record_signals()`.
 
 **Layer 2 — raw snapshots (periodic JSON blobs)**
 Full smartctl JSON output stored periodically. Enables "what were all attributes at
-time T." Written on every dc_signal change plus a periodic floor (e.g. every 12 polls).
-Answers the raw SMART dump view in the UI.
+time T." Answers the raw SMART dump view in the UI.
 
 ```sql
 CREATE TABLE drive_raw_snapshots (
@@ -451,8 +456,10 @@ CREATE TABLE drive_raw_snapshots (
 CREATE INDEX idx_drive_raw_snapshots_lookup ON drive_raw_snapshots (drive_guid, captured_at);
 ```
 
-Table exists in `backend/db.py` but nothing writes to it yet — depends on telemetry
-probes populating `snapshot.extras` with raw JSON (see Probe System).
+Implemented in `backend/db.py`; written every poll via `db.record_raw_snapshot()`
+from `snapshot.extras` (currently `{"smartctl": <full -a -j output>}`). Throttling
+to "on dc_signal change plus a periodic floor" instead of every poll is a possible
+future optimization, not yet needed.
 
 **Heartbeats** — one row per drive per collector cycle. Records presence, temperature,
 and a reference to the current raw snapshot. Poll anchor for "was this drive visible
@@ -470,7 +477,7 @@ CREATE INDEX idx_drive_heartbeats_lookup ON drive_heartbeats (drive_guid, captur
 ```
 
 Implemented in `backend/db.py`; written every poll via `db.record_heartbeat()`.
-`raw_snapshot_id` is always NULL until raw snapshot writes land.
+`raw_snapshot_id` references the `drive_raw_snapshots` row from the same poll.
 
 ### History retention
 Configurable window (e.g. `keep_history_days: 90`). Old rows pruned by the collector.
@@ -609,14 +616,14 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] app.py routes (drives, settings, refresh, collector status)
 [x] User settings persistence (settings.py, data/settings.json)
 [x] Frontend skeleton (Vite/React, drive card grid, workspace panel shell)
+[x] Telemetry probe chain + extras/probe_log enrichment (raw JSON capture)
+[x] drive_raw_snapshots persistence
 
 ### Remaining — Collector / Probes
 [ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
 [ ] threading.Event for clean collector shutdown
 [ ] Blocking initial poll before Flask starts serving (cold start guarantee)
-[ ] Probe config loading by dotted path (currently hardcoded single probe per stage)
-[ ] Telemetry probe chain + extras/probe_log enrichment (raw JSON capture)
-[ ] drive_raw_snapshots persistence
+[ ] Probe config loading by dotted path (currently hardcoded single-element list per stage)
 [ ] History retention / pruning (keep_history_days)
 [ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
 

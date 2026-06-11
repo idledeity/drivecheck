@@ -9,11 +9,13 @@ The DCSignals mapping is documented in models.DCSignals.
 from datetime import datetime
 
 from drive_tools import smartctl
-from models import DCSignals, DriveContext, DriveTelemetry, DriveType
+from models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
+
+_PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 
 
-def run(context: DriveContext) -> DriveTelemetry:
-    """Query live SMART attributes for a drive and return its telemetry."""
+def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
+    """Query live SMART attributes for a drive and enrich the snapshot."""
     descriptor = context.descriptor
     data = smartctl.attributes(descriptor.device_name, descriptor.access_type)
 
@@ -25,7 +27,13 @@ def run(context: DriveContext) -> DriveTelemetry:
     else:
         signals = _map_ata(data)
 
-    return DriveTelemetry(signals=signals, last_polled_at=datetime.now())
+    snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
+    snapshot.extras["smartctl"] = data
+
+    errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
+    snapshot.probe_log.append(ProbeRecord(probe=_PROBE_NAME, success=not errors, errors=errors))
+
+    return snapshot
 
 
 def _map_ata(data: dict) -> DCSignals:
@@ -104,7 +112,9 @@ if __name__ == "__main__":
         traits = fetch_traits(descriptor)
         context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits)
         print(f"\n{descriptor.info_name}")
-        telemetry = run(context)
-        print(f"  polled_at: {telemetry.last_polled_at}")
-        for key, value in asdict(telemetry.signals).items():
+        snapshot = run(DriveSnapshot(), context)
+        print(f"  polled_at: {snapshot.telemetry.last_polled_at}")
+        for key, value in asdict(snapshot.telemetry.signals).items():
             print(f"  {key}: {value}")
+        print(f"  extras keys: {list(snapshot.extras.keys())}")
+        print(f"  probe_log: {snapshot.probe_log}")

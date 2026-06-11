@@ -18,6 +18,7 @@ Discovery is split from steady-state polling:
   - Gone drives (GUIDs absent from the scan) are removed from the registry.
 """
 
+import json
 import threading
 import time
 import uuid
@@ -26,12 +27,17 @@ from datetime import datetime
 
 import db
 from analysis.descriptor_rank import score_descriptor
-from models import DriveContext, DriveDescriptor, DriveState, DriveTraits
+from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits
 from probes.scan import smartctl_scan
 from probes.traits import smartctl_traits
 from probes.telemetry import smartctl_telemetry
 
 _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")
+
+# Telemetry probes run every cycle, in order, each enriching the DriveSnapshot
+# the previous one returned. One entry today; dotted-path config loading for
+# multiple probes is target design (see Project Status).
+_TELEMETRY_PROBES = [smartctl_telemetry]
 
 
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
@@ -96,13 +102,22 @@ class Collector:
             active_states = list(self._drive_states.values())
 
         for state in active_states:
-            telemetry = smartctl_telemetry.run(state.context)
+            snapshot = DriveSnapshot()
+            for probe in _TELEMETRY_PROBES:
+                snapshot = probe.run(snapshot, state.context)
             with self._lock:
-                state.snapshot.telemetry = telemetry
+                state.snapshot = snapshot
 
-            captured_at = telemetry.last_polled_at.isoformat()
-            db.record_signals(state.context.guid, captured_at, asdict(telemetry.signals))
-            db.record_heartbeat(state.context.guid, captured_at, telemetry.signals.temp)
+            captured_at = snapshot.telemetry.last_polled_at.isoformat()
+            db.record_signals(state.context.guid, captured_at, asdict(snapshot.telemetry.signals))
+
+            raw_snapshot_id = None
+            if snapshot.extras:
+                raw_snapshot_id = db.record_raw_snapshot(
+                    state.context.guid, captured_at, "smartctl_telemetry", json.dumps(snapshot.extras)
+                )
+
+            db.record_heartbeat(state.context.guid, captured_at, snapshot.telemetry.signals.temp, raw_snapshot_id)
 
     def _reconcile_descriptors(self, descriptors: list[DriveDescriptor]) -> None:
         """Partition scan results into known/unknown, discover new drives, and remove gone ones."""

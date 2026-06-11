@@ -1,7 +1,7 @@
 """
 models.py — Core data models for drivecheck.
 
-All dataclasses are mutable by default so scrape probes can enrich a
+All dataclasses are mutable by default so telemetry probes can enrich a
 DriveSnapshot incrementally as it passes through the probe chain.
 """
 
@@ -21,7 +21,7 @@ class DriveType(Enum):
 
 # ---------------------------------------------------------------------------
 # DriveDescriptor
-# Minimal identity passed to scrape probes so they know what to query.
+# Minimal identity passed to traits and telemetry probes so they know what to query.
 # Produced by scan probes; not persisted to SQLite.
 # ---------------------------------------------------------------------------
 
@@ -54,8 +54,8 @@ class DriveTraits:
 
 # ---------------------------------------------------------------------------
 # DriveContext
-# Collector-assembled identity. Universal context object passed to scrape
-# probes, operations, and jobs. Stable across polls for the same drive.
+# Collector-assembled identity. Universal context object passed to traits
+# probes, telemetry probes, operations, and jobs. Stable across polls for the same drive.
 # guid is assigned on first detection and never changes.
 # ---------------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ class DCSignals:
 
     These are mapped FROM raw protocol data (ATA SMART attributes, SCSI error
     counters, etc.) into a common representation. The mapping lives in the
-    scrape probes. These fields are what the card grid, overview tiles, and
+    telemetry probes. These fields are what the card grid, overview tiles, and
     trend queries consume.
 
     ATA source          → field              ← SCSI/SAS source
@@ -194,8 +194,9 @@ class DriveState:
     """
     Live in-memory view of a drive as of the last collector poll.
 
-    Passed through the scrape probe chain; each probe receives and returns
-    this object, enriching it with whatever data it can provide.
+    The current snapshot is built by passing a fresh DriveSnapshot through the
+    telemetry probe chain each cycle; each probe receives and returns it,
+    enriching it with whatever data it can provide.
     """
     # Stable identity (GUID + descriptor + traits). GUID is assigned on first
     # detection and is always present by the time a state object enters the registry.

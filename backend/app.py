@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, jsonify, request
 from config import CONFIG
 from collector import Collector
@@ -39,6 +41,18 @@ def drives():
             "last_polled_at": polled_at.isoformat() if polled_at else None,
         })
     return jsonify(result)
+
+
+@app.route("/api/drives/<guid>/raw/latest")
+def drive_raw_snapshot_latest(guid):
+    row = db.get_latest_raw_snapshot(guid)
+    if row is None:
+        return jsonify(None), 404
+    return jsonify({
+        "captured_at": row["captured_at"],
+        "probe": row["probe"],
+        "raw": json.loads(row["raw_json"]),
+    })
 
 
 @app.route("/api/settings", methods=["GET"])

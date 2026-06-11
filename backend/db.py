@@ -156,3 +156,23 @@ def record_heartbeat(
             "INSERT INTO drive_heartbeats (drive_guid, captured_at, temp_c, raw_snapshot_id) VALUES (?, ?, ?, ?)",
             (guid, captured_at, temp_c, raw_snapshot_id),
         )
+
+
+def record_raw_snapshot(guid: str, captured_at: str, probe: str, raw_json: str) -> int:
+    """Persist a raw probe snapshot and return its row id."""
+    with _connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO drive_raw_snapshots (drive_guid, captured_at, probe, raw_json) VALUES (?, ?, ?, ?)",
+            (guid, captured_at, probe, raw_json),
+        )
+        return cursor.lastrowid
+
+
+def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
+    """Return the most recent raw snapshot for a drive, or None if none recorded yet."""
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT * FROM drive_raw_snapshots WHERE drive_guid = ? ORDER BY captured_at DESC LIMIT 1",
+            (guid,),
+        ).fetchone()
