@@ -7,6 +7,23 @@ export type CollectorStatus = {
   last_polled_at: string | null
 }
 
+export type SmartAttributeRow = {
+  key: string
+  label: string
+  value: string
+  status: "ok" | "warn" | "crit"
+  detail: string | null
+}
+
+export type RawSnapshot = {
+  captured_at: string
+  probe: string
+  raw: {
+    smartctl?: Record<string, unknown>
+    smart_attributes?: SmartAttributeRow[]
+  }
+}
+
 export type Drive = {
   guid: string
   device: string

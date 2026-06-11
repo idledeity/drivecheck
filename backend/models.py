@@ -153,6 +153,23 @@ class DriveHealth:
 
 
 # ---------------------------------------------------------------------------
+# AttributeRow
+# One row in the SMART attributes sub-page — a single classified attribute,
+# computed by analysis.smart_attributes from the raw protocol data. Display-ready:
+# the frontend renders these fields directly without further interpretation.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AttributeRow:
+    """One row in the SMART attributes sub-page."""
+    key: str
+    label: str
+    value: str
+    status: str            # "ok" | "warn" | "crit"
+    detail: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # ProbeRecord
 # Lightweight log entry written by each probe as it runs.
 # ---------------------------------------------------------------------------

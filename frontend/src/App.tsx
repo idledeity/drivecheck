@@ -74,7 +74,7 @@ export default function App() {
             ))}
           </div>
       }
-      <WorkspacePanel />
+      <WorkspacePanel drives={drives} selected={selected} />
     </div>
   )
 }

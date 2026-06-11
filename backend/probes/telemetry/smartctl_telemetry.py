@@ -6,9 +6,11 @@ DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
 The DCSignals mapping is documented in models.DCSignals.
 """
 
+from dataclasses import asdict
 from datetime import datetime
 
 from analysis.health import score_health
+from analysis.smart_attributes import build_attribute_rows
 from drive_tools import smartctl
 from models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
 
@@ -30,6 +32,8 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
 
     snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
     snapshot.health = score_health(signals)
+    rows = build_attribute_rows(data, drive_type, signals, snapshot.health)
+    snapshot.extras["smart_attributes"] = [asdict(r) for r in rows]
     snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
@@ -104,7 +108,6 @@ def _map_nvme(data: dict) -> DCSignals:
 
 
 if __name__ == "__main__":
-    from dataclasses import asdict
     from probes.scan.smartctl_scan import run as scan_drives
     from probes.traits.smartctl_traits import run as fetch_traits
     from models import DriveContext
@@ -120,4 +123,7 @@ if __name__ == "__main__":
             print(f"  {key}: {value}")
         print(f"  health: {snapshot.health}")
         print(f"  extras keys: {list(snapshot.extras.keys())}")
+        print(f"  smart_attributes:")
+        for row in snapshot.extras["smart_attributes"]:
+            print(f"    [{row['status']:>4}] {row['label']}: {row['value']}" + (f"  ({row['detail']})" if row["detail"] else ""))
         print(f"  probe_log: {snapshot.probe_log}")

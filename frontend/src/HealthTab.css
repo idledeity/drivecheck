@@ -1,0 +1,84 @@
+/* ── Sub-tab nav ── */
+.health-subtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+
+.health-subtab {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--t4);
+  background: none;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.health-subtab:hover  { color: var(--t2); background: rgba(255,255,255,0.05); }
+.health-subtab.active { color: var(--cy); background: rgba(24,196,238,0.1); }
+
+/* ── Drive switcher strip ── */
+.drive-switcher {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.drive-chip {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t3);
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 99px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+
+.drive-chip:hover  { color: var(--t2); border-color: var(--bd2); }
+.drive-chip.active { color: var(--cy); border-color: var(--cy); background: rgba(24,196,238,0.08); }
+
+/* ── Attribute list ── */
+.smart-empty {
+  font-size: 12px;
+  color: var(--t4);
+  padding: 8px 0;
+}
+
+.attr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.attr-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.attr-row:nth-child(odd) { background: rgba(255,255,255,0.02); }
+
+.attr-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.attr-label { font-size: 12px; color: var(--t2); }
+
+.attr-value { font-size: 12px; font-weight: 600; color: var(--t2); white-space: nowrap; }
+.attr-value.attr-warn { color: var(--wa); }
+.attr-value.attr-crit { color: var(--re); }
+
+.attr-detail { font-size: 10.5px; color: var(--t4); }

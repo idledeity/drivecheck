@@ -152,7 +152,10 @@ drivecheck/
 │   ├── settings.py             (user settings, persisted to data/settings.json)
 │   ├── models.py                (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
 │   ├── analysis/
-│   │   └── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
+│   │   ├── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
+│   │   ├── severity.py         (shared ok/warn/crit threshold helper)
+│   │   ├── health.py           (DCSignals -> DriveHealth: signal_flags + health_status)
+│   │   └── smart_attributes.py (raw smartctl data -> AttributeRow list for the SMART tab)
 │   ├── probes/
 │   │   ├── scan/smartctl_scan.py             (default scan probe)
 │   │   ├── traits/smartctl_traits.py         (default traits probe)
@@ -163,7 +166,9 @@ drivecheck/
 │   └── src/
 │       ├── App.tsx, App.css
 │       ├── DriveCard.tsx, DriveCard.css
-│       ├── WorkspacePanel.tsx, WorkspacePanel.css  (tab shells — currently stubs)
+│       ├── WorkspacePanel.tsx, WorkspacePanel.css  (tab shells — Health implemented, others stubs)
+│       ├── HealthTab.tsx, HealthTab.css            (Health sub-tabs: Overview/SMART/Report)
+│       ├── SmartAttributesPanel.tsx                (SMART attributes sub-page)
 │       ├── signals.ts          (signal descriptors + footer signal defaults)
 │       ├── format.ts
 │       ├── types.ts
@@ -324,7 +329,10 @@ Note: `pending` is an imperfect mapping for SAS — the UI surfaces this distinc
 Point-in-time capture of one collector poll. Persisted to SQLite; one row per poll per drive.
 - `telemetry` — DriveTelemetry (contains DCSignals + last_polled_at)
 - `health` — DriveHealth (health_pct, health_status)
-- `extras` — free-form dict for arbitrary probe output; raw JSON blobs live here
+- `extras` — free-form dict for arbitrary probe output; raw JSON blobs live here.
+  Also holds `extras["smart_attributes"]` (`AttributeRow[]`) — per-attribute
+  ok/warn/crit classification computed by `analysis/smart_attributes.py`,
+  consumed by the SMART attributes sub-page
 - `probe_log` — list of ProbeRecord (one per probe that ran)
 
 ### DriveState
@@ -635,7 +643,9 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [ ] Report generation (JSON + HTML)
 
 ### Remaining — Frontend
-[ ] Health / History / Queue / Run Task tab implementations (currently stubs)
+[x] Health tab: SMART attributes sub-page (SmartAttributesPanel.tsx)
+[ ] Health tab: Overview / Report sub-pages (currently stubs)
+[ ] History / Queue / Run Task tab implementations (currently stubs)
 [ ] Adaptive poll interval (2s active / 10s idle) — currently flat 30s; depends on Jobs system
 
 ### Remaining — Auth
@@ -714,15 +724,21 @@ Tabbed panel below card grid. Responds to current card selection.
 
 ### Health Tab (sub-pages)
 
-**Overview** — 3×2 tile grid per selected drive:
+**Overview** — stub. Target: 3×2 tile grid per selected drive:
 health score · temperature sparkline · SMART flag count · POH · reallocated trend · last test
 Below tiles: flagged dc_signals inline, or all-clear message.
 
-**SMART attributes** — full raw attribute dump from `extras`. Flagged attributes float
-to top. Drive switcher strip for multi-drive selection.
+**SMART attributes** — implemented (`SmartAttributesPanel.tsx`). Fetches
+`/api/drives/<guid>/raw/latest` and renders `extras["smart_attributes"]`
+(`AttributeRow[]`, computed by `analysis/smart_attributes.py` — see DriveSnapshot).
+Rows are sorted client-side by severity (crit → warn → ok) so flagged attributes
+float to top — the only "interpretation" left to the frontend, since reordering by
+a backend-provided status doesn't require new thresholds. Drive switcher strip lists
+all drives (card-grid selection is currently single-select, so this lets the user
+browse any drive's SMART data without changing it).
 
-**Report** — formatted summary: identity block · verdict · stat tiles · test history ·
-flagged signals · export controls (Open in browser / Export HTML).
+**Report** — stub. Target: formatted summary: identity block · verdict · stat tiles ·
+test history · flagged signals · export controls (Open in browser / Export HTML).
 
 ---
 
