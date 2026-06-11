@@ -52,9 +52,9 @@ drives" for ongoing monitoring.
 - **Language:** Python 3.x
 - **Framework:** Flask (minimal, no async, no ORM)
 - **Concurrency:** Python `threading` module (standard library)
-  - Collector runs as a daemon thread; dispatches per-drive telemetry threads via `ThreadPoolExecutor`
-  - Long-running jobs (badblocks, SMART extended test) run in dedicated daemon threads
-  - A shared in-memory job registry tracks all active jobs
+  - Collector runs as a daemon thread, currently polling all drives sequentially each cycle
+  - Per-drive ThreadPoolExecutor polling and the Operations/Jobs threading model are
+    target design, not yet implemented (see Project Status)
 - **Subprocess:** Standard `subprocess` module wraps all CLI tools
 - **No external job queue** (no Celery, no Redis) — threading is sufficient for
   a handful of concurrent drive tests
@@ -68,7 +68,8 @@ drives" for ongoing monitoring.
 - **No state management library** (React built-in useState/useContext only)
 - **HTTP:** Native `fetch` API only (no Axios)
 - **Live updates:** Polling only — no SSE, no WebSockets
-  - Adaptive interval: 2s when any job is active, 10s when all drives are idle
+  - Currently a flat 30s interval in `App.tsx`. Adaptive interval (2s active / 10s idle)
+    is target design, depends on Jobs (see Project Status)
   - Multiple concurrent fetches fired in useEffect; page sections update independently as they resolve
   - A page refresh always produces correct state — no reconnect or session-tracking logic needed
 
@@ -105,32 +106,31 @@ A background thread that runs continuously alongside Flask, independent of any u
 activity or job execution.
 
 **Responsibilities:**
-- Run scan probes to discover attached drives
-- Deduplicate discovered drives by serial number; prefer earlier access paths, fall
-  back to later ones if the earlier path yields less data
-- For each discovered drive, look up or assign a GUID in SQLite and build a DriveContext
-- Run traits probes for newly discovered drives (and at a reduced refresh interval)
-  to populate DriveTraits on the DriveState
-- Dispatch one telemetry thread per drive via ThreadPoolExecutor each collector cycle
-- Each telemetry thread runs the configured telemetry probe chain in order, passing
-  the evolving DriveSnapshot through each probe
-- Commit the final DriveState to the in-memory registry; persist the DriveSnapshot to SQLite
-- Write dc_signals to SQLite
+- Run the scan probe to discover attached drives
+- Deduplicate discovered drives by serial number, scoring candidate descriptors to
+  pick the best access path (see Deduplication)
+- For each newly discovered drive, assign a GUID (uuid5 of serial or device name),
+  build a DriveContext, and upsert the Drive Record in SQLite
+- Run the traits probe for newly discovered drives only, to populate DriveTraits
+- Run the telemetry probe for every known drive, sequentially, each cycle
+- Update the in-memory DriveState registry; write drive_signals and
+  drive_heartbeats to SQLite each poll
 
 **Threading:**
 - Collector loop runs as a daemon thread started at Flask startup
-- Per-drive telemetry threads run inside a ThreadPoolExecutor (max_workers configurable)
-- Each telemetry thread has its own timeout — a hanging drive does not block others
-- Uses a `threading.Event` for clean shutdown signaling
-- WAL mode ensures collector writes don't block API request threads
+- WAL mode ensures collector writes don't block API request threads (implemented in `db.py`)
+- Per-drive ThreadPoolExecutor polling, probe chaining, traits refresh interval, and
+  graceful shutdown are target design, not yet implemented (see Project Status)
 
 **Polling interval:**
 - Configurable in `config.yaml` (default: 300 seconds)
 - Single interval for all collection. No per-channel rates.
 
-**Cold start:** On Flask startup, the collector runs one immediate poll before the
-server begins accepting requests, so the registry is never empty when the first API
-call arrives.
+**Cold start (target, not yet enforced):** On Flask startup, the collector should run
+one immediate poll before the server begins accepting requests, so the registry is
+never empty when the first API call arrives. Currently `collector.start()` launches
+the poll loop in a background thread without blocking, so `app.run()` may begin
+serving before the first poll completes.
 
 ### Deployment
 - Runs directly on Linux (no Docker required)
@@ -145,25 +145,32 @@ call arrives.
 drivecheck/
 ├── backend/
 │   ├── .venv/
-│   ├── app.py                  (Flask entry point)
+│   ├── app.py                  (Flask entry point + API routes)
 │   ├── collector.py            (background polling thread + registry)
-│   ├── job_registry.py         (in-memory job state)
-│   ├── db.py                   (SQLite access)
-│   ├── models.py               (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
+│   ├── config.py               (loads config.yaml)
+│   ├── db.py                   (SQLite schema + access)
+│   ├── settings.py             (user settings, persisted to data/settings.json)
+│   ├── models.py                (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
+│   ├── analysis/
+│   │   └── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
 │   ├── probes/
-│   │   ├── __init__.py         (probe loader — imports probe modules by dotted path from config)
-│   │   ├── smartctl_scan.py    (default scan probe)
-│   │   ├── smartctl_traits.py  (default traits probe)
-│   │   └── smartctl_telemetry.py (default telemetry probe)
+│   │   ├── scan/smartctl_scan.py             (default scan probe)
+│   │   ├── traits/smartctl_traits.py         (default traits probe)
+│   │   └── telemetry/smartctl_telemetry.py   (default telemetry probe)
 │   └── drive_tools/
-│       ├── __init__.py
-│       ├── base.py             (OperationBase class)
-│       ├── smartctl.py         (raw subprocess wrapper + smartctl Operation classes)
-│       └── badblocks.py        (badblocks Operation classes)
+│       └── smartctl.py         (raw subprocess wrapper around smartctl -j)
 ├── frontend/
-│   └── ...                     (Vite/React scaffold)
+│   └── src/
+│       ├── App.tsx, App.css
+│       ├── DriveCard.tsx, DriveCard.css
+│       ├── WorkspacePanel.tsx, WorkspacePanel.css  (tab shells — currently stubs)
+│       ├── signals.ts          (signal descriptors + footer signal defaults)
+│       ├── format.ts
+│       ├── types.ts
+│       └── main.tsx
 ├── data/
 │   ├── drivecheck.db
+│   ├── settings.json
 │   └── reports/
 │       └── <drive-guid>/
 │           ├── <timestamp>.json
@@ -171,19 +178,25 @@ drivecheck/
 └── config.yaml
 ```
 
+`drive_tools/base.py`, `drive_tools/badblocks.py`, and `job_registry.py` aren't shown
+above — they're part of the not-yet-built Operations/Jobs system (see Operation
+Architecture and Project Status).
+
 ---
 
 ## Probe System
 
 ### Overview
-The collector delegates data collection to a configurable probe system. Probes are
-Python modules loaded by dotted path from config. drivecheck ships default probes;
-users can write their own and add them to the configured lists.
+The collector delegates data collection to a probe system, organized as
+`probes/scan/`, `probes/traits/`, `probes/telemetry/` subpackages. Currently the
+collector imports one hardcoded probe per stage. The target design (see Probe
+config below) is for probes to be Python modules loaded by dotted path from
+config, so users can write their own and add them to configured lists.
 
 ### Scan probes
 Discover attached drives. Take no arguments. Return a list of `DriveDescriptor`s.
-The default (`probes/smartctl_scan.py`) runs `smartctl --scan -j` and parses the
-result. Could be swapped for `lsblk`, a vendor tool, or any custom discovery logic.
+The default (`probes/scan/smartctl_scan.py`) runs `smartctl --scan -j` and parses
+the result. Could be swapped for `lsblk`, a vendor tool, or any custom discovery logic.
 
 ```python
 def run() -> list[DriveDescriptor]:
@@ -191,42 +204,46 @@ def run() -> list[DriveDescriptor]:
 ```
 
 ### Traits probes
-Populate `DriveTraits` for a specific drive. Receive a `DriveContext`; return a
-`DriveTraits`. Run by the collector on drive discovery and at a reduced refresh
-interval — not every poll cycle.
+Populate `DriveTraits` for a specific drive. Receive a `DriveDescriptor` — at this
+point no GUID has been assigned yet — and return a `DriveTraits`. Run by the
+collector only on first discovery of a drive; reduced-interval refresh for
+already-known drives is target design (see Project Status).
 
 ```python
-def run(context: DriveContext) -> DriveTraits:
+def run(descriptor: DriveDescriptor) -> DriveTraits:
     ...
 ```
 
 ### Telemetry probes
-Enrich a `DriveSnapshot` with health data for a specific drive. Receive a
-`DriveContext` and the current `DriveSnapshot`; return the enriched snapshot.
-The probe chain passes the snapshot through each probe in config list order —
-last probe has final authority over any field.
+Receive a `DriveContext` and return a `DriveTelemetry` (signals + last_polled_at)
+for a specific drive.
 
 ```python
-def run(context: DriveContext, snapshot: DriveSnapshot) -> DriveSnapshot:
+def run(context: DriveContext) -> DriveTelemetry:
     ...
 ```
 
-Probes write to:
-- `snapshot.telemetry.signals` — normalized DCSignals fields
+Target design (see Project Status): probes receive and return the full
+`DriveSnapshot`, chained in config list order with the last probe having final
+authority over any field, writing to:
+- `snapshot.telemetry.signals` — normalized DCSignals fields (implemented today)
 - `snapshot.extras` — free-form dict for anything without a first-class field
-  (raw smartctl JSON, lsblk output, vendor data, etc.)
-- `snapshot.probe_log` — append a `ProbeRecord` on completion
+  (raw smartctl JSON, lsblk output, vendor data, etc.) — unused so far
+- `snapshot.probe_log` — append a `ProbeRecord` on completion — unused so far
 
-### Probe config
+### Probe config (target design — see Project Status)
+The dotted-path, list-based config loader below would replace the hardcoded
+single-probe-per-stage imports described in Overview:
+
 ```yaml
 scan_probes:
-  - drivecheck.probes.smartctl_scan
+  - drivecheck.probes.scan.smartctl_scan
 
 traits_probes:
-  - drivecheck.probes.smartctl_traits
+  - drivecheck.probes.traits.smartctl_traits
 
 telemetry_probes:
-  - drivecheck.probes.smartctl_telemetry
+  - drivecheck.probes.telemetry.smartctl_telemetry
 ```
 
 ### Deduplication
@@ -262,10 +279,10 @@ Minimal scan output — just enough to identify and reach a drive.
 
 ### DriveContext
 Stable identity assembled by the collector after GUID lookup. Universal context
-object passed to scrape probes, operations, and jobs.
+object passed to telemetry probes, operations, and jobs.
 - `guid` — internal GUID (assigned on first detection, never changes)
 - `descriptor` — the DriveDescriptor
-- `traits` — DriveTraits (populated by scrape probes)
+- `traits` — DriveTraits (populated by traits probes)
 
 ### DriveTraits
 Intrinsic physical characteristics. Stable across polls.
@@ -281,7 +298,7 @@ How the drive is attached right now — ephemeral.
 
 ### DCSignals
 Drivecheck-normalized health signals. Protocol-agnostic. Mapped from raw data by
-scrape probes. These are what the card grid, overview tiles, and trend queries use.
+telemetry probes. These are what the card grid, overview tiles, and trend queries use.
 Named without a `dc_` prefix — the `DCSignals` namespace makes them unambiguous.
 
 | Signal | ATA source | SCSI/SAS source |
@@ -305,8 +322,9 @@ Point-in-time capture of one collector poll. Persisted to SQLite; one row per po
 - `probe_log` — list of ProbeRecord (one per probe that ran)
 
 ### DriveState
-Live in-memory view. The probe chain passes this object through each scrape probe.
-Lives in the collector registry; read by API endpoints.
+Live in-memory view. Mutated by the collector across discovery and each poll
+cycle as traits and telemetry probes return updated data. Lives in the
+collector registry; read by API endpoints.
 - `context` — DriveContext (stable identity)
 - `traits` — DriveTraits (may be enriched by probes)
 - `attachment` — DriveAttachment
@@ -318,15 +336,18 @@ Lives in the collector registry; read by API endpoints.
 
 ### GUID Assignment
 A GUID is assigned the first time a drive is detected by the collector — on first
-scan, not on first operation. The collector queries SQLite by serial number immediately
-after a scrape probe populates traits:
-1. Match found → attach existing GUID to DriveContext
-2. No match → assign new GUID, write Drive Record to SQLite immediately
-3. Multiple matches → compare traits (capacity, type, model); use the full match.
-   If still ambiguous, assign new GUID and set `conflict_flag`. Do not prompt mid-scan.
+scan, not on first operation. Implemented as `uuid.uuid5(NAMESPACE, serial or
+device_name)` in `collector.py`: deterministic and stable across restarts without
+needing a SQLite lookup at assignment time. The collector then calls
+`db.upsert_drive_record()`, which inserts the Drive Record on first sighting
+(setting `first_seen`) or refreshes identity fields on later sightings while
+preserving `first_seen`.
 
-A DriveSnapshot in the registry always has a GUID. The GUID may be absent only
-transiently during the probe chain before the collector has done the SQLite lookup.
+A DriveState in the registry always has a GUID by construction — it's assigned
+before the DriveContext is created.
+
+`conflict_flag` exists in the schema for the "multiple drives share a serial"
+case from the original design, but no code path sets it yet (always 0).
 
 ### Drive Record fields
 - `guid` TEXT PRIMARY KEY
@@ -403,14 +424,16 @@ Only the normalized DCSignals fields. Protocol differences are already resolved 
 
 ```sql
 CREATE TABLE drive_signals (
-    id           INTEGER PRIMARY KEY,
-    drive_guid   TEXT,
-    captured_at  TEXT,
-    signal       TEXT,   -- e.g. "reallocated", "temp"
-    value        REAL,
-    INDEX (drive_guid, signal, captured_at)
-)
+    id          INTEGER PRIMARY KEY,
+    drive_guid  TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    signal      TEXT NOT NULL,   -- e.g. "reallocated", "temp"
+    value       REAL
+);
+CREATE INDEX idx_drive_signals_lookup ON drive_signals (drive_guid, signal, captured_at);
 ```
+
+Implemented in `backend/db.py`; written every poll via `db.record_signals()`.
 
 **Layer 2 — raw snapshots (periodic JSON blobs)**
 Full smartctl JSON output stored periodically. Enables "what were all attributes at
@@ -419,14 +442,17 @@ Answers the raw SMART dump view in the UI.
 
 ```sql
 CREATE TABLE drive_raw_snapshots (
-    id           INTEGER PRIMARY KEY,
-    drive_guid   TEXT,
-    captured_at  TEXT,
-    probe        TEXT,   -- which probe produced this
-    raw_json     TEXT,
-    INDEX (drive_guid, captured_at)
-)
+    id          INTEGER PRIMARY KEY,
+    drive_guid  TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    probe       TEXT NOT NULL,   -- which probe produced this
+    raw_json    TEXT NOT NULL
+);
+CREATE INDEX idx_drive_raw_snapshots_lookup ON drive_raw_snapshots (drive_guid, captured_at);
 ```
+
+Table exists in `backend/db.py` but nothing writes to it yet — depends on telemetry
+probes populating `snapshot.extras` with raw JSON (see Probe System).
 
 **Heartbeats** — one row per drive per collector cycle. Records presence, temperature,
 and a reference to the current raw snapshot. Poll anchor for "was this drive visible
@@ -434,14 +460,17 @@ at time T" queries.
 
 ```sql
 CREATE TABLE drive_heartbeats (
-    id               INTEGER PRIMARY KEY,
-    drive_guid       TEXT,
-    captured_at      TEXT,
-    temp_c           INTEGER,
-    raw_snapshot_id  INTEGER,
-    INDEX (drive_guid, captured_at)
-)
+    id              INTEGER PRIMARY KEY,
+    drive_guid      TEXT NOT NULL,
+    captured_at     TEXT NOT NULL,
+    temp_c          INTEGER,
+    raw_snapshot_id INTEGER
+);
+CREATE INDEX idx_drive_heartbeats_lookup ON drive_heartbeats (drive_guid, captured_at);
 ```
+
+Implemented in `backend/db.py`; written every poll via `db.record_heartbeat()`.
+`raw_snapshot_id` is always NULL until raw snapshot writes land.
 
 ### History retention
 Configurable window (e.g. `keep_history_days: 90`). Old rows pruned by the collector.
@@ -479,8 +508,8 @@ ORDER BY captured_at
 |---|---|
 | Flask over FastAPI | Simpler, more stable, less magic. |
 | Threads over asyncio | Jobs are subprocesses, not network I/O. Threading is the natural fit. GIL releases on subprocess I/O. |
-| ThreadPoolExecutor for scrape | Per-drive threads mean a hanging drive can't block others. Timeout is per-drive, not per-cycle. |
-| Polling over SSE | Survives page refreshes and multi-hour jobs without session tracking. Adaptive interval (2s active / 10s idle). |
+| ThreadPoolExecutor for telemetry polling | Per-drive threads mean a hanging drive can't block others. Timeout is per-drive, not per-cycle. Target design — collector currently polls drives sequentially with no per-drive timeout (see Project Status). |
+| Polling over SSE | Survives page refreshes and multi-hour jobs without session tracking. Adaptive interval is target design (see Live updates, Project Status). |
 | SQLite from the start | Persistent storage needed to survive reconnects and restarts. Handles 20+ drives with time-series data at homelab scale. |
 | SQLite WAL mode | Collector writes concurrently with API request readers. Required; set once at init. |
 | No ORM | Raw sqlite3. No dependency, no learning cost, no magic at this scale. |
@@ -488,7 +517,7 @@ ORDER BY captured_at
 | Traits / Telemetry probe split | Traits are stable; polling them every cycle wastes I/O. Traits probes run on discovery + reduced interval. Telemetry probes run every cycle. Keeps probe signatures clean — telemetry probes never touch DriveTraits. |
 | Operations separate from probes | Probes are passive collection. Operations are active user-initiated tasks. Different lifecycles, different ownership. |
 | DriveContext as universal context | Single object passed to probes, operations, and jobs. Everyone gets the same view of what a drive is and where it is. |
-| DCSignals as normalized layer | Protocol differences (ATA vs SAS) resolved once in the scrape probe. Everything above the probe layer is protocol-agnostic. |
+| DCSignals as normalized layer | Protocol differences (ATA vs SAS) resolved once in the telemetry probe. Everything above the probe layer is protocol-agnostic. |
 | Two-layer time-series storage | Narrow signals table for trend queries; JSON blob for full raw history. Neither alone is sufficient. |
 | GUID assigned on first detection | Drive identity established as soon as the collector sees the drive, not deferred to first operation. Simpler lifecycle. |
 | Serial as lookup key | Used for deduplication, not identity. Returns a list to handle rare duplicates. |
@@ -521,35 +550,33 @@ ORDER BY captured_at
 
 ## Config File
 
-Location: `config.yaml` at project root.
+Location: `config.yaml` at project root, loaded by `backend/config.py`.
+(`docs/backend/designs/config.yaml.example` is an early draft and has drifted
+from the fields below — `config.yaml` is the source of truth.)
 
+Current fields:
 ```yaml
 auth:
   username: admin
-  password_sha256: <hex digest>
-
-data_dir: ./data
-
-flask:
-  host: 0.0.0.0
-  port: 5000
-  debug: false
-  secret_key: <random string>
+  password_hash: ""    # bcrypt hash — not yet enforced, see Auth in Project Status
 
 collector:
-  poll_interval: 300        # seconds
-  scrape_timeout: 120       # per-drive timeout in seconds
-  keep_history_days: 90
+  poll_interval: 300   # seconds
 
-jobs:
-  max_parallel: 2           # range 1–8
+data:
+  dir: ./data
 
-scan_probes:
-  - drivecheck.probes.smartctl_scan
-
-scrape_probes:
-  - drivecheck.probes.smartctl_scrape
+server:
+  host: 127.0.0.1
+  port: 4343
+  debug: false
 ```
+
+Target fields, not yet present (see corresponding sections):
+- `secret_key` — Flask session secret (Auth)
+- `collector.telemetry_timeout`, `collector.keep_history_days` (Collector, History retention)
+- `jobs.max_parallel` (Queue & Scheduler)
+- `scan_probes` / `traits_probes` / `telemetry_probes` lists (Probe config)
 
 ---
 
@@ -566,24 +593,46 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 
 ## Project Status
 
+### Done
 [x] Stack and architecture decided
 [x] Dev environment set up (Debian 13 VM)
 [x] Project directory scaffolded at ~/projects/drivecheck
 [x] Storage schema designed
 [x] Data models designed (models.py written)
 [x] Probe system architecture decided
-[ ] drive_tools/smartctl.py (raw subprocess wrapper)
-[ ] probes/smartctl_scan.py
-[ ] probes/smartctl_scrape.py
+[x] drive_tools/smartctl.py (raw subprocess wrapper)
+[x] probes/scan/smartctl_scan.py
+[x] probes/traits/smartctl_traits.py
+[x] probes/telemetry/smartctl_telemetry.py
+[x] collector.py (sequential polling — see gaps below)
+[x] db.py (SQLite schema + access)
+[x] app.py routes (drives, settings, refresh, collector status)
+[x] User settings persistence (settings.py, data/settings.json)
+[x] Frontend skeleton (Vite/React, drive card grid, workspace panel shell)
+
+### Remaining — Collector / Probes
+[ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
+[ ] threading.Event for clean collector shutdown
+[ ] Blocking initial poll before Flask starts serving (cold start guarantee)
+[ ] Probe config loading by dotted path (currently hardcoded single probe per stage)
+[ ] Telemetry probe chain + extras/probe_log enrichment (raw JSON capture)
+[ ] drive_raw_snapshots persistence
+[ ] History retention / pruning (keep_history_days)
+[ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
+
+### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)
 [ ] drive_tools/badblocks.py
-[x] db.py (SQLite schema + access)
-[ ] collector.py
 [ ] job_registry.py
-[ ] app.py routes
+[ ] Operations / Jobs system end-to-end
 [ ] Report generation (JSON + HTML)
-[ ] Frontend skeleton (Vite/React, basic routing)
-[ ] Auth
+
+### Remaining — Frontend
+[ ] Health / History / Queue / Run Task tab implementations (currently stubs)
+[ ] Adaptive poll interval (2s active / 10s idle) — currently flat 30s; depends on Jobs system
+
+### Remaining — Auth
+[ ] Login route + session cookie enforcement
 
 ---
 
