@@ -15,10 +15,11 @@ const TABS: { id: Tab; label: string }[] = [
 
 interface Props {
   drives: Drive[]
-  selected: string | null
+  selected: string[]
+  onToggleSelect: (guid: string) => void
 }
 
-export default function WorkspacePanel({ drives, selected }: Props) {
+export default function WorkspacePanel({ drives, selected, onToggleSelect }: Props) {
   const [tab, setTab]           = useState<Tab>("health")
   const [expanded, setExpanded] = useState(true)
 
@@ -45,7 +46,7 @@ export default function WorkspacePanel({ drives, selected }: Props) {
             </nav>
           </div>
           <div className="ws-body">
-            {tab === "health"  && <HealthTab drives={drives} selectedGuid={selected} />}
+            {tab === "health"  && <HealthTab drives={drives} selectedGuids={selected} onToggleSelect={onToggleSelect} />}
             {tab === "history" && <StubTab label="History"  note="Past job executions for this drive." />}
             {tab === "queue"   && <StubTab label="Queue"    note="Running and queued jobs across all drives." />}
             {tab === "tasks"   && <StubTab label="Run Task" note="Configure and launch operations on this drive." />}

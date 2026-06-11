@@ -14,10 +14,11 @@ const SUBTABS: { id: SubTab; label: string }[] = [
 
 interface Props {
   drives: Drive[]
-  selectedGuid: string | null
+  selectedGuids: string[]
+  onToggleSelect: (guid: string) => void
 }
 
-export default function HealthTab({ drives, selectedGuid }: Props) {
+export default function HealthTab({ drives, selectedGuids, onToggleSelect }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("overview")
 
   return (
@@ -35,7 +36,7 @@ export default function HealthTab({ drives, selectedGuid }: Props) {
       </nav>
       <div className="health-subtab-body">
         {subTab === "overview" && <StubTab label="Overview" note="Health score · temperature · POH · flagged signals." />}
-        {subTab === "smart"    && <SmartAttributesPanel drives={drives} selectedGuid={selectedGuid} />}
+        {subTab === "smart"    && <SmartAttributesPanel drives={drives} selectedGuids={selectedGuids} onToggleSelect={onToggleSelect} />}
         {subTab === "report"   && <StubTab label="Report" note="Identity · verdict · stat tiles · export controls." />}
       </div>
     </div>

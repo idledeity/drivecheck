@@ -43,7 +43,56 @@
 }
 
 .drive-chip:hover  { color: var(--t2); border-color: var(--bd2); }
-.drive-chip.active { color: var(--cy); border-color: var(--cy); background: rgba(24,196,238,0.08); }
+.drive-chip.active { color: var(--sel); border-color: var(--sel); background: rgba(168,85,247,0.08); }
+
+/* ── Per-drive sections (multi-select) ── */
+.smart-drive-section + .smart-drive-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bd);
+}
+
+.smart-drive-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.smart-drive-mfr {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.smart-drive-mfr::after {
+  content: "·";
+  margin-left: 5px;
+  color: var(--t5);
+}
+
+.smart-drive-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.smart-drive-cap { flex-shrink: 0; }
+
+.smart-drive-serial {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--t4);
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 /* ── Attribute list ── */
 .smart-empty {

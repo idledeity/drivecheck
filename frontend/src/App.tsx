@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { IconRefresh } from "@tabler/icons-react"
+import { IconRefresh, IconDeselect } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
 import WorkspacePanel from "./WorkspacePanel"
 import type { CollectorStatus, Drive, Settings } from "./types"
@@ -8,7 +8,7 @@ import "./App.css"
 
 export default function App() {
   const [drives, setDrives] = useState<Drive[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -45,6 +45,10 @@ export default function App() {
       .finally(() => setRefreshing(false))
   }
 
+  const toggleSelect = (guid: string) => {
+    setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
+  }
+
   if (error) return <div className="status-error">Error: {error}</div>
 
   return (
@@ -56,7 +60,10 @@ export default function App() {
             Last polled {formatRelativeTime(collectorStatus.last_polled_at)}
           </span>
         )}
-        <button className="refresh-btn" onClick={handleRefresh} disabled={refreshing} title="Refresh now">
+        <button className="header-btn" onClick={() => setSelected([])} disabled={selected.length === 0} title="Clear selection">
+          <IconDeselect size={13} />
+        </button>
+        <button className="header-btn" onClick={handleRefresh} disabled={refreshing} title="Refresh now">
           <IconRefresh size={13} className={refreshing ? "spinning" : ""} />
         </button>
       </div>
@@ -67,14 +74,14 @@ export default function App() {
               <DriveCard
                 key={d.guid}
                 drive={d}
-                selected={selected === d.guid}
-                onSelect={() => setSelected(selected === d.guid ? null : d.guid)}
+                selected={selected.includes(d.guid)}
+                onSelect={() => toggleSelect(d.guid)}
                 footerSignals={settings?.footer_signals}
               />
             ))}
           </div>
       }
-      <WorkspacePanel drives={drives} selected={selected} />
+      <WorkspacePanel drives={drives} selected={selected} onToggleSelect={toggleSelect} />
     </div>
   )
 }

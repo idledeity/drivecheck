@@ -734,8 +734,8 @@ Below tiles: flagged dc_signals inline, or all-clear message.
 Rows are sorted client-side by severity (crit → warn → ok) so flagged attributes
 float to top — the only "interpretation" left to the frontend, since reordering by
 a backend-provided status doesn't require new thresholds. Drive switcher strip lists
-all drives (card-grid selection is currently single-select, so this lets the user
-browse any drive's SMART data without changing it).
+all drives, defaulting to the most recently selected card, so the user can browse
+any drive's SMART data without changing the card-grid selection.
 
 **Report** — stub. Target: formatted summary: identity block · verdict · stat tiles ·
 test history · flagged signals · export controls (Open in browser / Export HTML).

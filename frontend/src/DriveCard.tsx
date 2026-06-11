@@ -1,6 +1,7 @@
 import { IconClock, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
+import { formatCapacity } from "./format"
 import "./DriveCard.css"
 
 interface Props {
@@ -113,9 +114,3 @@ const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; l
   Unrated:  { bar: "grey",  label: "Unrated"  },
 }
 
-function formatCapacity(bytes: number | null): string {
-  if (bytes === null) return "—"
-  if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(0)} TB`
-  if (bytes >= 1e9)  return `${(bytes / 1e9).toFixed(0)} GB`
-  return `${(bytes / 1e6).toFixed(0)} MB`
-}
