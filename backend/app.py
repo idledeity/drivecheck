@@ -18,6 +18,7 @@ def drives():
         ctx = state.context
         traits = state.traits
         signals = state.snapshot.telemetry.signals
+        health = state.snapshot.health
         polled_at = state.snapshot.telemetry.last_polled_at
         result.append({
             "guid": ctx.guid,
@@ -38,6 +39,8 @@ def drives():
             "uncorrected": signals.uncorrected,
             "load_unload_cycles": signals.load_unload_cycles,
             "smart_passed": signals.smart_passed,
+            "health_status": health.health_status,
+            "signal_flags": health.signal_flags,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
         })
     return jsonify(result)

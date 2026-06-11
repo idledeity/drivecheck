@@ -8,6 +8,7 @@ The DCSignals mapping is documented in models.DCSignals.
 
 from datetime import datetime
 
+from analysis.health import score_health
 from drive_tools import smartctl
 from models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
 
@@ -28,6 +29,7 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
         signals = _map_ata(data)
 
     snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
+    snapshot.health = score_health(signals)
     snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
@@ -116,5 +118,6 @@ if __name__ == "__main__":
         print(f"  polled_at: {snapshot.telemetry.last_polled_at}")
         for key, value in asdict(snapshot.telemetry.signals).items():
             print(f"  {key}: {value}")
+        print(f"  health: {snapshot.health}")
         print(f"  extras keys: {list(snapshot.extras.keys())}")
         print(f"  probe_log: {snapshot.probe_log}")

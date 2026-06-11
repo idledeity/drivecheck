@@ -11,8 +11,8 @@ interface Props {
 }
 
 export default function DriveCard({ drive, selected, onSelect, footerSignals }: Props) {
-  const health  = deriveHealth(drive)
-  const tempHot = (drive.temp ?? 0) >= 45
+  const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
+  const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
 
@@ -79,13 +79,14 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
             const desc = SIGNALS[key]
             if (!desc) return null
             const val = drive[key as keyof Drive]
+            const flag = drive.signal_flags?.[key]
             return (
               <Stat
                 key={key}
                 label={desc.label}
                 value={desc.format(val)}
-                warn={desc.warn?.(val)}
-                crit={desc.crit?.(val)}
+                warn={flag === "warn"}
+                crit={flag === "crit"}
               />
             )
           })}
@@ -105,14 +106,11 @@ function Stat({ label, value, warn, crit }: { label: string; value: string | num
   )
 }
 
-function deriveHealth(drive: Drive): { bar: "green" | "warn" | "red" | "grey"; label: string } {
-  if (drive.smart_passed === false)
-    return { bar: "red",  label: "Failing"  }
-  if ((drive.reallocated ?? 0) > 0 || (drive.uncorrected ?? 0) > 0)
-    return { bar: "warn", label: "Degraded" }
-  if (drive.smart_passed === true)
-    return { bar: "green", label: "SMART OK" }
-  return { bar: "grey", label: "Unrated" }
+const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; label: string }> = {
+  Healthy:  { bar: "green", label: "SMART OK" },
+  Degraded: { bar: "warn",  label: "Degraded" },
+  Failing:  { bar: "red",   label: "Failing"  },
+  Unrated:  { bar: "grey",  label: "Unrated"  },
 }
 
 function formatCapacity(bytes: number | null): string {

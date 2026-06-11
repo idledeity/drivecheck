@@ -148,7 +148,8 @@ class DriveTelemetry:
 class DriveHealth:
     """Derived health signals, computed by the collector after each poll."""
     health_pct: int     | None = None
-    health_status: str  | None = None   # "Healthy" | "Degraded" | "Failing" | None
+    health_status: str  | None = None   # "Healthy" | "Degraded" | "Failing" | None (Unrated)
+    signal_flags: dict[str, str] = field(default_factory=dict)  # DCSignals field name -> "ok" | "warn" | "crit"
 
 
 # ---------------------------------------------------------------------------

@@ -3,8 +3,6 @@ import type { Drive } from "./types"
 export type SignalDescriptor = {
   label: string
   format: (v: Drive[keyof Drive]) => string
-  warn?: (v: Drive[keyof Drive]) => boolean
-  crit?: (v: Drive[keyof Drive]) => boolean
 }
 
 export const SIGNALS: Record<string, SignalDescriptor> = {
@@ -15,17 +13,14 @@ export const SIGNALS: Record<string, SignalDescriptor> = {
   reallocated: {
     label:  "Realloc",
     format: v => v !== null ? String(v) : "—",
-    warn:   v => (v as number ?? 0) > 0,
   },
   pending: {
     label:  "Pending",
     format: v => v !== null ? String(v) : "—",
-    warn:   v => (v as number ?? 0) > 0,
   },
   uncorrected: {
     label:  "Uncorr",
     format: v => v !== null ? String(v) : "—",
-    crit:   v => (v as number ?? 0) > 0,
   },
   load_unload_cycles: {
     label:  "Ld/UL",
@@ -34,12 +29,6 @@ export const SIGNALS: Record<string, SignalDescriptor> = {
   temp: {
     label:  "Temp",
     format: v => v !== null ? `${v}°C` : "—",
-    warn:   v => (v as number ?? 0) >= 45,
-  },
-  crc_errors: {
-    label:  "CRC Err",
-    format: v => v !== null ? String(v) : "—",
-    warn:   v => (v as number ?? 0) > 0,
   },
 }
 

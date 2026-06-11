@@ -26,5 +26,7 @@ export type Drive = {
   load_unload_cycles: number | null
   uncorrected: number | null
   smart_passed: boolean | null
+  health_status: "Healthy" | "Degraded" | "Failing" | null
+  signal_flags: Record<string, "ok" | "warn" | "crit">
   last_polled_at: string | null
 }
