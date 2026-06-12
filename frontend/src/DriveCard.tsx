@@ -1,7 +1,7 @@
-import { IconClock, IconServer, IconTemperature } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconClock, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
-import { formatCapacity } from "./format"
+import { formatCapacity, formatThroughput } from "./format"
 import "./DriveCard.css"
 
 interface Props {
@@ -16,6 +16,8 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
+  const liveTemp = drive.vitals.temp ?? drive.temp
+  const io = drive.vitals.io
 
   return (
     <div
@@ -54,12 +56,12 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
       {/* Row 3: active state — path + temp */}
       <div className="dc-state">
         <span className="dc-si"><IconServer size={11} /><span className="dc-sv">{drive.device}</span></span>
-        {drive.temp !== null && (
+        {liveTemp !== null && (
           <>
             <span className="dc-tsep">·</span>
-            <span className="dc-si">
+            <span className="dc-si" title={drive.vitals.temp_source ? `Source: ${drive.vitals.temp_source}` : undefined}>
               <IconTemperature size={11} />
-              <span className={`dc-sv${tempHot ? " hot" : ""}`}>{drive.temp}°C</span>
+              <span className={`dc-sv${tempHot ? " hot" : ""}`}>{liveTemp}°C</span>
             </span>
           </>
         )}
@@ -91,6 +93,10 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
               />
             )
           })}
+        </div>
+        <div className="dc-io">
+          <div className="dc-io-row rd">{formatThroughput(io.read_bytes_per_sec)}<IconArrowUp size={9} /></div>
+          <div className="dc-io-row wr">{formatThroughput(io.write_bytes_per_sec)}<IconArrowDown size={9} /></div>
         </div>
       </div>
     </div>

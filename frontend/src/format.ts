@@ -5,6 +5,18 @@ export function formatCapacity(bytes: number | null): string {
   return `${(bytes / 1e6).toFixed(0)} MB`
 }
 
+export function formatThroughput(bytesPerSec: number | null): string {
+  if (bytesPerSec === null) return "—"
+  if (bytesPerSec >= 1e6) return `${(bytesPerSec / 1e6).toFixed(1)} MB/s`
+  if (bytesPerSec >= 1e3) return `${(bytesPerSec / 1e3).toFixed(0)} KB/s`
+  return `${bytesPerSec.toFixed(0)} B/s`
+}
+
+export function formatPercent(pct: number | null): string {
+  if (pct === null) return "—"
+  return `${pct.toFixed(0)}%`
+}
+
 export function formatRelativeTime(isoTimestamp: string): string {
   const seconds = Math.max(0, (Date.now() - new Date(isoTimestamp).getTime()) / 1000)
   if (seconds < 60) return "just now"

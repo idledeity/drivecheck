@@ -33,7 +33,10 @@ export default function App() {
   useEffect(() => {
     loadDrives()
     loadCollectorStatus()
-    const id = setInterval(() => { loadDrives(); loadCollectorStatus() }, 30_000)
+    // /api/drives is an in-memory read (no subprocess calls), so poll it
+    // faster than the collector's 10s vitals cadence to keep the live
+    // temp/IO readings on each DriveCard feeling current.
+    const id = setInterval(() => { loadDrives(); loadCollectorStatus() }, 2_000)
     return () => clearInterval(id)
   }, [])
 

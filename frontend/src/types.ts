@@ -24,6 +24,21 @@ export type RawSnapshot = {
   }
 }
 
+export type DriveIOActivity = {
+  read_iops: number | null
+  write_iops: number | null
+  read_bytes_per_sec: number | null
+  write_bytes_per_sec: number | null
+  busy_pct: number | null
+}
+
+export type DriveVitals = {
+  temp: number | null
+  temp_source: "hwmon" | "smartctl" | null
+  captured_at: string | null
+  io: DriveIOActivity
+}
+
 export type Drive = {
   guid: string
   device: string
@@ -46,4 +61,5 @@ export type Drive = {
   health_status: "Healthy" | "Degraded" | "Failing" | null
   signal_flags: Record<string, "ok" | "warn" | "crit">
   last_polled_at: string | null
+  vitals: DriveVitals
 }

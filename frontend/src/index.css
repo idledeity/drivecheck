@@ -19,6 +19,8 @@
   --wbg: rgba(255, 206, 46, 0.12);
   --re:  #ff7070;
   --rbg: rgba(255,112,112,0.12);
+  --ior: #48ccff;
+  --iow: #b878ff;
 
   font: 14px/150% system-ui, -apple-system, sans-serif;
   color: var(--t2);

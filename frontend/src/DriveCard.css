@@ -199,3 +199,10 @@
 .dc-stat-value { font-size: 10px; font-weight: 600; color: var(--t2); line-height: 1.3; }
 .dc-stat-value.warn { color: var(--wa); }
 .dc-stat-value.crit { color: var(--re); }
+
+/* ── Footer: stacked IO (read/write throughput) ── */
+.dc-io     { display: flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; }
+.dc-io-row { display: flex; align-items: center; gap: 2px; font-size: 8.5px; line-height: 1.4; white-space: nowrap; }
+.dc-io-row.rd { color: var(--ior); }
+.dc-io-row.wr { color: var(--iow); }
+.dc-io-row svg { flex-shrink: 0; }
