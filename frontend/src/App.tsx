@@ -20,9 +20,12 @@ export default function App() {
 
   const loadDrives = () =>
     fetch("/api/drives")
-      .then(r => r.json())
-      .then(setDrives)
-      .catch(e => setError(String(e)))
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(data => { setDrives(data); setError(null) })
+      .catch(() => setError("Backend unavailable — retrying…"))
 
   const loadCollectorStatus = () =>
     fetch("/api/collector/status")
@@ -44,7 +47,7 @@ export default function App() {
     setRefreshing(true)
     fetch("/api/drives/refresh", { method: "POST" })
       .then(() => Promise.all([loadDrives(), loadCollectorStatus()]))
-      .catch(e => setError(String(e)))
+      .catch(() => setError("Backend unavailable — retrying…"))
       .finally(() => setRefreshing(false))
   }
 
@@ -52,10 +55,9 @@ export default function App() {
     setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
   }
 
-  if (error) return <div className="status-error">Error: {error}</div>
-
   return (
     <div>
+      {error && <div className="status-error">{error}</div>}
       <div className="page-label">
         drivecheck <span>/ drives</span>
         {collectorStatus?.last_polled_at && (
