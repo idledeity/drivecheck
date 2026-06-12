@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from config import CONFIG
+from models import DriveIOActivity
 
 _DB_PATH = (Path(__file__).parent.parent / CONFIG["data"]["dir"] / "drivecheck.db").resolve()
 
@@ -59,6 +60,22 @@ CREATE TABLE IF NOT EXISTS drive_heartbeats (
 
 CREATE INDEX IF NOT EXISTS idx_drive_heartbeats_lookup
     ON drive_heartbeats (drive_guid, captured_at);
+
+CREATE TABLE IF NOT EXISTS drive_vitals (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    drive_guid          TEXT NOT NULL,
+    captured_at         TEXT NOT NULL,
+    temp_c              INTEGER,
+    temp_source         TEXT,
+    read_iops           REAL,
+    write_iops          REAL,
+    read_bytes_per_sec  REAL,
+    write_bytes_per_sec REAL,
+    busy_pct            REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_drive_vitals_guid_captured
+    ON drive_vitals (drive_guid, captured_at);
 """
 
 
@@ -155,6 +172,29 @@ def record_heartbeat(
         conn.execute(
             "INSERT INTO drive_heartbeats (drive_guid, captured_at, temp_c, raw_snapshot_id) VALUES (?, ?, ?, ?)",
             (guid, captured_at, temp_c, raw_snapshot_id),
+        )
+
+
+def record_vitals(
+    guid: str,
+    captured_at: str,
+    temp_c: int | None,
+    temp_source: str | None,
+    io: DriveIOActivity,
+) -> None:
+    """Record a vitals reading — cheap temp + IO activity at this point in time."""
+    with _connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO drive_vitals (
+                drive_guid, captured_at, temp_c, temp_source,
+                read_iops, write_iops, read_bytes_per_sec, write_bytes_per_sec, busy_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                guid, captured_at, temp_c, temp_source,
+                io.read_iops, io.write_iops, io.read_bytes_per_sec, io.write_bytes_per_sec, io.busy_pct,
+            ),
         )
 
 

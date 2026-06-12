@@ -21,6 +21,7 @@ def drives():
         signals = state.snapshot.telemetry.signals
         health = state.snapshot.health
         polled_at = state.snapshot.telemetry.last_polled_at
+        vitals = state.vitals
         result.append({
             "guid": ctx.guid,
             "device": ctx.descriptor.device_name,
@@ -43,6 +44,18 @@ def drives():
             "health_status": health.health_status,
             "signal_flags": health.signal_flags,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
+            "vitals": {
+                "temp": vitals.temp,
+                "temp_source": vitals.temp_source,
+                "captured_at": vitals.captured_at.isoformat() if vitals.captured_at else None,
+                "io": {
+                    "read_iops": vitals.io.read_iops,
+                    "write_iops": vitals.io.write_iops,
+                    "read_bytes_per_sec": vitals.io.read_bytes_per_sec,
+                    "write_bytes_per_sec": vitals.io.write_bytes_per_sec,
+                    "busy_pct": vitals.io.busy_pct,
+                },
+            },
         })
     return jsonify(result)
 

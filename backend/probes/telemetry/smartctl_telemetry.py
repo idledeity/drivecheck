@@ -20,7 +20,7 @@ _PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     """Query live SMART attributes for a drive and enrich the snapshot."""
     descriptor = context.descriptor
-    data = smartctl.attributes(descriptor.device_name, descriptor.access_type)
+    data = smartctl.attributes_all(descriptor.device_name, descriptor.access_type)
 
     drive_type = context.traits.drive_type
     if drive_type == DriveType.NVME:

@@ -9,6 +9,7 @@ collector:
   poll_intervals:
     telemetry: 300    # seconds — signals + heartbeat
     snapshot: 14400   # seconds — raw smartctl JSON persistence
+    vitals: 10        # seconds — cheap temp + disk IO activity
 
 data:
   dir: ./data

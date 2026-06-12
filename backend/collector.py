@@ -5,8 +5,8 @@ Discovers drives via the scan probe, runs traits and telemetry probes for
 each, and maintains a live registry of DriveState objects keyed by GUID.
 
 The collector runs a background daemon thread that wakes every _TICK_INTERVAL
-seconds and checks, per drive, whether each channel ("telemetry", "snapshot")
-is due. Each channel has its own interval (config.yaml: collector.poll_intervals)
+seconds and checks, per drive, whether each channel ("telemetry", "snapshot",
+"vitals") is due. Each channel has its own interval (config.yaml: collector.poll_intervals)
 and drives are staggered evenly across each interval via a phase derived from
 the drive's position in the sorted GUID list — see _compute_next_due. Drive
 discovery (scan + reconciliation) runs on its own, non-staggered interval
@@ -35,10 +35,11 @@ from datetime import datetime
 
 import db
 from analysis.descriptor_rank import score_descriptor
-from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits
+from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from probes.scan import smartctl_scan
 from probes.traits import smartctl_traits
 from probes.telemetry import smartctl_telemetry
+from probes.vitals import block_device, hwmon_temp, smartctl_vitals, sysfs_io
 
 _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")
 
@@ -50,6 +51,11 @@ _TICK_INTERVAL = 1.0
 # dotted-path config loading for multiple probes is target design (see Project
 # Status).
 _TELEMETRY_PROBES = [smartctl_telemetry]
+
+# Vitals probes run every time the "vitals" channel fires, in order, each
+# enriching the DriveVitals the previous one returned. hwmon runs first and,
+# if it supplies a temperature, smartctl_vitals leaves temp/temp_source alone.
+_VITALS_PROBES = [hwmon_temp, smartctl_vitals, sysfs_io]
 
 
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
@@ -65,8 +71,8 @@ class Collector:
         self._drive_states: dict[str, DriveState] = {}
         self._phase_fractions: dict[str, float] = {}
         self._scan_due: float = time.time()
-        # Per-drive, per-channel ("telemetry", "snapshot") next-due times, epoch
-        # seconds. Collector-internal scheduling state, not part of DriveState.
+        # Per-drive, per-channel ("telemetry", "snapshot", "vitals") next-due times,
+        # epoch seconds. Collector-internal scheduling state, not part of DriveState.
         self._schedules: dict[str, dict[str, float]] = {}
         self._lock = threading.Lock()
         self._poll_lock = threading.Lock()
@@ -130,6 +136,7 @@ class Collector:
         for state in active_states:
             self._maybe_run_channel(state, "telemetry", now)
             self._maybe_run_channel(state, "snapshot", now)
+            self._maybe_run_channel(state, "vitals", now)
 
     def _maybe_run_channel(self, state: DriveState, channel: str, now: float) -> None:
         """Run a drive's channel if due, then schedule its next phase-staggered slot."""
@@ -141,6 +148,8 @@ class Collector:
             self._run_telemetry(state, now)
         elif channel == "snapshot":
             self._run_snapshot(state, now)
+        elif channel == "vitals":
+            self._run_vitals(state, now)
         sched[channel] = self._compute_next_due(guid, channel, now)
 
     def _compute_next_due(self, guid: str, channel: str, now: float) -> float:
@@ -193,6 +202,17 @@ class Collector:
         db.record_raw_snapshot(
             state.context.guid, captured_at, "smartctl_telemetry", json.dumps(state.snapshot.extras)
         )
+
+    def _run_vitals(self, state: DriveState, now: float) -> None:
+        """Run the vitals probe chain for a drive and record a vitals row."""
+        vitals = DriveVitals(captured_at=datetime.now())
+        for probe in _VITALS_PROBES:
+            vitals = probe.run(vitals, state)
+
+        with self._lock:
+            state.vitals = vitals
+
+        db.record_vitals(state.context.guid, vitals.captured_at.isoformat(), vitals.temp, vitals.temp_source, vitals.io)
 
     def _reconcile_descriptors(self, descriptors: list[DriveDescriptor], now: float) -> None:
         """Partition scan results into known/unknown, discover new drives, and remove gone ones."""
@@ -257,10 +277,12 @@ class Collector:
                 state.traits = best_traits
                 state.attachment.descriptors = all_descriptors
                 state.attachment.active_index = 0
+                state.attachment.block_device = block_device.run(best_traits.serial)
                 self._drive_states[guid] = state
-                # Both channels are due immediately so a newly discovered drive
-                # gets telemetry (and a baseline raw snapshot) in this same tick.
-                self._schedules[guid] = {"telemetry": now, "snapshot": now}
+                # All channels are due immediately so a newly discovered drive
+                # gets telemetry (and a baseline raw snapshot + vitals reading)
+                # in this same tick.
+                self._schedules[guid] = {"telemetry": now, "snapshot": now, "vitals": now}
         matched_guids.add(guid)
 
         db.upsert_drive_record(

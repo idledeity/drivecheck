@@ -78,6 +78,7 @@ class DriveAttachment:
     descriptors: list[DriveDescriptor] = field(default_factory=list)
     active_index: int = 0       # index into descriptors; matches context.descriptor
     is_mounted: bool  = False
+    block_device: str | None = None   # e.g. "sdb" — resolved via lsblk by serial; None if no match
 
     @property
     def primary_descriptor(self) -> "DriveDescriptor | None":
@@ -153,6 +154,37 @@ class DriveHealth:
 
 
 # ---------------------------------------------------------------------------
+# DriveVitals
+# Cheap, high-rate readings (temperature + disk IO activity) collected on the
+# "vitals" channel — a separate live-readings bucket on its own cadence,
+# independent from the persisted-per-poll DriveSnapshot.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DriveIOActivity:
+    """Disk IO activity rates, derived from /sys/class/block/<dev>/stat deltas."""
+    read_iops: float | None = None
+    write_iops: float | None = None
+    read_bytes_per_sec: float | None = None
+    write_bytes_per_sec: float | None = None
+    busy_pct: float | None = None   # % of interval the device had IO in flight
+
+
+@dataclass
+class DriveVitals:
+    """Cheap, high-rate readings: best-available temperature + IO activity."""
+    temp: int | None = None
+    temp_source: str | None = None   # "hwmon" | "smartctl" | None
+    io: DriveIOActivity = field(default_factory=DriveIOActivity)
+    extras: dict = field(default_factory=dict)   # extra hwmon temp1_* thresholds, if any
+    captured_at: datetime | None = None
+    # Collector-internal: raw diskstats reading (epoch seconds, 17 fields) from this
+    # tick, carried on the *previous* DriveVitals so probes.vitals.sysfs_io can
+    # compute deltas next tick. Not exposed via the API.
+    io_raw: tuple[float, list[int]] | None = None
+
+
+# ---------------------------------------------------------------------------
 # AttributeRow
 # One row in the SMART attributes sub-page — a single classified attribute,
 # computed by analysis.smart_attributes from the raw protocol data. Display-ready:
@@ -223,3 +255,4 @@ class DriveState:
     traits: DriveTraits = field(default_factory=DriveTraits)
     attachment: DriveAttachment = field(default_factory=DriveAttachment)
     snapshot: DriveSnapshot = field(default_factory=DriveSnapshot)
+    vitals: DriveVitals = field(default_factory=DriveVitals)

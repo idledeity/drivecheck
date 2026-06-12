@@ -116,6 +116,8 @@ activity or job execution.
   in-memory DriveState registry and write drive_signals + drive_heartbeats to SQLite
 - Persist the most recent telemetry run's raw probe output (`snapshot.extras`) to
   drive_raw_snapshots for each drive on its `snapshot` channel
+- Read cheap temperature + disk IO activity on each drive's `vitals` channel; update
+  `DriveState.vitals` and write a drive_vitals row
 
 **Threading:**
 - Collector loop runs as a daemon thread started at Flask startup, ticking every
@@ -126,8 +128,9 @@ activity or job execution.
 
 **Polling intervals (per-channel, phase-staggered):**
 - Configurable in `config.yaml` under `collector.poll_intervals` — currently
-  `telemetry` (default 300s: signals + heartbeat) and `snapshot` (default 14400s/4h:
-  raw smartctl JSON persistence). Drive discovery runs on its own
+  `telemetry` (default 300s: signals + heartbeat), `snapshot` (default 14400s/4h:
+  raw smartctl JSON persistence), and `vitals` (default 10s: cheap temperature +
+  disk IO activity, written to drive_vitals). Drive discovery runs on its own
   `collector.scan_interval` (default 300s), unstaggered.
 - Each drive is assigned a phase fraction from its position in the sorted GUID list
   (`index / drive_count`), so drives are spread evenly across each channel's interval
@@ -140,8 +143,9 @@ activity or job execution.
 - `POST /api/drives/refresh` marks every drive's `telemetry` channel as due now and
   ticks immediately; the normal due-check + debounce handles the rest, so a manual
   refresh can't destroy staggering or double-fire.
-- New drives have both channels due immediately on registration, so they get
-  telemetry and a baseline raw snapshot in the same tick they're discovered.
+- New drives have all channels due immediately on registration, so they get
+  telemetry, a baseline raw snapshot, and a first vitals reading in the same tick
+  they're discovered.
 
 **Cold start (target, not yet enforced):** On Flask startup, the collector should run
 one immediate poll before the server begins accepting requests, so the registry is
@@ -210,12 +214,13 @@ Architecture and Project Status).
 
 ### Overview
 The collector delegates data collection to a probe system, organized as
-`probes/scan/`, `probes/traits/`, `probes/telemetry/` subpackages. Scan and traits
-each run one hardcoded probe per stage. Telemetry runs a list of probes
-(`_TELEMETRY_PROBES` in `collector.py`) chained in order — each probe receives and
-returns the `DriveSnapshot`, enriching it before passing it to the next. Today
-that list has a single hardcoded entry. The target design (see Probe config below)
-is for all three stages' probe lists to be Python modules loaded by dotted path
+`probes/scan/`, `probes/traits/`, `probes/telemetry/`, `probes/vitals/` subpackages.
+Scan and traits each run one hardcoded probe per stage. Telemetry and vitals each
+run a list of probes (`_TELEMETRY_PROBES` / `_VITALS_PROBES` in `collector.py`)
+chained in order — each probe receives and returns the aggregate object
+(`DriveSnapshot` / `DriveVitals`), enriching it before passing it to the next.
+Today those lists have hardcoded entries. The target design (see Probe config
+below) is for all stages' probe lists to be Python modules loaded by dotted path
 from config, so users can write their own and add them to configured lists.
 
 ### Scan probes
@@ -259,6 +264,34 @@ through `_TELEMETRY_PROBES` in order; the result becomes `state.snapshot`. Today
 that list is a single hardcoded entry (`smartctl_telemetry`); dotted-path config
 loading for multiple probes is target design (see Probe config below).
 
+### Vitals probes
+Receive and return the full `DriveVitals`, chained in `_VITALS_PROBES` list order.
+Each probe checks what's already filled in and fills in what it can:
+- `probes/vitals/hwmon_temp.py` — runs first; if `/sys/block/<dev>/device/hwmon*`
+  exists (drivetemp bound), sets `temp`, `temp_source = "hwmon"`, and `extras`
+  (other `temp1_*` thresholds). No-op (returns `vitals` unchanged) if hwmon is
+  unavailable — true today for all native SAS drives (see Project Status).
+- `probes/vitals/smartctl_vitals.py` — only acts if `vitals.temp is None`; runs
+  `smartctl -A` and sets `temp`/`temp_source = "smartctl"` if it reports a
+  temperature.
+- `probes/vitals/sysfs_io.py` — reads `/sys/class/block/<dev>/stat` and sets `io`
+  from the delta against the previous tick's reading, carried on
+  `state.vitals.io_raw` (collector-internal, not exposed via the API). First
+  reading for a drive leaves `io` at its zero default since there's no previous
+  sample yet.
+
+All three are no-ops (return `vitals` unchanged) if `state.attachment.block_device`
+is `None` (no resolved block device — see DriveAttachment).
+
+```python
+def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
+    ...
+```
+
+The collector starts each vitals tick with a fresh `DriveVitals(captured_at=...)`
+and threads it through `_VITALS_PROBES` in order; the result becomes
+`state.vitals` and is persisted via `db.record_vitals()`.
+
 ### Probe config (target design — see Project Status)
 The dotted-path, list-based config loader below would replace the hardcoded
 single-probe-per-stage imports described in Overview:
@@ -272,6 +305,11 @@ traits_probes:
 
 telemetry_probes:
   - drivecheck.probes.telemetry.smartctl_telemetry
+
+vitals_probes:
+  - drivecheck.probes.vitals.hwmon_temp
+  - drivecheck.probes.vitals.smartctl_vitals
+  - drivecheck.probes.vitals.sysfs_io
 ```
 
 ### Deduplication
@@ -323,6 +361,9 @@ How the drive is attached right now — ephemeral.
 - `device_path` — preferred access path
 - `descriptors` — all DriveDescriptors that resolved to this serial
 - `is_mounted`
+- `block_device` — underlying block device name (e.g. `"sdb"`), resolved once at
+  discovery time via `lsblk` by matching `traits.serial`; `None` if no match
+  (e.g. drives with no serial). Used by the vitals probes for sysfs lookups.
 
 ### DCSignals
 Drivecheck-normalized health signals. Protocol-agnostic. Mapped from raw data by
@@ -352,6 +393,25 @@ Point-in-time capture of one collector poll. Persisted to SQLite; one row per po
   consumed by the SMART attributes sub-page
 - `probe_log` — list of ProbeRecord (one per probe that ran)
 
+### DriveVitals
+Cheap, high-rate readings (temperature + disk IO activity) collected on the
+`vitals` channel — a separate live-readings bucket on its own ~10s cadence,
+independent from the persisted-per-poll `DriveSnapshot`. Also written
+periodically to `drive_vitals`.
+- `temp` — best-available temperature in °C, or `None`
+- `temp_source` — `"hwmon"` | `"smartctl"` | `None`, indicating which probe
+  supplied `temp`
+- `io` — `DriveIOActivity`: `read_iops`, `write_iops`, `read_bytes_per_sec`,
+  `write_bytes_per_sec`, `busy_pct` — all rates computed from
+  `/sys/class/block/<dev>/stat` deltas; `None` for drives with no resolved
+  `block_device`
+- `extras` — extra hwmon `temp1_*` thresholds (e.g. `max`, `crit`), if hwmon is
+  available
+- `captured_at` — timestamp of the last vitals reading
+- `io_raw` — collector-internal: this tick's raw `/sys/class/block/<dev>/stat`
+  reading (epoch seconds + 17-field list), read by `sysfs_io` on the *next* tick
+  via `state.vitals.io_raw` to compute `io`'s deltas. Not exposed via the API.
+
 ### DriveState
 Live in-memory view. Mutated by the collector across discovery and each poll
 cycle as traits and telemetry probes return updated data. Lives in the
@@ -360,6 +420,7 @@ collector registry; read by API endpoints.
 - `traits` — DriveTraits (may be enriched by probes)
 - `attachment` — DriveAttachment
 - `snapshot` — current DriveSnapshot (replaced each poll)
+- `vitals` — current DriveVitals (replaced each vitals tick)
 
 ---
 
@@ -604,6 +665,7 @@ collector:
   poll_intervals:
     telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
     snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
+    vitals: 10         # seconds — cheap temp + disk IO activity, phase-staggered per drive
 
 data:
   dir: ./data
@@ -655,18 +717,25 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] drive_raw_snapshots persistence
 [x] Per-channel, phase-staggered collector scheduler (telemetry/snapshot channels,
     tick-based loop, debounced forced refresh — see Collector / Polling intervals)
+[x] High-rate `vitals` channel (10s default): probes/vitals/ package
+    (block_device, sysfs_io, hwmon_temp, smartctl_vitals), DriveState.vitals,
+    drive_vitals table + record_vitals(), exposed via /api/drives "vitals" block.
+    hwmon/drivetemp is built and wired but intentionally inert on native SAS
+    drives (upstream driver only supports SATA-behind-SAT and NVMe — see
+    Documentation/hwmon/drivetemp.rst); kept as defensive future-proofing for
+    SATA/NVMe drives. smartctl -A is the active temp source on SAS today.
 
 ### Remaining — Collector / Probes
 [ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
 [ ] threading.Event for clean collector shutdown
 [ ] Blocking initial poll before Flask starts serving (cold start guarantee)
 [ ] Probe config loading by dotted path (currently hardcoded single-element list per stage)
-[ ] History retention / pruning (keep_history_days)
+[ ] History retention / pruning (keep_history_days) — drive_vitals grows fastest
+    (~8,600 rows/day/drive at the 10s default)
 [ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
-[ ] High-rate `vitals` channel for cheap temperature/IO reads (hwmon/drivetemp,
-    /sys/class/block/<dev>/stat) — next step after the scheduler foundation
 [ ] Frontend per-drive refresh controls + adaptive "last polled" display to match
     per-channel staggered polling (currently a single global header/refresh)
+[ ] Frontend display of vitals data (temp/IO activity) — backend/API only so far
 
 ### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)

@@ -30,6 +30,11 @@ def info(device_name: str, access_type: str) -> dict:
     return run_smartctl("-i", "-d", access_type, device_name)
 
 
-def attributes(device_name: str, access_type: str) -> dict:
+def attributes_all(device_name: str, access_type: str) -> dict:
     """smartctl -a: read SMART attributes and health status for a single drive."""
     return run_smartctl("-a", "-d", access_type, device_name)
+
+
+def attributes_only(device_name: str, access_type: str) -> dict:
+    """smartctl -A: read SMART attributes only (lighter than -a; no logs)."""
+    return run_smartctl("-A", "-d", access_type, device_name)
