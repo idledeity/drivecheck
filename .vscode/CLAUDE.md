@@ -106,31 +106,48 @@ A background thread that runs continuously alongside Flask, independent of any u
 activity or job execution.
 
 **Responsibilities:**
-- Run the scan probe to discover attached drives
+- Run the scan probe to discover attached drives, on the `scan` timer
 - Deduplicate discovered drives by serial number, scoring candidate descriptors to
   pick the best access path (see Deduplication)
 - For each newly discovered drive, assign a GUID (uuid5 of serial or device name),
   build a DriveContext, and upsert the Drive Record in SQLite
 - Run the traits probe for newly discovered drives only, to populate DriveTraits
-- Run the telemetry probe for every known drive, sequentially, each cycle
-- Update the in-memory DriveState registry; write drive_signals and
-  drive_heartbeats to SQLite each poll
+- Run the telemetry probe chain for each drive on its `telemetry` channel; update the
+  in-memory DriveState registry and write drive_signals + drive_heartbeats to SQLite
+- Persist the most recent telemetry run's raw probe output (`snapshot.extras`) to
+  drive_raw_snapshots for each drive on its `snapshot` channel
 
 **Threading:**
-- Collector loop runs as a daemon thread started at Flask startup
+- Collector loop runs as a daemon thread started at Flask startup, ticking every
+  `_TICK_INTERVAL` (1s) to check which drives/channels are due
 - WAL mode ensures collector writes don't block API request threads (implemented in `db.py`)
 - Per-drive ThreadPoolExecutor polling, probe chaining, traits refresh interval, and
   graceful shutdown are target design, not yet implemented (see Project Status)
 
-**Polling interval:**
-- Configurable in `config.yaml` (default: 300 seconds)
-- Single interval for all collection. No per-channel rates.
+**Polling intervals (per-channel, phase-staggered):**
+- Configurable in `config.yaml` under `collector.poll_intervals` — currently
+  `telemetry` (default 300s: signals + heartbeat) and `snapshot` (default 14400s/4h:
+  raw smartctl JSON persistence). Drive discovery runs on its own
+  `collector.scan_interval` (default 300s), unstaggered.
+- Each drive is assigned a phase fraction from its position in the sorted GUID list
+  (`index / drive_count`), so drives are spread evenly across each channel's interval
+  instead of bursting all at once. Phase fractions are recomputed whenever the drive
+  set changes.
+- `next_due` is computed directly from the phase grid (`_compute_next_due` in
+  `collector.py`) — no separate cooldown or `last_run_at` tracking. If the natural
+  next slot would land less than half an interval away (e.g. right after a forced
+  refresh), it's pushed out by one more interval — this is the only debounce.
+- `POST /api/drives/refresh` marks every drive's `telemetry` channel as due now and
+  ticks immediately; the normal due-check + debounce handles the rest, so a manual
+  refresh can't destroy staggering or double-fire.
+- New drives have both channels due immediately on registration, so they get
+  telemetry and a baseline raw snapshot in the same tick they're discovered.
 
 **Cold start (target, not yet enforced):** On Flask startup, the collector should run
 one immediate poll before the server begins accepting requests, so the registry is
 never empty when the first API call arrives. Currently `collector.start()` launches
-the poll loop in a background thread without blocking, so `app.run()` may begin
-serving before the first poll completes.
+the tick loop in a background thread without blocking, so `app.run()` may begin
+serving before the first tick completes.
 
 ### Deployment
 - Runs directly on Linux (no Docker required)
@@ -464,10 +481,13 @@ CREATE TABLE drive_raw_snapshots (
 CREATE INDEX idx_drive_raw_snapshots_lookup ON drive_raw_snapshots (drive_guid, captured_at);
 ```
 
-Implemented in `backend/db.py`; written every poll via `db.record_raw_snapshot()`
-from `snapshot.extras` (currently `{"smartctl": <full -a -j output>}`). Throttling
-to "on dc_signal change plus a periodic floor" instead of every poll is a possible
-future optimization, not yet needed.
+Implemented in `backend/db.py`; written via `db.record_raw_snapshot()` from
+`snapshot.extras` (currently `{"smartctl": <full -a -j output>}`), on each drive's
+`snapshot` channel (default 14400s/4h) rather than every telemetry poll — this keeps
+table growth bounded. `/api/drives/<guid>/raw/latest` (and `SmartAttributesPanel`)
+can therefore lag the live signals by up to one `snapshot` interval. Splitting
+`smart_attributes` persistence onto the `telemetry` cadence is a possible future
+follow-up if that staleness proves annoying.
 
 **Heartbeats** — one row per drive per collector cycle. Records presence, temperature,
 and a reference to the current raw snapshot. Poll anchor for "was this drive visible
@@ -484,8 +504,12 @@ CREATE TABLE drive_heartbeats (
 CREATE INDEX idx_drive_heartbeats_lookup ON drive_heartbeats (drive_guid, captured_at);
 ```
 
-Implemented in `backend/db.py`; written every poll via `db.record_heartbeat()`.
-`raw_snapshot_id` references the `drive_raw_snapshots` row from the same poll.
+Implemented in `backend/db.py`; written via `db.record_heartbeat()` on each drive's
+`telemetry` channel. `raw_snapshot_id` is `NULL` for all new rows — heartbeats and
+raw snapshots are written on independent channels/cadences now, so there's no
+same-cycle snapshot to reference. The column stays in the schema (nullable) for
+older rows; "what was the raw data near time T" queries should look up
+`drive_raw_snapshots` by `captured_at` proximity instead.
 
 ### History retention
 Configurable window (e.g. `keep_history_days: 90`). Old rows pruned by the collector.
@@ -576,7 +600,10 @@ auth:
   password_hash: ""    # bcrypt hash — not yet enforced, see Auth in Project Status
 
 collector:
-  poll_interval: 300   # seconds
+  scan_interval: 300   # seconds — drive discovery (scan + reconciliation)
+  poll_intervals:
+    telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
+    snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
 
 data:
   dir: ./data
@@ -626,6 +653,8 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] Frontend skeleton (Vite/React, drive card grid, workspace panel shell)
 [x] Telemetry probe chain + extras/probe_log enrichment (raw JSON capture)
 [x] drive_raw_snapshots persistence
+[x] Per-channel, phase-staggered collector scheduler (telemetry/snapshot channels,
+    tick-based loop, debounced forced refresh — see Collector / Polling intervals)
 
 ### Remaining — Collector / Probes
 [ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
@@ -634,6 +663,10 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [ ] Probe config loading by dotted path (currently hardcoded single-element list per stage)
 [ ] History retention / pruning (keep_history_days)
 [ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
+[ ] High-rate `vitals` channel for cheap temperature/IO reads (hwmon/drivetemp,
+    /sys/class/block/<dev>/stat) — next step after the scheduler foundation
+[ ] Frontend per-drive refresh controls + adaptive "last polled" display to match
+    per-channel staggered polling (currently a single global header/refresh)
 
 ### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)

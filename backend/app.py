@@ -6,7 +6,8 @@ from collector import Collector
 import db
 import settings
 
-collector = Collector(poll_interval=CONFIG["collector"]["poll_interval"])
+_collector_cfg = CONFIG["collector"]
+collector = Collector(scan_interval=_collector_cfg["scan_interval"], poll_intervals=_collector_cfg["poll_intervals"])
 
 app = Flask(__name__)
 
