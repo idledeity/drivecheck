@@ -55,6 +55,15 @@ export default function App() {
     setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
   }
 
+  const handleLabelChange = (guid: string, label: string | null) => {
+    setDrives(prev => prev.map(d => d.guid === guid ? { ...d, label } : d))
+    fetch(`/api/drives/${guid}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    }).catch(() => setError("Backend unavailable — retrying…"))
+  }
+
   return (
     <div>
       {error && <div className="status-error">{error}</div>}
@@ -82,6 +91,7 @@ export default function App() {
                 selected={selected.includes(d.guid)}
                 onSelect={() => toggleSelect(d.guid)}
                 footerSignals={settings?.footer_signals}
+                onLabelChange={handleLabelChange}
               />
             ))}
           </div>

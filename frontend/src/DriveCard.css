@@ -69,16 +69,17 @@
 }
 
 .dc-mfr {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 500;
-  color: var(--t4);
+  color: var(--t2);
   white-space: nowrap;
   flex-shrink: 0;
+  margin-right: -4px;
 }
 
 .dc-mfr::after {
   content: "·";
-  margin-left: 5px;
+  margin-left: 2px;
   color: var(--t5);
 }
 
@@ -94,6 +95,54 @@
 }
 
 .dc-cap { flex-shrink: 0; }
+
+.dc-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+  cursor: text;
+}
+.dc-label:hover { color: var(--t2); }
+
+.dc-label-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--t4);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.dc-label-edit:hover {
+  opacity: 1;
+  color: var(--t2);
+  background: var(--bi);
+}
+
+.dc-label-input {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--t2);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  width: 110px;
+  min-width: 0;
+  flex-shrink: 1;
+  outline: none;
+}
+.dc-label-input:focus { border-color: var(--cy); }
 
 /* ── Row 2: traits + serial ── */
 .dc-traits {

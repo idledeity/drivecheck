@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS drive_records (
     capacity_bytes INTEGER,
     drive_type     TEXT,
     first_seen     TEXT NOT NULL,
-    conflict_flag  INTEGER NOT NULL DEFAULT 0
+    conflict_flag  INTEGER NOT NULL DEFAULT 0,
+    label          TEXT
 );
 
 CREATE TABLE IF NOT EXISTS drive_signals (
@@ -99,6 +100,14 @@ def init() -> None:
     with _connection() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(_SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply schema changes that CREATE TABLE IF NOT EXISTS can't express on existing DBs."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(drive_records)")}
+    if "label" not in columns:
+        conn.execute("ALTER TABLE drive_records ADD COLUMN label TEXT")
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +148,12 @@ def upsert_drive_record(
             """,
             (guid, serial, model, capacity_bytes, drive_type, first_seen),
         )
+
+
+def set_drive_label(guid: str, label: str | None) -> None:
+    """Persist a user-assigned label for a drive."""
+    with _connection() as conn:
+        conn.execute("UPDATE drive_records SET label = ? WHERE guid = ?", (label, guid))
 
 
 # ---------------------------------------------------------------------------

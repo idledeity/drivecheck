@@ -89,6 +89,16 @@ class Collector:
         with self._lock:
             return list(self._drive_states.values())
 
+    def set_drive_label(self, guid: str, label: str | None) -> bool:
+        """Update a drive's user-assigned label. Returns False if the drive is unknown."""
+        with self._lock:
+            state = self._drive_states.get(guid)
+            if state is None:
+                return False
+            state.label = label
+        db.set_drive_label(guid, label)
+        return True
+
     def trigger_poll(self) -> None:
         """Force an immediate telemetry refresh for all known drives, blocking until complete."""
         now = time.time()
@@ -278,6 +288,8 @@ class Collector:
                 state.attachment.descriptors = all_descriptors
                 state.attachment.active_index = 0
                 state.attachment.block_device = block_device.run(best_traits.serial)
+                record = db.get_drive_record(guid)
+                state.label = record["label"] if record else None
                 self._drive_states[guid] = state
                 # All channels are due immediately so a newly discovered drive
                 # gets telemetry (and a baseline raw snapshot + vitals reading)

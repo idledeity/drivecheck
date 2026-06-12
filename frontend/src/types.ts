@@ -62,4 +62,5 @@ export type Drive = {
   signal_flags: Record<string, "ok" | "warn" | "crit">
   last_polled_at: string | null
   vitals: DriveVitals
+  label: string | null
 }

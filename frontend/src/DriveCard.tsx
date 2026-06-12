@@ -1,4 +1,5 @@
-import { IconArrowDown, IconArrowUp, IconClock, IconServer, IconTemperature } from "@tabler/icons-react"
+import { useRef, useState } from "react"
+import { IconArrowDown, IconArrowUp, IconClock, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatThroughput } from "./format"
@@ -9,15 +10,36 @@ interface Props {
   selected: boolean
   onSelect: () => void
   footerSignals?: Record<string, string[]>
+  onLabelChange?: (guid: string, label: string | null) => void
 }
 
-export default function DriveCard({ drive, selected, onSelect, footerSignals }: Props) {
+export default function DriveCard({ drive, selected, onSelect, footerSignals, onLabelChange }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
   const liveTemp = drive.vitals.temp ?? drive.temp
   const io = drive.vitals.io
+
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [labelInput, setLabelInput] = useState("")
+  const cancelLabelEdit = useRef(false)
+
+  const startLabelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setLabelInput(drive.label ?? "")
+    setEditingLabel(true)
+  }
+
+  const commitLabelEdit = () => {
+    setEditingLabel(false)
+    if (cancelLabelEdit.current) {
+      cancelLabelEdit.current = false
+      return
+    }
+    const next = labelInput.trim() || null
+    if (next !== drive.label) onLabelChange?.(drive.guid, next)
+  }
 
   return (
     <div
@@ -30,6 +52,27 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals }: 
         {drive.manufacturer && <span className="dc-mfr">{drive.manufacturer}</span>}
         <span className="dc-model">{drive.model ?? drive.device}</span>
         {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
+        {editingLabel ? (
+          <input
+            className="dc-label-input"
+            autoFocus
+            value={labelInput}
+            placeholder="Label…"
+            onClick={e => e.stopPropagation()}
+            onChange={e => setLabelInput(e.target.value)}
+            onBlur={commitLabelEdit}
+            onKeyDown={e => {
+              if (e.key === "Enter") e.currentTarget.blur()
+              else if (e.key === "Escape") { cancelLabelEdit.current = true; e.currentTarget.blur() }
+            }}
+          />
+        ) : drive.label ? (
+          <span className="dc-label" onClick={startLabelEdit} title="Click to edit label">({drive.label})</span>
+        ) : (
+          <button className="dc-label-edit" onClick={startLabelEdit} title="Add label">
+            <IconPencil size={14} />
+          </button>
+        )}
         <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
       </div>
 

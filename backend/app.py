@@ -44,6 +44,7 @@ def drives():
             "health_status": health.health_status,
             "signal_flags": health.signal_flags,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
+            "label": state.label,
             "vitals": {
                 "temp": vitals.temp,
                 "temp_source": vitals.temp_source,
@@ -58,6 +59,23 @@ def drives():
             },
         })
     return jsonify(result)
+
+
+@app.route("/api/drives/<guid>", methods=["PATCH"])
+def patch_drive(guid):
+    body = request.get_json(force=True) or {}
+    if "label" not in body:
+        return jsonify({"error": "missing 'label'"}), 400
+
+    label = body["label"]
+    if label is not None and not isinstance(label, str):
+        return jsonify({"error": "'label' must be a string or null"}), 400
+    if isinstance(label, str):
+        label = label.strip() or None
+
+    if not collector.set_drive_label(guid, label):
+        return jsonify({"error": "unknown drive"}), 404
+    return jsonify({"guid": guid, "label": label})
 
 
 @app.route("/api/drives/<guid>/raw/latest")

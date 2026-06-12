@@ -256,3 +256,6 @@ class DriveState:
     attachment: DriveAttachment = field(default_factory=DriveAttachment)
     snapshot: DriveSnapshot = field(default_factory=DriveSnapshot)
     vitals: DriveVitals = field(default_factory=DriveVitals)
+
+    # User-assigned label (e.g. "NAS pool #3"), persisted in drive_records.
+    label: str | None = None
