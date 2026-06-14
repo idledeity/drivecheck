@@ -56,6 +56,7 @@ def drives():
             "health_status": health.health_status,
             "signal_flags": health.signal_flags,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
+            "is_mounted": state.attachment.is_mounted,
             "label": state.label,
             "vitals": {
                 "temp": vitals.temp,

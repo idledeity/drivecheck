@@ -28,6 +28,7 @@ collector:
     - probes.vitals.hwmon_temp
     - probes.vitals.smartctl_vitals
     - probes.vitals.sysfs_io
+    - probes.vitals.mount_status
 
 data:
   dir: ./data

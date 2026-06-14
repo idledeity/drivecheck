@@ -176,10 +176,14 @@
   gap: 5px;
   min-width: 0;
 }
-.dc-sv         { font-size: 10.5px; color: var(--t4); white-space: nowrap; }
+.dc-sv         { font-size: 10.5px; color: var(--t2); white-space: nowrap; }
 .dc-sv.hot     { color: var(--re); }
 .dc-si         { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .dc-si svg     { color: var(--cy); opacity: 0.75; flex-shrink: 0; }
+
+.dc-mount      { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--t4); white-space: nowrap; flex-shrink: 0; }
+.dc-mount.on   { font-weight: 600; color: var(--gnb); }
+.dc-mount-dot  { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
 /* ── Leader line — 2/3 width, left-anchored ── */
 .dc-ldr { position: relative; height: 0; overflow: visible; margin-top: -1px; }

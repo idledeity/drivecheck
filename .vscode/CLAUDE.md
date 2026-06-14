@@ -334,9 +334,14 @@ order. Each probe checks what's already filled in and fills in what it can:
   `state.vitals.io_raw` (collector-internal, not exposed via the API). First
   reading for a drive leaves `io` at its zero default since there's no previous
   sample yet.
+- `probes/vitals/mount_status.py` — reads `/proc/mounts` and sets
+  `state.attachment.is_mounted` (true if `block_device` or any of its
+  partitions appears as a mount source). Side-effect on `attachment`, not
+  `vitals` — mount status isn't part of the persisted vitals history.
 
-All three are no-ops (return `vitals` unchanged) if `state.attachment.block_device`
-is `None` (no resolved block device — see DriveAttachment).
+The first three are no-ops (return `vitals` unchanged) if
+`state.attachment.block_device` is `None` (no resolved block device — see
+DriveAttachment); `mount_status` instead sets `is_mounted = False` in that case.
 
 ```python
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -365,6 +370,7 @@ vitals_probes:
   - probes.vitals.hwmon_temp
   - probes.vitals.smartctl_vitals
   - probes.vitals.sysfs_io
+  - probes.vitals.mount_status
 ```
 
 Users can write their own probe module (matching the `run()` signature for
@@ -418,7 +424,8 @@ Intrinsic physical characteristics. Stable across polls.
 How the drive is attached right now — ephemeral.
 - `device_path` — preferred access path
 - `descriptors` — all DriveDescriptors that resolved to this serial
-- `is_mounted`
+- `is_mounted` — whether `block_device` (or any of its partitions) is currently
+  mounted, refreshed each vitals tick by `probes/vitals/mount_status.py`
 - `block_device` — underlying block device name (e.g. `"sdb"`), resolved once at
   discovery time via `lsblk` by matching `traits.serial`; `None` if no match
   (e.g. drives with no serial). Used by the vitals probes for sysfs lookups.
@@ -748,6 +755,7 @@ collector:
     - probes.vitals.hwmon_temp
     - probes.vitals.smartctl_vitals
     - probes.vitals.sysfs_io
+    - probes.vitals.mount_status
 
 data:
   dir: ./data

@@ -96,7 +96,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
       {/* Decorative leader line — 2/3 width */}
       <div className="dc-ldr"><div className="dc-ldr-line" /></div>
 
-      {/* Row 3: active state — path + temp */}
+      {/* Row 3: active state — path + temp + mount status */}
       <div className="dc-state">
         <span className="dc-si"><IconServer size={11} /><span className="dc-sv">{drive.device}</span></span>
         {liveTemp !== null && (
@@ -108,6 +108,11 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
             </span>
           </>
         )}
+        <span className="dc-tsep">·</span>
+        <span className={`dc-mount${drive.is_mounted ? " on" : ""}`}>
+          <span className="dc-mount-dot" />
+          {drive.is_mounted ? "mounted" : "unmounted"}
+        </span>
       </div>
 
       {/* Task zone */}

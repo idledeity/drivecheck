@@ -56,6 +56,7 @@ export type Drive = {
   health_status: "Healthy" | "Degraded" | "Failing" | null
   signal_flags: Record<string, "ok" | "warn" | "crit">
   last_polled_at: string | null
+  is_mounted: boolean
   vitals: DriveVitals
   label: string | null
 }
