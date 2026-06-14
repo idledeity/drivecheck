@@ -215,18 +215,24 @@ Architecture and Project Status).
 ### Overview
 The collector delegates data collection to a probe system, organized as
 `probes/scan/`, `probes/traits/`, `probes/telemetry/`, `probes/vitals/` subpackages.
-Scan and traits each run one hardcoded probe per stage. Telemetry and vitals each
-run a list of probes (`_TELEMETRY_PROBES` / `_VITALS_PROBES` in `collector.py`)
-chained in order — each probe receives and returns the aggregate object
-(`DriveSnapshot` / `DriveVitals`), enriching it before passing it to the next.
-Today those lists have hardcoded entries. The target design (see Probe config
-below) is for all stages' probe lists to be Python modules loaded by dotted path
-from config, so users can write their own and add them to configured lists.
+Each stage's probe list (`scan_probes`, `traits_probes`, `telemetry_probes`,
+`vitals_probes` in `config.yaml`) is loaded by dotted path via
+`collector._load_probes` (see Probe config below), so users can write their
+own probes and add them to the configured lists. Telemetry and vitals probes
+are chained — each receives and returns the aggregate object (`DriveSnapshot` /
+`DriveVitals`), enriching it before passing it to the next, with the last probe
+having final authority over any field. Scan probes run independently and their
+descriptor lists are concatenated; traits probes run independently per
+descriptor and their results are merged field-by-field (last probe's non-None
+value wins — `_merge_traits` in `collector.py`).
 
 ### Scan probes
 Discover attached drives. Take no arguments. Return a list of `DriveDescriptor`s.
 The default (`probes/scan/smartctl_scan.py`) runs `smartctl --scan -j` and parses
-the result. Could be swapped for `lsblk`, a vendor tool, or any custom discovery logic.
+the result. Could be swapped for `lsblk`, a vendor tool, or any custom discovery
+logic. If `scan_probes` lists more than one, each runs independently and their
+descriptor lists are concatenated — the collector's existing dedup-by-serial
+logic (see Deduplication) resolves any overlaps.
 
 ```python
 def run() -> list[DriveDescriptor]:
@@ -237,7 +243,10 @@ def run() -> list[DriveDescriptor]:
 Populate `DriveTraits` for a specific drive. Receive a `DriveDescriptor` — at this
 point no GUID has been assigned yet — and return a `DriveTraits`. Run by the
 collector only on first discovery of a drive; reduced-interval refresh for
-already-known drives is target design (see Project Status).
+already-known drives is target design (see Project Status). If `traits_probes`
+lists more than one, each runs independently against the descriptor and results
+are merged field-by-field — last probe's non-None value wins for each field
+(`_merge_traits` in `collector.py`).
 
 ```python
 def run(descriptor: DriveDescriptor) -> DriveTraits:
@@ -245,9 +254,9 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
 ```
 
 ### Telemetry probes
-Receive and return the full `DriveSnapshot`, chained in `_TELEMETRY_PROBES` list
-order with the last probe having final authority over any field. Each probe
-enriches:
+Receive and return the full `DriveSnapshot`, chained in `telemetry_probes`
+(config) order with the last probe having final authority over any field. Each
+probe enriches:
 - `snapshot.telemetry` — a fresh `DriveTelemetry(signals, last_polled_at)`
   (normalized DCSignals fields)
 - `snapshot.extras` — free-form dict for anything without a first-class field
@@ -260,13 +269,12 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
 ```
 
 The collector starts each poll with a fresh `DriveSnapshot()` and threads it
-through `_TELEMETRY_PROBES` in order; the result becomes `state.snapshot`. Today
-that list is a single hardcoded entry (`smartctl_telemetry`); dotted-path config
-loading for multiple probes is target design (see Probe config below).
+through `telemetry_probes` (loaded from config) in order; the result becomes
+`state.snapshot`.
 
 ### Vitals probes
-Receive and return the full `DriveVitals`, chained in `_VITALS_PROBES` list order.
-Each probe checks what's already filled in and fills in what it can:
+Receive and return the full `DriveVitals`, chained in `vitals_probes` (config)
+order. Each probe checks what's already filled in and fills in what it can:
 - `probes/vitals/hwmon_temp.py` — runs first; if `/sys/block/<dev>/device/hwmon*`
   exists (drivetemp bound), sets `temp`, `temp_source = "hwmon"`, and `extras`
   (other `temp1_*` thresholds). No-op (returns `vitals` unchanged) if hwmon is
@@ -289,28 +297,31 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 ```
 
 The collector starts each vitals tick with a fresh `DriveVitals(captured_at=...)`
-and threads it through `_VITALS_PROBES` in order; the result becomes
-`state.vitals` and is persisted via `db.record_vitals()`.
+and threads it through `vitals_probes` (loaded from config) in order; the
+result becomes `state.vitals` and is persisted via `db.record_vitals()`.
 
-### Probe config (target design — see Project Status)
-The dotted-path, list-based config loader below would replace the hardcoded
-single-probe-per-stage imports described in Overview:
+### Probe config
+Each stage's probe list is configured in `config.yaml` as dotted import paths,
+loaded via `collector._load_probes`:
 
 ```yaml
 scan_probes:
-  - drivecheck.probes.scan.smartctl_scan
+  - probes.scan.smartctl_scan
 
 traits_probes:
-  - drivecheck.probes.traits.smartctl_traits
+  - probes.traits.smartctl_traits
 
 telemetry_probes:
-  - drivecheck.probes.telemetry.smartctl_telemetry
+  - probes.telemetry.smartctl_telemetry
 
 vitals_probes:
-  - drivecheck.probes.vitals.hwmon_temp
-  - drivecheck.probes.vitals.smartctl_vitals
-  - drivecheck.probes.vitals.sysfs_io
+  - probes.vitals.hwmon_temp
+  - probes.vitals.smartctl_vitals
+  - probes.vitals.sysfs_io
 ```
+
+Users can write their own probe module (matching the `run()` signature for
+that stage) and add it to the relevant list — no core code changes needed.
 
 ### Deduplication
 Multiple scan probes or a single scan probe may return multiple descriptors for the
@@ -666,6 +677,16 @@ collector:
     telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
     snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
     vitals: 10         # seconds — cheap temp + disk IO activity, phase-staggered per drive
+  scan_probes:
+    - probes.scan.smartctl_scan
+  traits_probes:
+    - probes.traits.smartctl_traits
+  telemetry_probes:
+    - probes.telemetry.smartctl_telemetry
+  vitals_probes:
+    - probes.vitals.hwmon_temp
+    - probes.vitals.smartctl_vitals
+    - probes.vitals.sysfs_io
 
 data:
   dir: ./data
@@ -680,7 +701,6 @@ Target fields, not yet present (see corresponding sections):
 - `secret_key` — Flask session secret (Auth)
 - `collector.telemetry_timeout`, `collector.keep_history_days` (Collector, History retention)
 - `jobs.max_parallel` (Queue & Scheduler)
-- `scan_probes` / `traits_probes` / `telemetry_probes` lists (Probe config)
 
 ---
 
@@ -724,18 +744,22 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     drives (upstream driver only supports SATA-behind-SAT and NVMe — see
     Documentation/hwmon/drivetemp.rst); kept as defensive future-proofing for
     SATA/NVMe drives. smartctl -A is the active temp source on SAS today.
+[x] Frontend display of vitals data (temp/IO activity) — DriveCard renders
+    live temp (with source tooltip) and read/write throughput from
+    `drive.vitals` (see DriveCard.tsx).
 
 ### Remaining — Collector / Probes
 [ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
 [ ] threading.Event for clean collector shutdown
 [ ] Blocking initial poll before Flask starts serving (cold start guarantee)
-[ ] Probe config loading by dotted path (currently hardcoded single-element list per stage)
+[x] Probe config loading by dotted path (`collector._load_probes`, configured
+    via `collector.scan_probes` / `traits_probes` / `telemetry_probes` /
+    `vitals_probes` in config.yaml)
 [ ] History retention / pruning (keep_history_days) — drive_vitals grows fastest
     (~8,600 rows/day/drive at the 10s default)
 [ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
 [ ] Frontend per-drive refresh controls + adaptive "last polled" display to match
     per-channel staggered polling (currently a single global header/refresh)
-[ ] Frontend display of vitals data (temp/IO activity) — backend/API only so far
 
 ### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)

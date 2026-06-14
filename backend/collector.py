@@ -25,37 +25,30 @@ Discovery is split from steady-state polling:
   - Gone drives (GUIDs absent from the scan) are removed from the registry.
 """
 
+import importlib
 import json
 import math
 import threading
 import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, fields, replace
 from datetime import datetime
+from types import ModuleType
 
 import db
 from analysis.descriptor_rank import score_descriptor
 from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
-from probes.scan import smartctl_scan
-from probes.traits import smartctl_traits
-from probes.telemetry import smartctl_telemetry
-from probes.vitals import block_device, hwmon_temp, smartctl_vitals, sysfs_io
+from probes.vitals.block_device import run as resolve_block_device
 
 _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")
 
 # How often the background loop wakes to check for due channels.
 _TICK_INTERVAL = 1.0
 
-# Telemetry probes run every time the "telemetry" channel fires, in order, each
-# enriching the DriveSnapshot the previous one returned. One entry today;
-# dotted-path config loading for multiple probes is target design (see Project
-# Status).
-_TELEMETRY_PROBES = [smartctl_telemetry]
 
-# Vitals probes run every time the "vitals" channel fires, in order, each
-# enriching the DriveVitals the previous one returned. hwmon runs first and,
-# if it supplies a temperature, smartctl_vitals leaves temp/temp_source alone.
-_VITALS_PROBES = [hwmon_temp, smartctl_vitals, sysfs_io]
+def _load_probes(dotted_paths: list[str]) -> list[ModuleType]:
+    """Import and return each dotted-path probe module, in order."""
+    return [importlib.import_module(path) for path in dotted_paths]
 
 
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
@@ -64,10 +57,33 @@ def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
     return str(uuid.uuid5(_GUID_NAMESPACE, key))
 
 
+def _merge_traits(base: DriveTraits, overlay: DriveTraits) -> DriveTraits:
+    """Merge overlay onto base, overlay's non-None fields taking precedence.
+
+    Used to combine results from multiple traits probes — last probe with a
+    non-None value for a field wins, matching the "last probe has final
+    authority" rule used for telemetry/vitals chains.
+    """
+    updates = {f.name: getattr(overlay, f.name) for f in fields(overlay) if getattr(overlay, f.name) is not None}
+    return replace(base, **updates)
+
+
 class Collector:
-    def __init__(self, scan_interval: int, poll_intervals: dict[str, int]):
+    def __init__(
+        self,
+        scan_interval: int,
+        poll_intervals: dict[str, int],
+        scan_probes: list[str],
+        traits_probes: list[str],
+        telemetry_probes: list[str],
+        vitals_probes: list[str],
+    ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
+        self._scan_probes = _load_probes(scan_probes)
+        self._traits_probes = _load_probes(traits_probes)
+        self._telemetry_probes = _load_probes(telemetry_probes)
+        self._vitals_probes = _load_probes(vitals_probes)
         self._drive_states: dict[str, DriveState] = {}
         self._phase_fractions: dict[str, float] = {}
         self._scan_due: float = time.time()
@@ -188,13 +204,15 @@ class Collector:
         self._phase_fractions = {guid: i / n for i, guid in enumerate(guids)} if n else {}
 
     def _run_scan(self, now: float) -> None:
-        descriptors = smartctl_scan.run()
+        descriptors = []
+        for probe in self._scan_probes:
+            descriptors.extend(probe.run())
         self._reconcile_descriptors(descriptors, now)
 
     def _run_telemetry(self, state: DriveState, now: float) -> None:
         """Run the telemetry probe chain for a drive and record signals + heartbeat."""
         snapshot = DriveSnapshot()
-        for probe in _TELEMETRY_PROBES:
+        for probe in self._telemetry_probes:
             snapshot = probe.run(snapshot, state.context)
         with self._lock:
             state.snapshot = snapshot
@@ -216,7 +234,7 @@ class Collector:
     def _run_vitals(self, state: DriveState, now: float) -> None:
         """Run the vitals probe chain for a drive and record a vitals row."""
         vitals = DriveVitals(captured_at=datetime.now())
-        for probe in _VITALS_PROBES:
+        for probe in self._vitals_probes:
             vitals = probe.run(vitals, state)
 
         with self._lock:
@@ -253,7 +271,9 @@ class Collector:
         """Run traits on unknown descriptors, deduplicate by GUID, and create/update states."""
         probed: list[tuple[DriveDescriptor, DriveTraits, str]] = []
         for d in descriptors:
-            traits = smartctl_traits.run(d)
+            traits = DriveTraits()
+            for probe in self._traits_probes:
+                traits = _merge_traits(traits, probe.run(d))
             guid = _assign_guid(traits, d)
             probed.append((d, traits, guid))
 
@@ -287,7 +307,7 @@ class Collector:
                 state.traits = best_traits
                 state.attachment.descriptors = all_descriptors
                 state.attachment.active_index = 0
-                state.attachment.block_device = block_device.run(best_traits.serial)
+                state.attachment.block_device = resolve_block_device(best_traits.serial)
                 record = db.get_drive_record(guid)
                 state.label = record["label"] if record else None
                 self._drive_states[guid] = state

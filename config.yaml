@@ -11,6 +11,19 @@ collector:
     snapshot: 14400   # seconds — raw smartctl JSON persistence
     vitals: 10        # seconds — cheap temp + disk IO activity
 
+  # Probe chains, run in order. Each stage's results are merged/concatenated —
+  # see Probe System in CLAUDE.md.
+  scan_probes:
+    - probes.scan.smartctl_scan
+  traits_probes:
+    - probes.traits.smartctl_traits
+  telemetry_probes:
+    - probes.telemetry.smartctl_telemetry
+  vitals_probes:
+    - probes.vitals.hwmon_temp
+    - probes.vitals.smartctl_vitals
+    - probes.vitals.sysfs_io
+
 data:
   dir: ./data
 

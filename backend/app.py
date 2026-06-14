@@ -7,7 +7,14 @@ import db
 import settings
 
 _collector_cfg = CONFIG["collector"]
-collector = Collector(scan_interval=_collector_cfg["scan_interval"], poll_intervals=_collector_cfg["poll_intervals"])
+collector = Collector(
+    scan_interval=_collector_cfg["scan_interval"],
+    poll_intervals=_collector_cfg["poll_intervals"],
+    scan_probes=_collector_cfg["scan_probes"],
+    traits_probes=_collector_cfg["traits_probes"],
+    telemetry_probes=_collector_cfg["telemetry_probes"],
+    vitals_probes=_collector_cfg["vitals_probes"],
+)
 
 app = Flask(__name__)
 
