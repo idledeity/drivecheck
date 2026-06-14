@@ -107,6 +107,8 @@ class Collector:
         self._lock = threading.Lock()
         self._poll_lock = threading.Lock()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="collector")
+        self._stop_event = threading.Event()
+        self._scanned = threading.Event()
         self._polling = False
         self._last_polled_at: datetime | None = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="collector-poll")
@@ -115,8 +117,22 @@ class Collector:
         self._inflight: dict[tuple[str, str], Future] = {}
 
     def start(self) -> None:
-        """Start the background poll loop. Ticks immediately on first call."""
+        """Start the background poll loop."""
         self._thread.start()
+
+    def stop(self) -> None:
+        """Signal the background loop to stop and shut down the executor."""
+        self._stop_event.set()
+        self._thread.join(timeout=5)
+        self._executor.shutdown(wait=False)
+
+    def wait_for_scan(self) -> None:
+        """Block until the first drive scan has completed.
+
+        A no-op after the first scan — the underlying Event stays set, so later
+        calls return immediately.
+        """
+        self._scanned.wait()
 
     def get_drive_states(self) -> list[DriveState]:
         """Return a snapshot of all current drive states."""
@@ -153,9 +169,12 @@ class Collector:
             }
 
     def _loop(self) -> None:
-        while True:
-            self._tick()
-            time.sleep(_TICK_INTERVAL)
+        while not self._stop_event.is_set():
+            try:
+                self._tick()
+            except Exception as e:
+                print(f"[collector] tick failed: {e}", file=sys.stderr)
+            self._stop_event.wait(_TICK_INTERVAL)
 
     def _tick(self) -> list[Future]:
         with self._poll_lock:
@@ -174,6 +193,7 @@ class Collector:
             with ProbeTimeout(self._probe_timeout):
                 self._run_scan(now)
             self._scan_due = now + self._scan_interval
+            self._scanned.set()
 
         if self._prune_due is None:
             last_pruned_at = db.get_last_pruned_at()

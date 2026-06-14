@@ -1,3 +1,4 @@
+import atexit
 import json
 
 from flask import Flask, jsonify, request
@@ -24,6 +25,7 @@ app = Flask(__name__)
 
 @app.route("/api/drives")
 def drives():
+    collector.wait_for_scan()
     result = []
     for state in collector.get_drive_states():
         ctx = state.context
@@ -138,6 +140,7 @@ if __name__ == "__main__":
     settings.init()
     db.init()
     collector.start()
+    atexit.register(collector.stop)
 
     server_cfg = CONFIG["server"]
     app.run(

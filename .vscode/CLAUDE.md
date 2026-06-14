@@ -146,8 +146,17 @@ activity or job execution.
   themselves stay timeout-agnostic — they read fields via `.get()` with
   defaults, so a timed-out call degrades to "unknown" for that cycle rather
   than hanging the worker indefinitely.
-- Graceful shutdown (`threading.Event`, `stop()`) is target design, not yet
-  implemented (see Project Status)
+- `stop()` sets `self._stop_event` and joins the collector thread (timeout 5s);
+  `_loop` checks `_stop_event.is_set()` each iteration and uses
+  `_stop_event.wait(_TICK_INTERVAL)` instead of `time.sleep`, so shutdown is
+  immediate rather than waiting out the current tick interval.
+  `_executor.shutdown(wait=False)` lets any in-flight probes finish on their
+  own (bounded by `probe_timeout`) without blocking shutdown further. `app.py`
+  registers `atexit.register(collector.stop)`.
+- `_loop` wraps each `_tick()` call in `try/except Exception` (logging
+  `f"[collector] tick failed: {e}"` to stderr) so an error outside
+  `_run_channel_safe` (e.g. in `_run_scan` or pruning) can't silently kill the
+  daemon thread.
 
 **Polling intervals (per-channel, phase-staggered):**
 - Configurable in `config.yaml` under `collector.poll_intervals` — currently
@@ -171,11 +180,15 @@ activity or job execution.
   telemetry, a baseline raw snapshot, and a first vitals reading in the same tick
   they're discovered.
 
-**Cold start (target, not yet enforced):** On Flask startup, the collector should run
-one immediate poll before the server begins accepting requests, so the registry is
-never empty when the first API call arrives. Currently `collector.start()` launches
-the tick loop in a background thread without blocking, so `app.run()` may begin
-serving before the first tick completes.
+**Cold start:** `collector.start()` launches the background thread immediately —
+Flask binds its port without delay. `GET /api/drives` calls
+`collector.wait_for_scan()`, which blocks on a `threading.Event` set once the
+first `_run_scan()` completes (bounded by `probe_timeout`; a no-op on later
+ticks once set). This guarantees the registry has identity fields
+(serial/model/capacity from discovery's traits probe) for every drive on the
+first `/api/drives` response, without delaying server startup — telemetry/vitals
+for that first response may still be default until their probes finish on the
+executor.
 
 ### Deployment
 - Runs directly on Linux (no Docker required)
@@ -795,8 +808,12 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     `drive_tools.timeout.ProbeTimeout` sets an ambient per-thread timeout that
     `drive_tools/smartctl.py` and `probes/vitals/block_device.py` apply to
     their subprocess calls)
-[ ] threading.Event for clean collector shutdown
-[ ] Blocking initial poll before Flask starts serving (cold start guarantee)
+[x] threading.Event for clean collector shutdown (`stop()`, `atexit`-registered
+    in `app.py`)
+[x] `GET /api/drives` blocks until the first scan completes
+    (`collector.wait_for_scan()`, a `threading.Event` set after `_run_scan()`)
+    — Flask itself starts serving immediately; only the first `/api/drives`
+    request pays the wait
 [x] Probe config loading by dotted path (`collector._load_probes`, configured
     via `collector.scan_probes` / `traits_probes` / `telemetry_probes` /
     `vitals_probes` in config.yaml)
