@@ -2,11 +2,6 @@ export type Settings = {
   footer_signals: Record<string, string[]>
 }
 
-export type CollectorStatus = {
-  polling: boolean
-  last_polled_at: string | null
-}
-
 export type SmartAttributeRow = {
   key: string
   label: string

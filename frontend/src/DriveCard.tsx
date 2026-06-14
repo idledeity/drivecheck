@@ -2,7 +2,7 @@ import { useRef, useState } from "react"
 import { IconArrowDown, IconArrowUp, IconClock, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
-import { formatCapacity, formatThroughput } from "./format"
+import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
 import "./DriveCard.css"
 
 interface Props {
@@ -120,7 +120,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
 
       {/* Footer */}
       <div className="dc-ft">
-        <div className="dc-fs">
+        <div className="dc-fs" title={drive.last_polled_at ? `Telemetry updated ${formatRelativeTime(drive.last_polled_at)}` : undefined}>
           {sigKeys.map(key => {
             const desc = SIGNALS[key]
             if (!desc) return null

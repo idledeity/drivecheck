@@ -117,18 +117,17 @@ def patch_settings():
 
 @app.route("/api/drives/refresh", methods=["POST"])
 def drives_refresh():
-    collector.trigger_poll()
+    body = request.get_json(silent=True) or {}
+    guids = body.get("guids")
+    if not collector.trigger_poll(guids):
+        return jsonify({"error": "unknown drive"}), 404
     return jsonify({"status": "ok"})
 
 
-@app.route("/api/collector/status")
-def collector_status():
-    status = collector.get_status()
-    last_polled = status["last_polled_at"]
-    return jsonify({
-        "polling": status["polling"],
-        "last_polled_at": last_polled.isoformat() if last_polled else None,
-    })
+@app.route("/api/drives/scan", methods=["POST"])
+def drives_scan():
+    collector.trigger_scan()
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

@@ -173,9 +173,15 @@ activity or job execution.
   `collector.py`) — no separate cooldown or `last_run_at` tracking. If the natural
   next slot would land less than half an interval away (e.g. right after a forced
   refresh), it's pushed out by one more interval — this is the only debounce.
-- `POST /api/drives/refresh` marks every drive's `telemetry` channel as due now and
-  ticks immediately; the normal due-check + debounce handles the rest, so a manual
-  refresh can't destroy staggering or double-fire.
+- `POST /api/drives/refresh` marks the `telemetry` channel as due now and ticks
+  immediately; the normal due-check + debounce handles the rest, so a manual
+  refresh can't destroy staggering or double-fire. An optional JSON body
+  `{"guids": [...]}` targets just those drives (404 if any guid is unknown);
+  omitting the body (or `guids`) refreshes every known drive.
+- `POST /api/drives/scan` forces an immediate drive scan — sets `_scan_due` to
+  the epoch and ticks, so `_run_scan()` runs this tick regardless of
+  `scan_interval`. Newly discovered drives get all channels due immediately
+  (see below), so they're fully populated by the time this call returns.
 - New drives have all channels due immediately on registration, so they get
   telemetry, a baseline raw snapshot, and a first vitals reading in the same tick
   they're discovered.
@@ -822,8 +828,14 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     (~8,600 rows/day/drive at the 10s default)
 [x] Traits probe refresh on a reduced interval for already-known drives
     (`"traits"` channel, `poll_intervals.traits`, default 24h)
-[ ] Frontend per-drive refresh controls + adaptive "last polled" display to match
-    per-channel staggered polling (currently a single global header/refresh)
+[x] Grid-level drive commands (`GridControls.tsx`, rendered in the title bar
+    via `.grid-controls`, right-aligned and collapsing to icon-only below
+    640px): Select all / Unselect all / Probe selected (or all, if none
+    selected) / Scan for drives. Probe → `POST /api/drives/refresh` (optional
+    `{"guids": [...]}`); Scan → `POST /api/drives/scan`. No per-card refresh
+    button or "last polled" display — each `DriveCard`'s footer stats carry a
+    `title` tooltip showing when telemetry was last updated
+    (`formatRelativeTime(drive.last_polled_at)`).
 
 ### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)

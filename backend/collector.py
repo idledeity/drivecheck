@@ -109,8 +109,6 @@ class Collector:
         self._thread = threading.Thread(target=self._loop, daemon=True, name="collector")
         self._stop_event = threading.Event()
         self._scanned = threading.Event()
-        self._polling = False
-        self._last_polled_at: datetime | None = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="collector-poll")
         # (guid, channel) -> Future for work currently running on the executor,
         # guarded by self._lock.
@@ -149,24 +147,33 @@ class Collector:
         db.set_drive_label(guid, label)
         return True
 
-    def trigger_poll(self) -> None:
-        """Force an immediate telemetry refresh for all known drives, blocking until complete."""
+    def trigger_poll(self, guids: list[str] | None = None) -> bool:
+        """Force an immediate telemetry refresh, blocking until complete.
+
+        If guids is given, only those drives' telemetry channels are marked
+        due, and False is returned if any guid is unknown. If guids is None,
+        all known drives are refreshed.
+        """
         now = time.time()
         with self._lock:
-            guids = list(self._drive_states.keys())
-        for guid in guids:
-            sched = self._schedules.get(guid)
+            known = set(self._drive_states.keys())
+        if guids is not None:
+            if not set(guids) <= known:
+                return False
+            target = guids
+        else:
+            target = list(known)
+        for g in target:
+            sched = self._schedules.get(g)
             if sched:
                 sched["telemetry"] = now
         wait(self._tick())
+        return True
 
-    def get_status(self) -> dict:
-        """Return the collector's current poll status."""
-        with self._lock:
-            return {
-                "polling": self._polling,
-                "last_polled_at": self._last_polled_at,
-            }
+    def trigger_scan(self) -> None:
+        """Force an immediate drive scan, blocking until complete."""
+        self._scan_due = 0
+        wait(self._tick())
 
     def _loop(self) -> None:
         while not self._stop_event.is_set():
@@ -178,13 +185,7 @@ class Collector:
 
     def _tick(self) -> list[Future]:
         with self._poll_lock:
-            with self._lock:
-                self._polling = True
-            try:
-                return self._do_tick()
-            finally:
-                with self._lock:
-                    self._polling = False
+            return self._do_tick()
 
     def _do_tick(self) -> list[Future]:
         now = time.time()
@@ -303,7 +304,6 @@ class Collector:
             snapshot = probe.run(snapshot, state.context)
         with self._lock:
             state.snapshot = snapshot
-            self._last_polled_at = datetime.now()
 
         captured_at = snapshot.telemetry.last_polled_at.isoformat()
         db.record_signals(state.context.guid, captured_at, asdict(snapshot.telemetry.signals))

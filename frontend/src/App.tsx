@@ -1,18 +1,15 @@
 import { useEffect, useState } from "react"
-import { IconRefresh, IconDeselect } from "@tabler/icons-react"
 import DriveCard from "./DriveCard"
+import GridControls from "./GridControls"
 import WorkspacePanel from "./WorkspacePanel"
-import type { CollectorStatus, Drive, Settings } from "./types"
-import { formatRelativeTime } from "./format"
+import type { Drive, Settings } from "./types"
 import "./App.css"
 
 export default function App() {
   const [drives, setDrives] = useState<Drive[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
-  const [collectorStatus, setCollectorStatus] = useState<CollectorStatus | null>(null)
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(setSettings).catch(() => {})
@@ -27,33 +24,42 @@ export default function App() {
       .then(data => { setDrives(data); setError(null) })
       .catch(() => setError("Backend unavailable — retrying…"))
 
-  const loadCollectorStatus = () =>
-    fetch("/api/collector/status")
-      .then(r => r.json())
-      .then(setCollectorStatus)
-      .catch(() => {})
-
   useEffect(() => {
     loadDrives()
-    loadCollectorStatus()
     // /api/drives is an in-memory read (no subprocess calls), so poll it
     // faster than the collector's 10s vitals cadence to keep the live
     // temp/IO readings on each DriveCard feeling current.
-    const id = setInterval(() => { loadDrives(); loadCollectorStatus() }, 2_000)
+    const id = setInterval(loadDrives, 2_000)
     return () => clearInterval(id)
   }, [])
-
-  const handleRefresh = () => {
-    setRefreshing(true)
-    fetch("/api/drives/refresh", { method: "POST" })
-      .then(() => Promise.all([loadDrives(), loadCollectorStatus()]))
-      .catch(() => setError("Backend unavailable — retrying…"))
-      .finally(() => setRefreshing(false))
-  }
 
   const toggleSelect = (guid: string) => {
     setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
   }
+
+  const handleSelectAll = () => setSelected(drives.map(d => d.guid))
+
+  const handleUnselectAll = () => setSelected([])
+
+  const handleProbe = () =>
+    fetch("/api/drives/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guids: selected.length > 0 ? selected : undefined }),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return loadDrives()
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
+
+  const handleScan = () =>
+    fetch("/api/drives/scan", { method: "POST" })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return loadDrives()
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
 
   const handleLabelChange = (guid: string, label: string | null) => {
     setDrives(prev => prev.map(d => d.guid === guid ? { ...d, label } : d))
@@ -68,18 +74,15 @@ export default function App() {
     <div>
       {error && <div className="status-error">{error}</div>}
       <div className="page-label">
-        drivecheck <span>/ drives</span>
-        {collectorStatus?.last_polled_at && (
-          <span className="last-polled">
-            Last polled {formatRelativeTime(collectorStatus.last_polled_at)}
-          </span>
-        )}
-        <button className="header-btn" onClick={() => setSelected([])} disabled={selected.length === 0} title="Clear selection">
-          <IconDeselect size={13} />
-        </button>
-        <button className="header-btn" onClick={handleRefresh} disabled={refreshing} title="Refresh now">
-          <IconRefresh size={13} className={refreshing ? "spinning" : ""} />
-        </button>
+        drivecheck
+        <GridControls
+          drives={drives}
+          selected={selected}
+          onSelectAll={handleSelectAll}
+          onUnselectAll={handleUnselectAll}
+          onProbe={handleProbe}
+          onScan={handleScan}
+        />
       </div>
       {drives.length === 0
         ? <p className="status-scanning">Scanning…</p>
