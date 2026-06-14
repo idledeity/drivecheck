@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+from drive_tools.timeout import get_timeout
+
 
 def run_smartctl(*args) -> dict:
     """Invoke smartctl -j with the given args and return parsed JSON.
@@ -11,12 +13,20 @@ def run_smartctl(*args) -> dict:
     health findings. Callers that need to distinguish these should inspect
     result.returncode; this wrapper does not raise on non-zero exits so that
     partial JSON output (still returned on most error codes) is not lost.
+
+    Subject to the ambient timeout set by drive_tools.timeout.ProbeTimeout. If
+    exceeded, returns {} — callers read fields via .get() with defaults, so a
+    timed-out probe degrades to "unknown" rather than raising.
     """
-    result = subprocess.run(
-        ["sudo", "smartctl", "-j"] + list(args),
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["sudo", "smartctl", "-j"] + list(args),
+            capture_output=True,
+            text=True,
+            timeout=get_timeout(),
+        )
+    except subprocess.TimeoutExpired:
+        return {}
     return json.loads(result.stdout)
 
 

@@ -28,15 +28,18 @@ Discovery is split from steady-state polling:
 import importlib
 import json
 import math
+import sys
 import threading
 import time
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, fields, replace
 from datetime import datetime
 from types import ModuleType
 
 import db
 from analysis.descriptor_rank import score_descriptor
+from drive_tools.timeout import ProbeTimeout
 from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from probes.vitals.block_device import run as resolve_block_device
 
@@ -81,6 +84,8 @@ class Collector:
         telemetry_probes: list[str],
         vitals_probes: list[str],
         keep_history_days: int,
+        max_workers: int,
+        probe_timeout: int,
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
@@ -89,6 +94,7 @@ class Collector:
         self._telemetry_probes = _load_probes(telemetry_probes)
         self._vitals_probes = _load_probes(vitals_probes)
         self._keep_history_days = keep_history_days
+        self._probe_timeout = probe_timeout
         self._drive_states: dict[str, DriveState] = {}
         self._phase_fractions: dict[str, float] = {}
         self._scan_due: float = time.time()
@@ -103,6 +109,10 @@ class Collector:
         self._thread = threading.Thread(target=self._loop, daemon=True, name="collector")
         self._polling = False
         self._last_polled_at: datetime | None = None
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="collector-poll")
+        # (guid, channel) -> Future for work currently running on the executor,
+        # guarded by self._lock.
+        self._inflight: dict[tuple[str, str], Future] = {}
 
     def start(self) -> None:
         """Start the background poll loop. Ticks immediately on first call."""
@@ -132,7 +142,7 @@ class Collector:
             sched = self._schedules.get(guid)
             if sched:
                 sched["telemetry"] = now
-        self._tick()
+        wait(self._tick())
 
     def get_status(self) -> dict:
         """Return the collector's current poll status."""
@@ -147,21 +157,22 @@ class Collector:
             self._tick()
             time.sleep(_TICK_INTERVAL)
 
-    def _tick(self) -> None:
+    def _tick(self) -> list[Future]:
         with self._poll_lock:
             with self._lock:
                 self._polling = True
             try:
-                self._do_tick()
+                return self._do_tick()
             finally:
                 with self._lock:
                     self._polling = False
 
-    def _do_tick(self) -> None:
+    def _do_tick(self) -> list[Future]:
         now = time.time()
 
         if now >= self._scan_due:
-            self._run_scan(now)
+            with ProbeTimeout(self._probe_timeout):
+                self._run_scan(now)
             self._scan_due = now + self._scan_interval
 
         if self._prune_due is None:
@@ -181,27 +192,58 @@ class Collector:
         with self._lock:
             active_states = list(self._drive_states.values())
 
+        futures: list[Future] = []
         for state in active_states:
-            self._maybe_run_channel(state, "telemetry", now)
-            self._maybe_run_channel(state, "snapshot", now)
-            self._maybe_run_channel(state, "vitals", now)
-            self._maybe_run_channel(state, "traits", now)
+            for channel in ("telemetry", "snapshot", "vitals", "traits"):
+                future = self._maybe_run_channel(state, channel, now)
+                if future is not None:
+                    futures.append(future)
+        return futures
 
-    def _maybe_run_channel(self, state: DriveState, channel: str, now: float) -> None:
-        """Run a drive's channel if due, then schedule its next phase-staggered slot."""
+    def _maybe_run_channel(self, state: DriveState, channel: str, now: float) -> Future | None:
+        """Submit a drive's channel for execution if due, or return its in-flight future.
+
+        If the channel is already running (from a previous tick that hasn't
+        finished yet), returns that future rather than skipping silently — so
+        callers like trigger_poll() that wait on the returned futures still
+        block until in-flight work completes, even if they didn't submit it.
+
+        The next phase-staggered due time is computed and stored immediately on
+        submission, independent of how long the probe takes to run — so a slow
+        or hung probe doesn't throw off the schedule for subsequent ticks.
+        """
         guid = state.context.guid
         sched = self._schedules[guid]
-        if now < sched[channel]:
-            return
-        if channel == "telemetry":
-            self._run_telemetry(state, now)
-        elif channel == "snapshot":
-            self._run_snapshot(state, now)
-        elif channel == "vitals":
-            self._run_vitals(state, now)
-        elif channel == "traits":
-            self._run_traits(state, now)
-        sched[channel] = self._compute_next_due(guid, channel, now)
+        key = (guid, channel)
+        with self._lock:
+            existing = self._inflight.get(key)
+            if existing is not None:
+                return existing
+            if now < sched[channel]:
+                return None
+            sched[channel] = self._compute_next_due(guid, channel, now)
+            future = self._executor.submit(self._run_channel_safe, state, channel, now)
+            self._inflight[key] = future
+            return future
+
+    def _run_channel_safe(self, state: DriveState, channel: str, now: float) -> None:
+        """Run a channel's probe(s), isolating errors so one drive can't disrupt others."""
+        guid = state.context.guid
+        try:
+            with ProbeTimeout(self._probe_timeout):
+                if channel == "telemetry":
+                    self._run_telemetry(state, now)
+                elif channel == "snapshot":
+                    self._run_snapshot(state, now)
+                elif channel == "vitals":
+                    self._run_vitals(state, now)
+                elif channel == "traits":
+                    self._run_traits(state, now)
+        except Exception as e:
+            print(f"[collector] {channel} failed for {guid}: {e}", file=sys.stderr)
+        finally:
+            with self._lock:
+                self._inflight.pop((guid, channel), None)
 
     def _compute_next_due(self, guid: str, channel: str, now: float) -> float:
         """

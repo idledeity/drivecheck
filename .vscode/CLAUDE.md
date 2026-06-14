@@ -52,9 +52,10 @@ drives" for ongoing monitoring.
 - **Language:** Python 3.x
 - **Framework:** Flask (minimal, no async, no ORM)
 - **Concurrency:** Python `threading` module (standard library)
-  - Collector runs as a daemon thread, currently polling all drives sequentially each cycle
-  - Per-drive ThreadPoolExecutor polling and the Operations/Jobs threading model are
-    target design, not yet implemented (see Project Status)
+  - Collector runs as a daemon thread; due channels are submitted to a
+    `ThreadPoolExecutor` (`collector.max_workers`) for per-drive polling
+  - The Operations/Jobs threading model is target design, not yet implemented
+    (see Project Status)
 - **Subprocess:** Standard `subprocess` module wraps all CLI tools
 - **No external job queue** (no Celery, no Redis) — threading is sufficient for
   a handful of concurrent drive tests
@@ -111,7 +112,8 @@ activity or job execution.
   pick the best access path (see Deduplication)
 - For each newly discovered drive, assign a GUID (uuid5 of serial or device name),
   build a DriveContext, and upsert the Drive Record in SQLite
-- Run the traits probe for newly discovered drives only, to populate DriveTraits
+- Run the traits probe chain on discovery to populate DriveTraits, and again on a
+  reduced interval (`traits` channel) to refresh identity fields for known drives
 - Run the telemetry probe chain for each drive on its `telemetry` channel; update the
   in-memory DriveState registry and write drive_signals + drive_heartbeats to SQLite
 - Persist the most recent telemetry run's raw probe output (`snapshot.extras`) to
@@ -123,8 +125,29 @@ activity or job execution.
 - Collector loop runs as a daemon thread started at Flask startup, ticking every
   `_TICK_INTERVAL` (1s) to check which drives/channels are due
 - WAL mode ensures collector writes don't block API request threads (implemented in `db.py`)
-- Per-drive ThreadPoolExecutor polling and graceful shutdown are target design,
-  not yet implemented (see Project Status)
+- Each tick *submits* due channels to a `ThreadPoolExecutor`
+  (`collector.max_workers`, default 4, `thread_name_prefix="collector-poll"`)
+  rather than running them inline — a slow probe for one drive can't delay
+  polling for others. `_inflight: dict[(guid, channel) -> Future]` (guarded by
+  `self._lock`) prevents double-submission if a channel's previous run hasn't
+  finished by its next due time; if still in flight, `_maybe_run_channel`
+  returns the existing future instead of re-submitting, so callers that wait
+  on a tick's futures (e.g. `trigger_poll`) still block on it.
+- The next due time for a channel is computed and stored at submission time,
+  not completion — so a slow probe doesn't skew that drive's stagger phase.
+- `_run_channel_safe` wraps each probe run in `try/except`, logging
+  `f"[collector] {channel} failed for {guid}: {e}"` to stderr — one drive's
+  exception can't kill the collector loop or affect other drives.
+- `_run_channel_safe` (and the scan path in `_do_tick`) wrap probe execution in
+  `drive_tools.timeout.ProbeTimeout(collector.probe_timeout)`, an ambient
+  per-thread timeout (default 30s). `drive_tools/smartctl.py` and
+  `probes/vitals/block_device.py` read it via `get_timeout()` and pass it to
+  `subprocess.run`, returning `{}`/`None` on `TimeoutExpired`. Probes
+  themselves stay timeout-agnostic — they read fields via `.get()` with
+  defaults, so a timed-out call degrades to "unknown" for that cycle rather
+  than hanging the worker indefinitely.
+- Graceful shutdown (`threading.Event`, `stop()`) is target design, not yet
+  implemented (see Project Status)
 
 **Polling intervals (per-channel, phase-staggered):**
 - Configurable in `config.yaml` under `collector.poll_intervals` — currently
@@ -633,7 +656,7 @@ ORDER BY captured_at
 |---|---|
 | Flask over FastAPI | Simpler, more stable, less magic. |
 | Threads over asyncio | Jobs are subprocesses, not network I/O. Threading is the natural fit. GIL releases on subprocess I/O. |
-| ThreadPoolExecutor for telemetry polling | Per-drive threads mean a hanging drive can't block others. Timeout is per-drive, not per-cycle. Target design — collector currently polls drives sequentially with no per-drive timeout (see Project Status). |
+| ThreadPoolExecutor for channel polling | Per-drive tasks mean a hanging drive can't block others. Timeout is per-drive (`collector.probe_timeout`), not per-cycle. |
 | Polling over SSE | Survives page refreshes and multi-hour jobs without session tracking. Adaptive interval is target design (see Live updates, Project Status). |
 | SQLite from the start | Persistent storage needed to survive reconnects and restarts. Handles 20+ drives with time-series data at homelab scale. |
 | SQLite WAL mode | Collector writes concurrently with API request readers. Required; set once at init. |
@@ -689,6 +712,8 @@ collector:
   scan_interval: 300      # seconds — drive discovery (scan + reconciliation)
   keep_history_days: 90   # days — retention window for drive_signals, drive_heartbeats,
                            # drive_vitals, drive_raw_snapshots (pruned daily)
+  max_workers: 4          # thread pool size for per-drive channel polling
+  probe_timeout: 30       # seconds — subprocess timeout for smartctl calls
   poll_intervals:
     telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
     snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
@@ -716,7 +741,6 @@ server:
 
 Target fields, not yet present (see corresponding sections):
 - `secret_key` — Flask session secret (Auth)
-- `collector.telemetry_timeout` (Collector)
 - `jobs.max_parallel` (Queue & Scheduler)
 
 ---
@@ -766,7 +790,11 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     `drive.vitals` (see DriveCard.tsx).
 
 ### Remaining — Collector / Probes
-[ ] ThreadPoolExecutor + per-drive timeout for telemetry polling (currently sequential)
+[x] ThreadPoolExecutor + per-drive timeout (`collector.max_workers`,
+    `collector.probe_timeout` — due channels run on a thread pool;
+    `drive_tools.timeout.ProbeTimeout` sets an ambient per-thread timeout that
+    `drive_tools/smartctl.py` and `probes/vitals/block_device.py` apply to
+    their subprocess calls)
 [ ] threading.Event for clean collector shutdown
 [ ] Blocking initial poll before Flask starts serving (cold start guarantee)
 [x] Probe config loading by dotted path (`collector._load_probes`, configured

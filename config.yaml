@@ -8,6 +8,8 @@ collector:
   scan_interval: 300  # seconds — drive discovery (scan + reconciliation)
   keep_history_days: 90  # days — retention window for time-series tables (drive_signals,
                           # drive_heartbeats, drive_vitals, drive_raw_snapshots)
+  max_workers: 4      # thread pool size for per-drive channel polling
+  probe_timeout: 30   # seconds — subprocess timeout for smartctl calls
   poll_intervals:
     telemetry: 300    # seconds — signals + heartbeat
     snapshot: 14400   # seconds — raw smartctl JSON persistence

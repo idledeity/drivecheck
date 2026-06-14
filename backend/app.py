@@ -15,6 +15,8 @@ collector = Collector(
     telemetry_probes=_collector_cfg["telemetry_probes"],
     vitals_probes=_collector_cfg["vitals_probes"],
     keep_history_days=_collector_cfg["keep_history_days"],
+    max_workers=_collector_cfg["max_workers"],
+    probe_timeout=_collector_cfg["probe_timeout"],
 )
 
 app = Flask(__name__)

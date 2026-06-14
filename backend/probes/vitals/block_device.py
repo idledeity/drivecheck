@@ -11,17 +11,23 @@ Resolved once per drive at discovery time.
 import json
 import subprocess
 
+from drive_tools.timeout import get_timeout
+
 
 def run(serial: str | None) -> str | None:
     """Return the block device name (e.g. "sdb") whose serial matches, or None."""
     if not serial:
         return None
 
-    result = subprocess.run(
-        ["lsblk", "-J", "-o", "NAME,SERIAL", "-d"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["lsblk", "-J", "-o", "NAME,SERIAL", "-d"],
+            capture_output=True,
+            text=True,
+            timeout=get_timeout(),
+        )
+    except subprocess.TimeoutExpired:
+        return None
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError:
