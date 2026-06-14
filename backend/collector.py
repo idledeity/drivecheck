@@ -163,6 +163,7 @@ class Collector:
             self._maybe_run_channel(state, "telemetry", now)
             self._maybe_run_channel(state, "snapshot", now)
             self._maybe_run_channel(state, "vitals", now)
+            self._maybe_run_channel(state, "traits", now)
 
     def _maybe_run_channel(self, state: DriveState, channel: str, now: float) -> None:
         """Run a drive's channel if due, then schedule its next phase-staggered slot."""
@@ -176,6 +177,8 @@ class Collector:
             self._run_snapshot(state, now)
         elif channel == "vitals":
             self._run_vitals(state, now)
+        elif channel == "traits":
+            self._run_traits(state, now)
         sched[channel] = self._compute_next_due(guid, channel, now)
 
     def _compute_next_due(self, guid: str, channel: str, now: float) -> float:
@@ -231,6 +234,40 @@ class Collector:
             state.context.guid, captured_at, "smartctl_telemetry", json.dumps(state.snapshot.extras)
         )
 
+    def _run_traits_chain(self, descriptor: DriveDescriptor, base: DriveTraits) -> DriveTraits:
+        """Run the traits probe chain against descriptor, merging results onto base.
+
+        If traits_probes lists more than one, each runs independently and results
+        are merged field-by-field — last probe's non-None value wins for each field.
+        """
+        traits = base
+        for probe in self._traits_probes:
+            traits = _merge_traits(traits, probe.run(descriptor))
+        return traits
+
+    def _run_traits(self, state: DriveState, now: float) -> None:
+        """Re-run the traits probe chain for an already-known drive and refresh its identity fields.
+
+        Merges onto the drive's existing traits rather than a blank DriveTraits,
+        so a probe that transiently returns None for a field (e.g. a momentary
+        smartctl failure) doesn't wipe out previously known identity info.
+        """
+        descriptor = state.attachment.primary_descriptor
+        traits = self._run_traits_chain(descriptor, state.traits)
+
+        with self._lock:
+            state.traits = traits
+            state.context.traits = traits
+
+        db.upsert_drive_record(
+            guid=state.context.guid,
+            serial=traits.serial,
+            model=traits.model,
+            capacity_bytes=traits.capacity_bytes,
+            drive_type=traits.drive_type.value if traits.drive_type else None,
+            first_seen=datetime.now().isoformat(),
+        )
+
     def _run_vitals(self, state: DriveState, now: float) -> None:
         """Run the vitals probe chain for a drive and record a vitals row."""
         vitals = DriveVitals(captured_at=datetime.now())
@@ -271,9 +308,7 @@ class Collector:
         """Run traits on unknown descriptors, deduplicate by GUID, and create/update states."""
         probed: list[tuple[DriveDescriptor, DriveTraits, str]] = []
         for d in descriptors:
-            traits = DriveTraits()
-            for probe in self._traits_probes:
-                traits = _merge_traits(traits, probe.run(d))
+            traits = self._run_traits_chain(d, DriveTraits())
             guid = _assign_guid(traits, d)
             probed.append((d, traits, guid))
 
@@ -311,10 +346,15 @@ class Collector:
                 record = db.get_drive_record(guid)
                 state.label = record["label"] if record else None
                 self._drive_states[guid] = state
-                # All channels are due immediately so a newly discovered drive
-                # gets telemetry (and a baseline raw snapshot + vitals reading)
-                # in this same tick.
-                self._schedules[guid] = {"telemetry": now, "snapshot": now, "vitals": now}
+                # Telemetry/snapshot/vitals are due immediately so a newly discovered
+                # drive gets a baseline reading in this same tick. Traits were just
+                # populated by discovery, so its first refresh is a full interval out.
+                self._schedules[guid] = {
+                    "telemetry": now,
+                    "snapshot": now,
+                    "vitals": now,
+                    "traits": self._compute_next_due(guid, "traits", now),
+                }
         matched_guids.add(guid)
 
         db.upsert_drive_record(

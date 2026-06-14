@@ -123,14 +123,15 @@ activity or job execution.
 - Collector loop runs as a daemon thread started at Flask startup, ticking every
   `_TICK_INTERVAL` (1s) to check which drives/channels are due
 - WAL mode ensures collector writes don't block API request threads (implemented in `db.py`)
-- Per-drive ThreadPoolExecutor polling, probe chaining, traits refresh interval, and
-  graceful shutdown are target design, not yet implemented (see Project Status)
+- Per-drive ThreadPoolExecutor polling and graceful shutdown are target design,
+  not yet implemented (see Project Status)
 
 **Polling intervals (per-channel, phase-staggered):**
 - Configurable in `config.yaml` under `collector.poll_intervals` — currently
   `telemetry` (default 300s: signals + heartbeat), `snapshot` (default 14400s/4h:
-  raw smartctl JSON persistence), and `vitals` (default 10s: cheap temperature +
-  disk IO activity, written to drive_vitals). Drive discovery runs on its own
+  raw smartctl JSON persistence), `vitals` (default 10s: cheap temperature +
+  disk IO activity, written to drive_vitals), and `traits` (default 86400s/24h:
+  re-run traits probes for already-known drives). Drive discovery runs on its own
   `collector.scan_interval` (default 300s), unstaggered.
 - Each drive is assigned a phase fraction from its position in the sorted GUID list
   (`index / drive_count`), so drives are spread evenly across each channel's interval
@@ -242,11 +243,15 @@ def run() -> list[DriveDescriptor]:
 ### Traits probes
 Populate `DriveTraits` for a specific drive. Receive a `DriveDescriptor` — at this
 point no GUID has been assigned yet — and return a `DriveTraits`. Run by the
-collector only on first discovery of a drive; reduced-interval refresh for
-already-known drives is target design (see Project Status). If `traits_probes`
+collector on first discovery of a drive (against a blank `DriveTraits`), and
+again on a reduced interval (`poll_intervals.traits`, default 24h, on its own
+`"traits"` channel) for already-known drives — that refresh merges onto the
+drive's *existing* `state.traits` so a probe that transiently returns `None`
+for a field doesn't wipe out previously known identity info. If `traits_probes`
 lists more than one, each runs independently against the descriptor and results
 are merged field-by-field — last probe's non-None value wins for each field
-(`_merge_traits` in `collector.py`).
+(`_merge_traits` in `collector.py`). A traits refresh also calls
+`db.upsert_drive_record()` so `drive_records` identity fields stay current.
 
 ```python
 def run(descriptor: DriveDescriptor) -> DriveTraits:
@@ -677,6 +682,7 @@ collector:
     telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
     snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
     vitals: 10         # seconds — cheap temp + disk IO activity, phase-staggered per drive
+    traits: 86400      # seconds — re-run traits probes for already-known drives
   scan_probes:
     - probes.scan.smartctl_scan
   traits_probes:
@@ -757,7 +763,8 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     `vitals_probes` in config.yaml)
 [ ] History retention / pruning (keep_history_days) — drive_vitals grows fastest
     (~8,600 rows/day/drive at the 10s default)
-[ ] Traits probe refresh on a reduced interval for already-known drives (currently runs once, on discovery only)
+[x] Traits probe refresh on a reduced interval for already-known drives
+    (`"traits"` channel, `poll_intervals.traits`, default 24h)
 [ ] Frontend per-drive refresh controls + adaptive "last polled" display to match
     per-channel staggered polling (currently a single global header/refresh)
 

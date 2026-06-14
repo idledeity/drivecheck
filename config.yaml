@@ -10,6 +10,7 @@ collector:
     telemetry: 300    # seconds — signals + heartbeat
     snapshot: 14400   # seconds — raw smartctl JSON persistence
     vitals: 10        # seconds — cheap temp + disk IO activity
+    traits: 86400     # seconds — re-run traits probes for already-known drives
 
   # Probe chains, run in order. Each stage's results are merged/concatenated —
   # see Probe System in CLAUDE.md.
