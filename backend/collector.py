@@ -45,6 +45,9 @@ _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")
 # How often the background loop wakes to check for due channels.
 _TICK_INTERVAL = 1.0
 
+# How often to check whether history pruning is due.
+_PRUNE_INTERVAL = 86400
+
 
 def _load_probes(dotted_paths: list[str]) -> list[ModuleType]:
     """Import and return each dotted-path probe module, in order."""
@@ -77,6 +80,7 @@ class Collector:
         traits_probes: list[str],
         telemetry_probes: list[str],
         vitals_probes: list[str],
+        keep_history_days: int,
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
@@ -84,9 +88,13 @@ class Collector:
         self._traits_probes = _load_probes(traits_probes)
         self._telemetry_probes = _load_probes(telemetry_probes)
         self._vitals_probes = _load_probes(vitals_probes)
+        self._keep_history_days = keep_history_days
         self._drive_states: dict[str, DriveState] = {}
         self._phase_fractions: dict[str, float] = {}
         self._scan_due: float = time.time()
+        # Initialized lazily on the first tick, from db.get_last_pruned_at() — db.init()
+        # hasn't necessarily run yet at construction time.
+        self._prune_due: float | None = None
         # Per-drive, per-channel ("telemetry", "snapshot", "vitals") next-due times,
         # epoch seconds. Collector-internal scheduling state, not part of DriveState.
         self._schedules: dict[str, dict[str, float]] = {}
@@ -155,6 +163,20 @@ class Collector:
         if now >= self._scan_due:
             self._run_scan(now)
             self._scan_due = now + self._scan_interval
+
+        if self._prune_due is None:
+            last_pruned_at = db.get_last_pruned_at()
+            self._prune_due = (
+                datetime.fromisoformat(last_pruned_at).timestamp() + _PRUNE_INTERVAL
+                if last_pruned_at is not None
+                else now + _PRUNE_INTERVAL
+            )
+
+        if now >= self._prune_due:
+            cutoff = datetime.fromtimestamp(now - self._keep_history_days * 86400).isoformat()
+            db.prune_history(cutoff)
+            db.set_last_pruned_at(datetime.fromtimestamp(now).isoformat())
+            self._prune_due = now + _PRUNE_INTERVAL
 
         with self._lock:
             active_states = list(self._drive_states.values())

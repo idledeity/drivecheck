@@ -14,6 +14,7 @@ collector = Collector(
     traits_probes=_collector_cfg["traits_probes"],
     telemetry_probes=_collector_cfg["telemetry_probes"],
     vitals_probes=_collector_cfg["vitals_probes"],
+    keep_history_days=_collector_cfg["keep_history_days"],
 )
 
 app = Flask(__name__)

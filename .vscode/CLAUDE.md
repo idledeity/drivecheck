@@ -589,8 +589,17 @@ older rows; "what was the raw data near time T" queries should look up
 `drive_raw_snapshots` by `captured_at` proximity instead.
 
 ### History retention
-Configurable window (e.g. `keep_history_days: 90`). Old rows pruned by the collector.
-Default TBD.
+Configurable window (`collector.keep_history_days`, default 90). Once per day
+(`_PRUNE_INTERVAL` in `collector.py`), the collector deletes rows older than the
+cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals`, and
+`drive_raw_snapshots` via `db.prune_history()`. `drive_records` is never pruned —
+it's one row per drive, not a time series.
+
+The last prune time is persisted to the single-row `collector_state` table
+(`db.get_last_pruned_at()` / `db.set_last_pruned_at()`), so the schedule survives
+restarts — a service that restarts more often than `_PRUNE_INTERVAL` still prunes
+roughly once a day rather than never. On a fresh database (no prior prune recorded),
+the first prune is deferred a full interval rather than running on cold start.
 
 ### Querying patterns
 
@@ -677,7 +686,9 @@ auth:
   password_hash: ""    # bcrypt hash — not yet enforced, see Auth in Project Status
 
 collector:
-  scan_interval: 300   # seconds — drive discovery (scan + reconciliation)
+  scan_interval: 300      # seconds — drive discovery (scan + reconciliation)
+  keep_history_days: 90   # days — retention window for drive_signals, drive_heartbeats,
+                           # drive_vitals, drive_raw_snapshots (pruned daily)
   poll_intervals:
     telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
     snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
@@ -705,7 +716,7 @@ server:
 
 Target fields, not yet present (see corresponding sections):
 - `secret_key` — Flask session secret (Auth)
-- `collector.telemetry_timeout`, `collector.keep_history_days` (Collector, History retention)
+- `collector.telemetry_timeout` (Collector)
 - `jobs.max_parallel` (Queue & Scheduler)
 
 ---
@@ -761,7 +772,8 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] Probe config loading by dotted path (`collector._load_probes`, configured
     via `collector.scan_probes` / `traits_probes` / `telemetry_probes` /
     `vitals_probes` in config.yaml)
-[ ] History retention / pruning (keep_history_days) — drive_vitals grows fastest
+[x] History retention / pruning (`collector.keep_history_days`, default 90,
+    checked daily via `db.prune_history()`) — drive_vitals grows fastest
     (~8,600 rows/day/drive at the 10s default)
 [x] Traits probe refresh on a reduced interval for already-known drives
     (`"traits"` channel, `poll_intervals.traits`, default 24h)

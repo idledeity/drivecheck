@@ -77,6 +77,11 @@ CREATE TABLE IF NOT EXISTS drive_vitals (
 
 CREATE INDEX IF NOT EXISTS idx_drive_vitals_guid_captured
     ON drive_vitals (drive_guid, captured_at);
+
+-- Single-row table of collector bookkeeping that must survive restarts.
+CREATE TABLE IF NOT EXISTS collector_state (
+    last_pruned_at TEXT
+);
 """
 
 
@@ -231,3 +236,31 @@ def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
             "SELECT * FROM drive_raw_snapshots WHERE drive_guid = ? ORDER BY captured_at DESC LIMIT 1",
             (guid,),
         ).fetchone()
+
+
+# ---------------------------------------------------------------------------
+# Retention
+# ---------------------------------------------------------------------------
+
+_HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals", "drive_raw_snapshots")
+
+
+def prune_history(cutoff_iso: str) -> None:
+    """Delete time-series rows captured before cutoff_iso (ISO 8601 string)."""
+    with _connection() as conn:
+        for table in _HISTORY_TABLES:
+            conn.execute(f"DELETE FROM {table} WHERE captured_at < ?", (cutoff_iso,))
+
+
+def get_last_pruned_at() -> str | None:
+    """Return the ISO timestamp of the last history prune, or None if never pruned."""
+    with _connection() as conn:
+        row = conn.execute("SELECT last_pruned_at FROM collector_state").fetchone()
+        return row[0] if row else None
+
+
+def set_last_pruned_at(captured_at_iso: str) -> None:
+    """Persist the timestamp of the most recent history prune."""
+    with _connection() as conn:
+        conn.execute("DELETE FROM collector_state")
+        conn.execute("INSERT INTO collector_state (last_pruned_at) VALUES (?)", (captured_at_iso,))
