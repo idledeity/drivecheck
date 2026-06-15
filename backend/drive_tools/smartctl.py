@@ -20,7 +20,7 @@ def run_smartctl(*args) -> dict:
     """
     try:
         result = subprocess.run(
-            ["sudo", "smartctl", "-j"] + list(args),
+            ["sudo", "-n", "smartctl", "-j"] + list(args),
             capture_output=True,
             text=True,
             timeout=get_timeout(),
