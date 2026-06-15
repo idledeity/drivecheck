@@ -8,7 +8,7 @@ re-uses across polls rather than re-querying every time.
 """
 
 from drive_tools import smartctl
-from models import DriveDescriptor, DriveTraits, DriveType
+from drive_models import DriveDescriptor, DriveTraits, DriveType
 
 
 def run(descriptor: DriveDescriptor) -> DriveTraits:

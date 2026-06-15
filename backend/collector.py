@@ -40,7 +40,7 @@ from types import ModuleType
 import db
 from analysis.descriptor_rank import score_descriptor
 from drive_tools.timeout import ProbeTimeout
-from models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
+from drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from probes.vitals.block_device import run as resolve_block_device
 
 _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")

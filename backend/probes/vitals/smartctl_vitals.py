@@ -8,7 +8,7 @@ the telemetry channel's job (probes.telemetry.smartctl_telemetry).
 """
 
 from drive_tools import smartctl
-from models import DriveState, DriveVitals
+from drive_models import DriveState, DriveVitals
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     from probes.scan.smartctl_scan import run as scan_drives
     from probes.traits.smartctl_traits import run as fetch_traits
-    from models import DriveContext
+    from drive_models import DriveContext
 
     for descriptor in scan_drives():
         traits = fetch_traits(descriptor)

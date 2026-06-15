@@ -9,7 +9,7 @@ vitals history.
 
 from pathlib import Path
 
-from models import DriveState, DriveVitals
+from drive_models import DriveState, DriveVitals
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     import uuid
     from datetime import datetime
 
-    from models import DriveAttachment, DriveContext
+    from drive_models import DriveAttachment, DriveContext
     from probes.scan.smartctl_scan import run as scan_drives
     from probes.traits.smartctl_traits import run as fetch_traits
     from probes.vitals.block_device import run as resolve_block_device

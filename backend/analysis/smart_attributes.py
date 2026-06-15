@@ -9,7 +9,7 @@ frontend to render directly.
 """
 
 from analysis.severity import flag
-from models import AttributeRow, DCSignals, DriveHealth, DriveType
+from drive_models import AttributeRow, DCSignals, DriveHealth, DriveType
 
 # ATA SMART attribute IDs that map onto a DCSignals field — reuse its signal_flags
 # entry instead of re-deriving a threshold here.

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from config import CONFIG
-from models import DriveIOActivity
+from drive_models import DriveIOActivity
 
 _DB_PATH = (Path(__file__).parent.parent / CONFIG["data"]["dir"] / "drivecheck.db").resolve()
 

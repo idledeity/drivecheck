@@ -1,5 +1,5 @@
 """
-models.py — Core data models for drivecheck.
+drive_models.py — Drive-related data models for drivecheck.
 
 All dataclasses are mutable by default so telemetry probes can enrich a
 DriveSnapshot incrementally as it passes through the probe chain.

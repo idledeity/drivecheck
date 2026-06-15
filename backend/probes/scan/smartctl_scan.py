@@ -8,7 +8,7 @@ collector after the traits probe populates serial numbers.
 """
 
 from drive_tools import smartctl
-from models import DriveDescriptor
+from drive_models import DriveDescriptor
 
 
 def run() -> list[DriveDescriptor]:
