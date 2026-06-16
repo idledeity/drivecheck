@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconDeselect, IconRefresh, IconScan, IconSelectAll } from "@tabler/icons-react"
+import { IconDeselect, IconRefresh, IconScan, IconSelectAll, IconSettings } from "@tabler/icons-react"
 import type { Drive } from "./types"
 
 interface Props {
@@ -9,9 +9,10 @@ interface Props {
   onUnselectAll: () => void
   onProbe: () => Promise<unknown>
   onScan: () => Promise<unknown>
+  onOpenSettings: () => void
 }
 
-export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan }: Props) {
+export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan, onOpenSettings }: Props) {
   const [probing, setProbing] = useState(false)
   const [scanning, setScanning] = useState(false)
 
@@ -46,6 +47,11 @@ export default function GridControls({ drives, selected, onSelectAll, onUnselect
       <button className="gc-btn" onClick={handleScan} disabled={scanning} title="Scan for drives">
         <IconScan size={13} className={scanning ? "spinning" : ""} />
         <span>Scan for drives</span>
+      </button>
+      <span className="gc-sep" />
+      <button className="gc-btn" onClick={onOpenSettings} title="Settings">
+        <IconSettings size={13} />
+        <span>Settings</span>
       </button>
     </div>
   )

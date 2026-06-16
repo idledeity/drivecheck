@@ -2,6 +2,29 @@ export type Settings = {
   footer_signals: Record<string, string[]>
 }
 
+export type ConfigPropType = "int" | "float" | "str" | "bool" | "enum"
+
+export type ConfigProp = {
+  key: string
+  label: string
+  section: string
+  tooltip: string
+  type: ConfigPropType
+  value: unknown
+  default: unknown
+  min: number | null
+  max: number | null
+  choices: string[] | null
+  restart_required: boolean
+}
+
+export type LogRecord = {
+  timestamp: string
+  level: string
+  logger: string
+  message: string
+}
+
 export type SmartAttributeRow = {
   key: string
   label: string

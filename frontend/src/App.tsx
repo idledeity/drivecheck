@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import DriveCard from "./DriveCard"
 import GridControls from "./GridControls"
+import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
 import type { Drive, Job, Settings } from "./types"
 import "./App.css"
@@ -11,6 +12,7 @@ export default function App() {
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(setSettings).catch(() => {})
@@ -121,6 +123,7 @@ export default function App() {
           onUnselectAll={handleUnselectAll}
           onProbe={handleProbe}
           onScan={handleScan}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>
       {drives.length === 0
@@ -139,6 +142,7 @@ export default function App() {
             ))}
           </div>
       }
+      {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
       <WorkspacePanel
         drives={drives}
         selected={selected}
