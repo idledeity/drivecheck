@@ -29,15 +29,22 @@ Retrieving a value:
 
 See also: GET /api/config, PATCH /api/config in app.py.
 """
-import copy
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 logger = logging.getLogger(__name__)
+
+# Round-trip mode (the ruamel.yaml default) preserves comments and formatting
+# across load -> save, unlike PyYAML which discards them on parse.
+_yaml = YAML()
+_yaml.preserve_quotes = True
+_yaml.width = 4096  # don't wrap long values/comments
+_yaml.indent(mapping=2, sequence=4, offset=2)  # matches config.yaml's existing style
 
 
 # ---------------------------------------------------------------------------
@@ -64,9 +71,9 @@ class ConfigProp:
 # Internal state
 # ---------------------------------------------------------------------------
 
-_props:  dict[str, ConfigProp] = {}   # registered props, keyed by dotted path
-_values: dict[str, object]    = {}    # current values (defaults overlaid by YAML)
-_raw:    dict                  = {}    # full parsed YAML dict — preserved on save
+_props:  dict[str, ConfigProp] = {}            # registered props, keyed by dotted path
+_values: dict[str, object]    = {}             # current values (defaults overlaid by YAML)
+_raw:    CommentedMap          = CommentedMap()  # parsed YAML, comments/formatting intact
 
 
 # ---------------------------------------------------------------------------
@@ -107,10 +114,10 @@ def load(path: str | Path) -> None:
     logger.info("loading config: %s", path)
     try:
         with open(path) as f:
-            _raw = yaml.safe_load(f) or {}
+            _raw = _yaml.load(f) or CommentedMap()
     except FileNotFoundError:
         logger.warning("config file not found: %s — using defaults", path)
-        _raw = {}
+        _raw = CommentedMap()
         return
 
     flat = _flatten(_raw)
@@ -126,18 +133,19 @@ def load(path: str | Path) -> None:
 
 
 def save(path: str | Path) -> None:
-    """Persist current values to YAML, preserving any unregistered keys."""
+    """Persist current values to YAML in place, preserving comments/formatting
+    and any unregistered keys."""
     logger.info("saving config: %s", path)
-    result = copy.deepcopy(_raw)
     for key, value in _values.items():
         parts = key.split(".")
-        d = result
+        d = _raw
         for part in parts[:-1]:
-            d = d.setdefault(part, {})
+            if part not in d or not isinstance(d[part], dict):
+                d[part] = CommentedMap()
+            d = d[part]
         d[parts[-1]] = value
     with open(path, "w") as f:
-        yaml.dump(result, f, default_flow_style=False, allow_unicode=True,
-                  sort_keys=False)
+        _yaml.dump(_raw, f)
 
 
 # ---------------------------------------------------------------------------
