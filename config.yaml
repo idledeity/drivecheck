@@ -30,6 +30,15 @@ collector:
     - probes.vitals.sysfs_io
     - probes.vitals.mount_status
 
+jobs:
+  # Cap on simultaneously-running jobs across all drives. Per-drive exclusivity
+  # already limits this to one job per drive, so any value >= the number of
+  # drives -- or `null`/omitted -- means "uncapped": one job per drive, no
+  # additional throttling, and it stays correct even if the drive count changes.
+  max_parallel: 2
+  enable_debug_operations: true   # adds "Sleep (debug)" for exercising the
+                                   # queue/scheduler without touching drives
+
 data:
   dir: ./data
 

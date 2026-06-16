@@ -8,12 +8,14 @@ the access patterns here are infrequent enough that connection overhead
 doesn't matter.
 """
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
 from config import CONFIG
 from drive_models import DriveIOActivity
+from job_models import Job
 
 _DB_PATH = (Path(__file__).parent.parent / CONFIG["data"]["dir"] / "drivecheck.db").resolve()
 
@@ -82,6 +84,24 @@ CREATE INDEX IF NOT EXISTS idx_drive_vitals_guid_captured
 CREATE TABLE IF NOT EXISTS collector_state (
     last_pruned_at TEXT
 );
+
+-- One row per terminal job (completed/failed/cancelled). Active job state
+-- lives in JobRegistry; this table is for future History tab queries.
+CREATE TABLE IF NOT EXISTS jobs (
+    id          TEXT PRIMARY KEY,
+    drive_guid  TEXT NOT NULL,
+    operation   TEXT NOT NULL,
+    category    TEXT NOT NULL,
+    params_json TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    result_json TEXT,
+    error       TEXT,
+    created_at  TEXT NOT NULL,
+    started_at  TEXT,
+    finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
 """
 
 
@@ -264,3 +284,29 @@ def set_last_pruned_at(captured_at_iso: str) -> None:
     with _connection() as conn:
         conn.execute("DELETE FROM collector_state")
         conn.execute("INSERT INTO collector_state (last_pruned_at) VALUES (?)", (captured_at_iso,))
+
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+
+def record_job(job: Job) -> None:
+    """Persist a terminal job (completed/failed/cancelled) for future History tab use."""
+    with _connection() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO jobs (
+                id, drive_guid, operation, category, params_json, status,
+                result_json, error, created_at, started_at, finished_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job.id, job.drive_guid, job.operation, job.category,
+                json.dumps(job.params), job.status.value,
+                json.dumps(job.result) if job.result is not None else None,
+                job.error,
+                job.created_at.isoformat(),
+                job.started_at.isoformat() if job.started_at else None,
+                job.finished_at.isoformat() if job.finished_at else None,
+            ),
+        )
