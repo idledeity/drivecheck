@@ -1,9 +1,13 @@
 import atexit
 import json
+from dataclasses import asdict
 
 from flask import Flask, jsonify, request
 from config import CONFIG
 from collector import Collector
+from operations.registry import OPERATIONS
+from job_registry import JobRegistry
+from job_models import JobStatus
 import db
 import settings
 
@@ -20,7 +24,32 @@ collector = Collector(
     probe_timeout=_collector_cfg["probe_timeout"],
 )
 
+_jobs_cfg = CONFIG["jobs"]
+job_registry = JobRegistry(
+    max_parallel=_jobs_cfg.get("max_parallel"),
+    get_context=collector.get_drive_context,
+)
+
 app = Flask(__name__)
+
+
+def _job_to_dict(job):
+    progress = job_registry.get_progress(job.id) if job.status == JobStatus.RUNNING else None
+    return {
+        "id": job.id,
+        "drive_guid": job.drive_guid,
+        "operation": job.operation,
+        "operation_name": OPERATIONS[job.operation].name,
+        "category": job.category,
+        "params": job.params,
+        "status": job.status.value,
+        "progress": asdict(progress) if progress else {"percent": None, "message": None},
+        "result": job.result,
+        "error": job.error,
+        "created_at": job.created_at.isoformat(),
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
 
 
 @app.route("/api/drives")
@@ -131,6 +160,54 @@ def drives_scan():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/operations")
+def list_operations():
+    guids = [g for g in request.args.get("guids", "").split(",") if g]
+    contexts = [collector.get_drive_context(g) for g in guids]
+    contexts = [c for c in contexts if c is not None]
+    if not contexts:
+        return jsonify([])
+
+    result = []
+    for key, op_cls in OPERATIONS.items():
+        if all(op_cls.supports(c) for c in contexts):
+            result.append({
+                "key": key,
+                "name": op_cls.name,
+                "category": op_cls.category,
+                "tool": op_cls.tool,
+                "params": [asdict(p) for p in op_cls.params],
+            })
+    return jsonify(result)
+
+
+@app.route("/api/jobs", methods=["GET"])
+def list_jobs():
+    return jsonify([_job_to_dict(j) for j in job_registry.list_jobs()])
+
+
+@app.route("/api/jobs", methods=["POST"])
+def create_jobs():
+    body = request.get_json(force=True) or {}
+    guids = body.get("guids")
+    operation = body.get("operation")
+    params = body.get("params", {})
+    if not guids or not operation:
+        return jsonify({"error": "missing 'guids' or 'operation'"}), 400
+
+    jobs = job_registry.create_jobs(guids, operation, params)
+    if jobs is None:
+        return jsonify({"error": "unknown operation"}), 404
+    return jsonify([_job_to_dict(j) for j in jobs]), 201
+
+
+@app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
+def cancel_job(job_id):
+    if not job_registry.cancel_job(job_id):
+        return jsonify({"error": "unknown or already-finished job"}), 404
+    return jsonify({"status": "ok"})
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -141,6 +218,7 @@ if __name__ == "__main__":
     db.init()
     collector.start()
     atexit.register(collector.stop)
+    atexit.register(job_registry.shutdown)
 
     server_cfg = CONFIG["server"]
     app.run(
