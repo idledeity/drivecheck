@@ -1,0 +1,120 @@
+.queue-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.queue-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  margin-bottom: 6px;
+}
+
+.queue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  margin-bottom: 6px;
+}
+
+.queue-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.queue-status-icon { display: flex; align-items: center; flex-shrink: 0; }
+.queue-status-running   { color: var(--cy2); }
+.queue-status-queued    { color: var(--t4); }
+.queue-status-completed { color: var(--gnb); }
+.queue-status-failed    { color: var(--re); }
+.queue-status-cancelled { color: var(--t4); }
+
+.queue-drive {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.queue-op {
+  font-size: 11.5px;
+  color: var(--t3);
+  white-space: nowrap;
+}
+
+.queue-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cy2);
+}
+
+.queue-time {
+  font-size: 10.5px;
+  color: var(--t5);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.queue-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--t4);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.queue-cancel:hover { color: var(--re); background: var(--rbg); }
+
+.queue-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+
+.queue-bar-fill {
+  height: 100%;
+  background: var(--cy2);
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+
+.queue-msg {
+  font-size: 10.5px;
+  color: var(--t4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  flex-shrink: 0;
+}
+
+.queue-error {
+  font-size: 11px;
+  color: var(--re);
+}

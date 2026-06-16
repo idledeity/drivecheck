@@ -1,0 +1,110 @@
+.run-task-tab {
+  display: flex;
+  gap: 24px;
+}
+
+/* ── Sidebar ── */
+.rt-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.rt-category-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  margin-bottom: 4px;
+}
+
+.rt-op {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--t3);
+  background: none;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.rt-op:hover  { color: var(--t1); background: rgba(255,255,255,0.05); }
+.rt-op.active { color: var(--cy); background: rgba(24,196,238,0.1); }
+
+/* ── Form ── */
+.rt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rt-form-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t1);
+}
+
+.rt-form-targets {
+  font-size: 11.5px;
+  color: var(--t4);
+}
+
+.rt-param {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.rt-param-label {
+  font-size: 11.5px;
+  color: var(--t3);
+}
+
+.rt-param input[type="number"],
+.rt-param input[type="text"] {
+  font-size: 12.5px;
+  color: var(--t1);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+}
+.rt-param input:focus { border-color: var(--cy); }
+
+.rt-param-bool {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--t3);
+  cursor: pointer;
+}
+
+.rt-run {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cy);
+  background: rgba(24,196,238,0.1);
+  border: 1px solid rgba(24,196,238,0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+.rt-run:hover:not(:disabled) { background: rgba(24,196,238,0.18); }
+.rt-run:disabled { opacity: 0.5; cursor: default; }

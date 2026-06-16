@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
-import { IconArrowDown, IconArrowUp, IconClock, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
-import type { Drive } from "./types"
+import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
+import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
 import "./DriveCard.css"
@@ -11,9 +11,10 @@ interface Props {
   onSelect: () => void
   footerSignals?: Record<string, string[]>
   onLabelChange?: (guid: string, label: string | null) => void
+  job?: Job
 }
 
-export default function DriveCard({ drive, selected, onSelect, footerSignals, onLabelChange }: Props) {
+export default function DriveCard({ drive, selected, onSelect, footerSignals, onLabelChange, job }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -116,12 +117,33 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
       </div>
 
       {/* Task zone */}
-      <div className="dc-tz idle">
-        <div className="dc-tn">
-          <IconClock size={11} />
-          <span>Idle</span>
+      {job?.status === "running" ? (
+        <div className="dc-tz running">
+          <div className="dc-tn">
+            <IconLoader2 size={11} className="spinning" />
+            <span>{job.operation_name}</span>
+            {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
+          </div>
+          <div className="dc-tz-bar">
+            <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent ?? 0}%` }} />
+          </div>
+          {job.progress.message && <div className="dc-tz-msg">{job.progress.message}</div>}
         </div>
-      </div>
+      ) : job?.status === "queued" ? (
+        <div className="dc-tz queued">
+          <div className="dc-tn">
+            <IconClock size={11} />
+            <span>Queued: {job.operation_name}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="dc-tz idle">
+          <div className="dc-tn">
+            <IconClock size={11} />
+            <span>Idle</span>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="dc-ft">

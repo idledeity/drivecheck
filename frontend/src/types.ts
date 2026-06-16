@@ -34,6 +34,46 @@ export type DriveVitals = {
   io: DriveIOActivity
 }
 
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled"
+
+export type OperationProgress = {
+  percent: number | null
+  message: string | null
+}
+
+export type Job = {
+  id: string
+  drive_guid: string
+  operation: string
+  operation_name: string
+  category: string
+  params: Record<string, unknown>
+  status: JobStatus
+  progress: OperationProgress
+  result: Record<string, unknown> | null
+  error: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export type ParamSpec = {
+  name: string
+  label: string
+  type: "number" | "string" | "boolean"
+  default: unknown
+  min: number | null
+  max: number | null
+}
+
+export type OperationInfo = {
+  key: string
+  name: string
+  category: string
+  tool: string
+  params: ParamSpec[]
+}
+
 export type Drive = {
   guid: string
   device: string
