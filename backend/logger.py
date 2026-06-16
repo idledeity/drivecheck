@@ -1,8 +1,10 @@
 """
 logger.py — Logging configuration for drivecheck.
 
-Call setup() once at startup. After that, each module gets its own named
-logger via the standard library:
+Call setup() once at startup (before cfg.load()), then cfg.apply_live()
+will apply the configured level via the on_changed callback registered here.
+
+Each module gets its own named logger via the standard library:
 
     import logging
     logger = logging.getLogger(__name__)
@@ -11,7 +13,32 @@ import copy
 import logging
 from pathlib import Path
 
-_FMT    = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+import cfg
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+def _apply_level(level: str) -> None:
+    root = logging.getLogger()
+    root.setLevel(level.upper())
+    logging.getLogger("werkzeug").setLevel(
+        logging.DEBUG if root.level <= logging.DEBUG else logging.WARNING
+    )
+
+cfg.register("logging.level",
+    default="info", type="enum", label="Log level",
+    section="Logging", choices=["debug", "info", "warning", "error"],
+    tooltip="Verbosity of application logs.",
+    restart_required=False,
+    on_changed=_apply_level,
+)
+
+# ---------------------------------------------------------------------------
+# Internals
+# ---------------------------------------------------------------------------
+
+_FMT     = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 _DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 _ABBREV: dict[str, str] = {
@@ -31,7 +58,7 @@ class _Formatter(logging.Formatter):
 
 
 def setup(level: str, file_path: str | None) -> None:
-    """Configure the root logger. Call once before importing modules that log at startup."""
+    """Configure the root logger. Call once before cfg.load()."""
     formatter = _Formatter(_FMT, datefmt=_DATEFMT)
 
     root = logging.getLogger()
@@ -47,6 +74,6 @@ def setup(level: str, file_path: str | None) -> None:
         fh.setFormatter(formatter)
         root.addHandler(fh)
 
-    # Werkzeug logs every HTTP request at INFO; keep it quiet unless we're at DEBUG.
-    if root.level > logging.DEBUG:
-        logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(
+        logging.DEBUG if root.level <= logging.DEBUG else logging.WARNING
+    )

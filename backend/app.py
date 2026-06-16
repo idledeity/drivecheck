@@ -7,10 +7,13 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 from config import CONFIG
+import cfg
 import logger as _log
 
 _log_cfg = CONFIG.get("logging", {})
 _log.setup(level=_log_cfg.get("level", "info"), file_path=_log_cfg.get("file"))
+cfg.load(Path(__file__).parent.parent / "config.yaml")
+cfg.apply_live()
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +219,24 @@ def cancel_job(job_id):
     if not job_registry.cancel_job(job_id):
         return jsonify({"error": "unknown or already-finished job"}), 404
     return jsonify({"status": "ok"})
+
+
+_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+
+@app.route("/api/config", methods=["GET"])
+def get_config():
+    return jsonify(cfg.props())
+
+
+@app.route("/api/config", methods=["PATCH"])
+def patch_config():
+    updates = request.get_json(force=True) or {}
+    try:
+        restart_required = cfg.set_many(updates)
+    except (KeyError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+    cfg.save(_CONFIG_PATH)
+    return jsonify({"restart_required": restart_required})
 
 
 _LOG_RE = re.compile(
