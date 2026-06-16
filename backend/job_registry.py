@@ -17,6 +17,7 @@ are additionally persisted to the `jobs` table via db.record_job() for future
 History tab use.
 """
 
+import logging
 import threading
 import uuid
 from collections.abc import Callable
@@ -24,6 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import db
+
+logger = logging.getLogger(__name__)
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
 from operations.registry import OPERATIONS
 from drive_models import DriveContext
@@ -73,6 +76,8 @@ class JobRegistry:
                 self._pending.append(job.id)
                 created.append(job)
             self._dispatch()
+        if created:
+            logger.info("queued %d job(s) for operation '%s'", len(created), operation_key)
         return created
 
     def list_jobs(self) -> list[Job]:
@@ -127,6 +132,7 @@ class JobRegistry:
             self._executor.submit(self._execute, job)
 
     def _execute(self, job: Job) -> None:
+        logger.info("job %s started: %s", job.id[:8], job.operation)
         instance = self._instances[job.id]
         context = self._get_context(job.drive_guid)
         try:
@@ -134,11 +140,14 @@ class JobRegistry:
                 raise RuntimeError("drive no longer present")
             job.result = instance.run(context, job.params)
             job.status = JobStatus.COMPLETED
+            logger.info("job %s completed: %s", job.id[:8], job.operation)
         except OperationCancelled:
             job.status = JobStatus.CANCELLED
+            logger.info("job %s cancelled: %s", job.id[:8], job.operation)
         except Exception as e:
             job.status = JobStatus.FAILED
             job.error = str(e)
+            logger.warning("job %s failed: %s — %s", job.id[:8], job.operation, e)
         job.finished_at = datetime.now()
 
         with self._lock:

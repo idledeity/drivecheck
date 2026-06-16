@@ -27,8 +27,8 @@ Discovery is split from steady-state polling:
 
 import importlib
 import json
+import logging
 import math
-import sys
 import threading
 import time
 import uuid
@@ -42,6 +42,8 @@ from analysis.descriptor_rank import score_descriptor
 from drive_tools.timeout import ProbeTimeout
 from drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from probes.vitals.block_device import run as resolve_block_device
+
+logger = logging.getLogger(__name__)
 
 _GUID_NAMESPACE = uuid.UUID("d1a3ec4f-8b2a-4c5e-9f7d-6e8a2b1c3d4e")
 
@@ -186,7 +188,7 @@ class Collector:
             try:
                 self._tick()
             except Exception as e:
-                print(f"[collector] tick failed: {e}", file=sys.stderr)
+                logger.error("tick failed: %s", e, exc_info=True)
             self._stop_event.wait(_TICK_INTERVAL)
 
     def _tick(self) -> list[Future]:
@@ -201,6 +203,9 @@ class Collector:
                 self._run_scan(now)
             self._scan_due = now + self._scan_interval
             self._scanned.set()
+            with self._lock:
+                n = len(self._drive_states)
+            logger.info("scan complete: %d drive(s)", n)
 
         if self._prune_due is None:
             last_pruned_at = db.get_last_pruned_at()
@@ -267,7 +272,7 @@ class Collector:
                 elif channel == "traits":
                     self._run_traits(state, now)
         except Exception as e:
-            print(f"[collector] {channel} failed for {guid}: {e}", file=sys.stderr)
+            logger.error("%s channel failed for %s: %s", channel, guid, e, exc_info=True)
         finally:
             with self._lock:
                 self._inflight.pop((guid, channel), None)
@@ -427,6 +432,12 @@ class Collector:
             if guid in self._drive_states:
                 self._append_descriptors(self._drive_states[guid], all_descriptors)
             else:
+                logger.info(
+                    "drive discovered: %s %s (%s)",
+                    best_traits.model or "unknown model",
+                    best_traits.serial or "no serial",
+                    best_descriptor.device_name,
+                )
                 context = DriveContext(guid=guid, descriptor=best_descriptor, traits=best_traits)
                 state = DriveState(context=context)
                 state.traits = best_traits
@@ -468,5 +479,12 @@ class Collector:
         with self._lock:
             gone = [g for g in self._drive_states if g not in matched_guids]
             for g in gone:
+                state = self._drive_states[g]
+                logger.info(
+                    "drive removed: %s %s (%s)",
+                    state.traits.model or "unknown model",
+                    state.traits.serial or "no serial",
+                    state.attachment.primary_descriptor.device_name,
+                )
                 del self._drive_states[g]
                 self._schedules.pop(g, None)

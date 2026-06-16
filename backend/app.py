@@ -1,9 +1,19 @@
 import atexit
 import json
+import logging
+import re
 from dataclasses import asdict
+from pathlib import Path
 
 from flask import Flask, jsonify, request
 from config import CONFIG
+import logger as _log
+
+_log_cfg = CONFIG.get("logging", {})
+_log.setup(level=_log_cfg.get("level", "info"), file_path=_log_cfg.get("file"))
+
+logger = logging.getLogger(__name__)
+
 from collector import Collector
 from operations.registry import OPERATIONS
 from job_registry import JobRegistry
@@ -208,6 +218,61 @@ def cancel_job(job_id):
     return jsonify({"status": "ok"})
 
 
+_LOG_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[([A-Z ]{5})\] ([\w.]+): (.+)$"
+)
+
+
+def _read_log_lines(limit: int) -> list[str] | None:
+    """Return the most recent log lines from the best available source.
+
+    Preference: log file (complete history across restarts) → journald
+    (current invocation, only available when running as a systemd service).
+    Returns None if neither source is available.
+    """
+    log_path = CONFIG.get("logging", {}).get("file")
+    if log_path:
+        try:
+            return Path(log_path).read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            pass
+
+    # Detect systemd: JOURNAL_STREAM is set by systemd on service processes.
+    import os, subprocess
+    if os.environ.get("JOURNAL_STREAM"):
+        try:
+            result = subprocess.run(
+                ["journalctl", f"_PID={os.getpid()}", f"-n{limit}",
+                 "--output=cat", "--no-pager"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.splitlines()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+    return None
+
+
+@app.route("/api/logs")
+def get_logs():
+    limit = min(int(request.args.get("n", 500)), 2000)
+    lines = _read_log_lines(limit)
+    if lines is None:
+        return jsonify({"error": "no log source available — configure logging.file or run as a systemd service"}), 404
+    records = []
+    for line in lines[-limit:]:
+        m = _LOG_RE.match(line)
+        if m:
+            records.append({
+                "timestamp": m.group(1),
+                "level": m.group(2).strip().lower(),
+                "logger": m.group(3),
+                "message": m.group(4),
+            })
+    return jsonify(records)
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -216,6 +281,10 @@ if __name__ == "__main__":
 
     settings.init()
     db.init()
+    logger.info(
+        "drivecheck starting — %d operation(s) loaded: %s",
+        len(OPERATIONS), ", ".join(OPERATIONS.keys()) or "none",
+    )
     collector.start()
     atexit.register(collector.stop)
     atexit.register(job_registry.shutdown)

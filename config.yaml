@@ -39,6 +39,10 @@ jobs:
   enable_debug_operations: true   # adds "Sleep (debug)" for exercising the
                                    # queue/scheduler without touching drives
 
+logging:
+  level: info                    # debug | info | warning | error
+  file: data/drivecheck.log      # path to log file, or null to disable
+
 data:
   dir: ./data
 
