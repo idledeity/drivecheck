@@ -8,7 +8,8 @@ export type ConfigProp = {
   key: string
   label: string
   section: string
-  tooltip: string
+  description: string
+  tooltip: string | null
   type: ConfigPropType
   value: unknown
   default: unknown

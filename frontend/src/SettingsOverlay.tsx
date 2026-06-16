@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react"
-import { IconX, IconRefresh } from "@tabler/icons-react"
+import { createPortal } from "react-dom"
+import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
 type SettingsTab = "config" | "logs" | "about"
 
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "config", label: "Config" },
-  { id: "logs",   label: "Logs"   },
-  { id: "about",  label: "About"  },
+const TABS: { id: SettingsTab; label: string; icon: typeof IconAdjustments; iconClass: string }[] = [
+  { id: "config", label: "Config", icon: IconAdjustments, iconClass: "so-nav-icon-config" },
+  { id: "logs",   label: "Logs",   icon: IconFileText,    iconClass: "so-nav-icon-logs"   },
+  { id: "about",  label: "About",  icon: IconInfoCircle,  iconClass: "so-nav-icon-about"  },
 ]
 
 interface Props {
@@ -39,6 +40,7 @@ export default function SettingsOverlay({ onClose }: Props) {
                 className={`so-nav-btn${tab === t.id ? " active" : ""}`}
                 onClick={() => setTab(t.id)}
               >
+                <t.icon size={14} className={t.iconClass} />
                 {t.label}
               </button>
             ))}
@@ -147,13 +149,46 @@ function ConfigTab() {
             ? "Saving…"
             : pendingCount > 0
               ? `Save (${pendingCount} change${pendingCount > 1 ? "s" : ""})`
-              : "Save"}
+              : "No Changes"}
         </button>
         {pendingCount > 0 && (
           <button className="cfg-discard-btn" onClick={() => setPending({})}>Discard</button>
         )}
       </div>
     </div>
+  )
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; placement: "above" | "below" } | null>(null)
+
+  const show = () => {
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const margin = 12
+    const halfWidth = 120
+    const above = rect.top > 80
+    setPos({
+      top: above ? rect.top - 8 : rect.bottom + 8,
+      left: Math.min(Math.max(rect.left + rect.width / 2, halfWidth + margin), window.innerWidth - halfWidth - margin),
+      placement: above ? "above" : "below",
+    })
+  }
+
+  return (
+    <span className="cfg-tooltip-anchor" ref={anchorRef} onMouseEnter={show} onMouseLeave={() => setPos(null)}>
+      <IconInfoCircle size={12} className="cfg-tooltip-icon" />
+      {pos && createPortal(
+        <span
+          className={`cfg-tooltip-bubble cfg-tooltip-bubble-${pos.placement}`}
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {text}
+        </span>,
+        document.body,
+      )}
+    </span>
   )
 }
 
@@ -168,20 +203,23 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
   return (
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}`}>
       <div className="cfg-prop-meta">
-        <label className="cfg-prop-label" title={prop.tooltip}>
+        <label className="cfg-prop-label">
           {prop.label}
+          <span className="cfg-prop-key">({prop.key})</span>
           {prop.restart_required && <span className="cfg-restart-badge">restart</span>}
+          {prop.tooltip && <InfoTooltip text={prop.tooltip} />}
         </label>
-        <span className="cfg-prop-key">{prop.key}</span>
+        <span className="cfg-prop-description">{prop.description}</span>
       </div>
       <div className="cfg-prop-control">
         {prop.type === "enum" && (
-          <select value={String(value)} onChange={e => onChange(e.target.value)}>
+          <select className="cfg-ctl-enum" value={String(value)} onChange={e => onChange(e.target.value)}>
             {prop.choices!.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
         {(prop.type === "int" || prop.type === "float") && (
           <input
+            className="cfg-ctl-num"
             type="number"
             step={prop.type === "int" ? 1 : "any"}
             min={prop.min ?? undefined}
@@ -195,6 +233,7 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
         )}
         {prop.type === "bool" && (
           <input
+            className="cfg-ctl-bool"
             type="checkbox"
             checked={Boolean(value)}
             onChange={e => onChange(e.target.checked)}
@@ -202,6 +241,7 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
         )}
         {prop.type === "str" && (
           <input
+            className="cfg-ctl-str"
             type="text"
             value={String(value ?? "")}
             onChange={e => onChange(e.target.value)}

@@ -13,7 +13,7 @@ Usage in a module:
 
     cfg.register("collector.scan_interval",
         default=300, type="int", label="Scan interval",
-        section="Collector", tooltip="Seconds between drive scans.",
+        section="Collector", description="Seconds between drive scans.",
         min=10, max=3600, restart_required=True,
     )
 
@@ -51,7 +51,8 @@ class ConfigProp:
     type: str              # "int" | "float" | "str" | "bool" | "enum"
     label: str
     section: str
-    tooltip: str
+    description: str           # short, always shown below the control
+    tooltip: str | None = None # longer explanation, shown on hover only
     min: float | None = None
     max: float | None = None
     choices: list[str] | None = None   # required when type == "enum"
@@ -79,7 +80,8 @@ def register(
     type: str,
     label: str,
     section: str,
-    tooltip: str,
+    description: str,
+    tooltip: str | None = None,
     min: float | None = None,
     max: float | None = None,
     choices: list[str] | None = None,
@@ -89,8 +91,8 @@ def register(
     """Declare a config property. Call at module level before cfg.load()."""
     _props[key] = ConfigProp(
         key=key, default=default, type=type, label=label, section=section,
-        tooltip=tooltip, min=min, max=max, choices=choices,
-        restart_required=restart_required, on_changed=on_changed,
+        description=description, tooltip=tooltip, min=min, max=max,
+        choices=choices, restart_required=restart_required, on_changed=on_changed,
     )
     _values[key] = default
 
@@ -217,6 +219,7 @@ def props() -> list[dict]:
             "key":              p.key,
             "label":            p.label,
             "section":          p.section,
+            "description":      p.description,
             "tooltip":          p.tooltip,
             "type":             p.type,
             "value":            _values.get(p.key, p.default),

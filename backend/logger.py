@@ -29,7 +29,7 @@ def _apply_level(level: str) -> None:
 cfg.register("logging.level",
     default="info", type="enum", label="Log level",
     section="Logging", choices=["debug", "info", "warning", "error"],
-    tooltip="Verbosity of application logs.",
+    description="Verbosity of application logs.",
     restart_required=False,
     on_changed=_apply_level,
 )
