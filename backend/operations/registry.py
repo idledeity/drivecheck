@@ -8,10 +8,14 @@ Auto-discovered at import time by scanning operations/catalog/ for regular
 operations and operations/catalog/debug/ for debug operations (the latter
 only if config.yaml: jobs.enable_debug_operations is true). To add an
 operation, drop a module into the appropriate catalog directory — no
-registration step needed.
+registration step needed. Shared base classes (e.g. one operation family
+with a common run() split across short/long variants) can live in the same
+directory too, as long as they leave at least one abstractmethod
+unimplemented — inspect.isabstract() excludes them from discovery.
 """
 
 import importlib
+import inspect
 import pkgutil
 
 from config import CONFIG
@@ -32,6 +36,7 @@ def _discover() -> dict[str, type[OperationBase]]:
                     and issubclass(attr, OperationBase)
                     and attr is not OperationBase
                     and attr.__module__ == module.__name__
+                    and not inspect.isabstract(attr)
                 ):
                     found[module_info.name] = attr
 
