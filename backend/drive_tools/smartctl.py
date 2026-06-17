@@ -1,5 +1,6 @@
 import json
 import subprocess
+from dataclasses import dataclass
 from enum import Enum
 
 from drive_tools.timeout import get_timeout
@@ -9,6 +10,13 @@ class SelfTestType(Enum):
     """Self-test mode passed to `smartctl -t`."""
     SHORT = "short"
     LONG = "long"
+
+
+@dataclass
+class SmartctlResult:
+    """Result of a smartctl action command (start/abort self-test) run without -j."""
+    success: bool
+    message: str  # smartctl's own text output, version/copyright banner stripped
 
 
 def run_smartctl(*args) -> dict:
@@ -57,11 +65,37 @@ def attributes_only(device_name: str, access_type: str) -> dict:
     return run_smartctl("-A", "-d", access_type, device_name)
 
 
-def self_test_start(device_name: str, access_type: str, test_type: SelfTestType) -> dict:
+def _run_smartctl_action(*args) -> SmartctlResult:
+    """Invoke smartctl without -j and return success plus cleaned human-readable output.
+
+    Action commands like -t/-X sometimes explain a pre-flight failure (e.g.
+    refusing to start a test while one's already running) only as plain text on
+    stdout — that explanation is entirely absent from -j output (confirmed: -j
+    gives exit_status=-1 with no "messages" at all for that case). So unlike
+    run_smartctl(), these calls skip JSON and surface smartctl's real message.
+    """
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "smartctl"] + list(args),
+            capture_output=True,
+            text=True,
+            timeout=get_timeout(),
+        )
+    except subprocess.TimeoutExpired:
+        return SmartctlResult(success=False, message="smartctl timed out")
+
+    lines = [
+        line.strip() for line in result.stdout.splitlines()
+        if line.strip() and not line.startswith("smartctl ") and not line.startswith("Copyright")
+    ]
+    return SmartctlResult(success=result.returncode == 0, message=" ".join(lines))
+
+
+def self_test_start(device_name: str, access_type: str, test_type: SelfTestType) -> SmartctlResult:
     """smartctl -t <test_type>: start a SMART self-test."""
-    return run_smartctl("-t", test_type.value, "-d", access_type, device_name)
+    return _run_smartctl_action("-t", test_type.value, "-d", access_type, device_name)
 
 
-def self_test_abort(device_name: str, access_type: str) -> dict:
+def self_test_abort(device_name: str, access_type: str) -> SmartctlResult:
     """smartctl -X: abort whatever SMART self-test is currently running on the drive."""
-    return run_smartctl("-X", "-d", access_type, device_name)
+    return _run_smartctl_action("-X", "-d", access_type, device_name)

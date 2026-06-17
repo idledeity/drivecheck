@@ -60,11 +60,9 @@ class SmartSelfTestOperation(OperationBase):
         self._message = "Starting"
         with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
             start_result = smartctl.self_test_start(device, access_type, self.test_type)
-        exit_status = start_result.get("smartctl", {}).get("exit_status", 0)
-        if exit_status != 0:
-            messages = [m.get("string", "") for m in start_result.get("smartctl", {}).get("messages", [])]
+        if not start_result.success:
             self._message = "Failed"
-            raise RuntimeError("; ".join(filter(None, messages)) or "smartctl failed to start self-test")
+            raise RuntimeError(start_result.message or "smartctl failed to start self-test")
 
         while True:
             if self._cancel_event.wait(_POLL_INTERVAL_SECONDS):
