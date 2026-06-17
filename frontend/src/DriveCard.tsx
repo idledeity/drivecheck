@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconBarcode, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
@@ -91,7 +91,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
             <><span className="dc-tsep">·</span><span className="dc-tv">{drive.bus}</span></>
           )}
         </div>
-        {drive.serial && <span className="dc-serial">S/N {drive.serial}</span>}
+        {drive.serial && <span className="dc-serial"><IconBarcode size={13} />{drive.serial}</span>}
       </div>
 
       {/* Decorative leader line — 2/3 width */}

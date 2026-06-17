@@ -16,7 +16,7 @@
 .queue-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   padding: 7px 10px;
   border-radius: 8px;
   background: var(--bi);
@@ -24,24 +24,95 @@
   margin-bottom: 6px;
 }
 
+/* Grid, not flex: on mobile this needs to become 2 rows (icon/op/serial/right
+   on top, drive spanning the full width below) without duplicating any
+   markup — named grid-template-areas let the same children just get
+   reassigned to a different layout at the breakpoint below.
+
+   align-items:baseline, not center: the children mix font-sizes and (for
+   serial) a different font-family — different fonts place glyphs at
+   different offsets within a same-height box, so centering the boxes still
+   leaves the glyphs looking misaligned. Baseline alignment
+   uses each item's actual font metrics, which lines text up correctly
+   across a font/size change. The icon-only items don't carry a meaningful
+   baseline (they'd synthesize one from their SVG, not from any text), so
+   they opt back into center alignment individually via align-self. */
+/* drive/op tracks are minmax(0, max-content): sized to fit their own text,
+   not stretched — a plain "auto"/"1fr" track grows to soak up whatever
+   leftover row width exists, which is what was making the title and op name
+   each balloon out to ~50% of the row even when their text was short. The
+   0 floor still lets them shrink (and the text inside ellipsis) once the
+   row is too narrow for everything at full size. .queue-right is the only
+   1fr track, so it alone absorbs leftover space — justify-self:end below
+   then pins its actual content (pct/time/cancel) to the row's right edge
+   instead of letting it stretch across that space too. */
 .queue-row-main {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) auto minmax(0, max-content) minmax(0, 1fr);
+  grid-template-areas: "icon drive serial op right";
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
+  line-height: 1;
 }
 
-.queue-status-icon { display: flex; align-items: center; flex-shrink: 0; }
+@media (max-width: 640px) {
+  /* The leftover-absorbing track moves to an unnamed spacer column between
+     op and serial here (rather than .queue-right, as on desktop) — on this
+     row op sits at the left and serial+right form a cluster at the right, so
+     the gap needs to open up *between* those two groups, not after both. */
+  .queue-row-main {
+    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "icon op    .    serial right"
+      "drive drive drive drive drive";
+    row-gap: 3px;
+  }
+
+  .queue-op {
+    justify-self: start;
+  }
+}
+
+.queue-right {
+  grid-area: right;
+  justify-self: end;
+  align-self: center;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.queue-status-icon { grid-area: icon; display: flex; align-items: center; align-self: center; flex-shrink: 0; }
 .queue-status-running   { color: var(--cy2); }
 .queue-status-queued    { color: var(--t4); }
 .queue-status-completed { color: var(--gnb); }
 .queue-status-failed    { color: var(--re); }
 .queue-status-cancelled { color: var(--t4); }
 
+/* Plain grouping wrapper for the drive title + label — no pill now, just the
+   op name gets that. Still needs to be its own flex group so the mixed
+   font-sizes inside it can baseline-align against each other independently
+   of .queue-row-main's own row. (Serial used to live in here too; it's now
+   a separate grid item so it can be repositioned independently on mobile.)
+
+   display:flex is safe here (unlike .queue-serial below): this wrapper's
+   first in-flow child is .queue-drive, real text with a real baseline, so
+   its synthesized baseline (used by .queue-row-main's align-items:baseline)
+   correctly comes from that text, not from an icon. */
+.queue-drive-group {
+  grid-area: drive;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .queue-drive {
   font-size: 12.5px;
-  font-weight: 600;
-  color: var(--t1);
+  font-weight: 500;
+  color: var(--t2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -49,10 +120,61 @@
   min-width: 0;
 }
 
-.queue-op {
-  font-size: 11.5px;
-  color: var(--t3);
+.queue-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t2);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* Deliberately NOT display:flex: a flex (or grid) container's own baseline
+   (when it is itself a grid item, as here) is taken from its *first in-flow
+   child* per spec — that would be the icon, giving the wrong reference
+   again. Left as a plain inline span, its baseline comes from its actual
+   text run via normal inline layout, so align-items:baseline on
+   .queue-row-main lines it up correctly against the row's other text items.
+   The icon is positioned with vertical-align instead of flex/grid alignment
+   for the same reason. */
+.queue-serial {
+  grid-area: serial;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t2);
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
+.queue-serial svg {
+  color: var(--cy);
+  vertical-align: -2px;
+  margin-right: 3px;
+  opacity: 0.75;
+}
+
+/* min-width:0 + ellipsis, same idea as .queue-drive-group's own
+   minmax(0,max-content) track — without this, op has no minimum below its
+   own content width, so all the shrinking pressure on the row fell on the
+   drive group alone. Now both grid tracks (drive, op) can give up space
+   equally. Pill badge (mirrors .dc-badge-grey's neutral background+border)
+   and bold weight distinguish the op name as the row's primary emphasis,
+   same treatment regardless of job status — running/queued/finished/failed
+   all read consistently now. */
+.queue-op {
+  grid-area: op;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 0.5px solid var(--bd);
 }
 
 .queue-pct {
@@ -64,13 +186,13 @@
 .queue-time {
   font-size: 10.5px;
   color: var(--t5);
-  margin-left: auto;
   white-space: nowrap;
 }
 
 .queue-cancel {
   display: flex;
   align-items: center;
+  align-self: center;
   justify-content: center;
   background: none;
   border: none;
@@ -83,7 +205,17 @@
 }
 .queue-cancel:hover { color: var(--re); background: var(--rbg); }
 
+/* line-height:1, same reasoning as .queue-row-main — without it this
+   inherits the global 150% line-height, which pads ~5px of empty space
+   above/below text this small (e.g. 10.5px .queue-msg) for no visual gain. */
 .queue-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1;
+}
+
+.queue-progress-bar-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -114,17 +246,39 @@
   100% { margin-left: 100%; }
 }
 
+/* No max-width now that this is on its own line below the bar — it used to
+   share a row with the bar and needed a cap to leave the bar room. Ellipsis
+   stays as a safety net for an extremely long message. */
 .queue-msg {
   font-size: 10.5px;
   color: var(--t4);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
-  flex-shrink: 0;
 }
 
 .queue-error {
   font-size: 11px;
   color: var(--re);
+  line-height: 1;
+}
+
+/* Tighten every layer of spacing — section gap, row padding/margin, the
+   gaps between elements within a row — since on a narrow screen all of it
+   compounds into a lot of width spent on whitespace instead of content. */
+@media (max-width: 640px) {
+  .queue-tab {
+    gap: 12px;
+  }
+
+  .queue-row {
+    padding: 6px 7px;
+    margin-bottom: 4px;
+  }
+
+  .queue-row-main,
+  .queue-right,
+  .queue-progress-bar-row {
+    gap: 5px;
+  }
 }

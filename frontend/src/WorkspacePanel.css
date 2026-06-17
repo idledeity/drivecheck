@@ -66,6 +66,12 @@
   margin: 0 auto;
 }
 
+@media (max-width: 640px) {
+  .ws-body {
+    padding: 4px;
+  }
+}
+
 /* ── Stub tabs ── */
 .ws-stub {
   display: flex;

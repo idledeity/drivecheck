@@ -9,7 +9,7 @@
   --t2:  #c8ccd6;
   --t3:  #a0a8b4;
   --t4:  #939aa9;
-  --t5:  #454858;
+  --t5:  #6c7180;
   --cy:  #18c4ee;
   --cy2: #00eeff;
   --sel: #a855f7;
@@ -29,6 +29,13 @@
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Without this, mobile browsers' text-autosizing heuristic can inflate the
+     font size of short text blocks based on their width relative to the
+     viewport — a ratio that changes between portrait/landscape, which is why
+     it only showed up in one orientation. 100% disables that inflation so
+     every element renders at the size its CSS actually specifies. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 * {

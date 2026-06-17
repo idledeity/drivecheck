@@ -145,22 +145,36 @@
 .dc-label-input:focus { border-color: var(--cy); }
 
 /* ── Row 2: traits + serial ── */
+/* align-items:baseline, not center: .dc-tv/.dc-tsep and .dc-serial mix
+   font-sizes and (for serial) a different font-family, and different fonts
+   place glyphs at different offsets within a same-height line box — centering
+   the boxes still leaves the glyphs looking misaligned. Baseline alignment
+   uses each item's actual font metrics, which is what lines text up correctly
+   across a font/size change. */
 .dc-traits {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 6px;
   min-width: 0;
 }
 .dc-traits-left {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 5px;
   min-width: 0;
   overflow: hidden;
 }
 .dc-tv         { font-size: 10.5px; color: var(--t4); white-space: nowrap; }
 .dc-tsep       { font-size: 9px; color: var(--t5); flex-shrink: 0; }
+
+/* Deliberately NOT display:flex: a flex container's own baseline (when it is
+   itself a flex item, as here) is taken from its *first in-flow child* per
+   spec — that would be the icon, giving the wrong reference again. Left as a
+   plain inline span, its baseline comes from its actual text run via normal
+   inline layout, so align-items:baseline on .dc-traits lines it up correctly
+   against .dc-traits-left. The icon is positioned with vertical-align instead
+   of flex alignment for the same reason. */
 .dc-serial {
   font-size: 10px;
   color: var(--t4);
@@ -168,6 +182,13 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+.dc-serial svg {
+  color: var(--cy);
+  vertical-align: -2px;
+  margin-right: 3px;
+  opacity: 0.75;
+}
+.dc-serial svg { opacity: 0.75; flex-shrink: 0; }
 
 /* ── Row 3: active state ── */
 .dc-state {
