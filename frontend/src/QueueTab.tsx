@@ -80,7 +80,9 @@ function JobRow({ job, driveLabel, onCancel }: { job: Job; driveLabel: string; o
       {job.status === "running" && (
         <div className="queue-progress">
           <div className="queue-bar">
-            <div className="queue-bar-fill" style={{ width: `${job.progress.percent ?? 0}%` }} />
+            {job.progress.percent === null
+              ? <div className="queue-bar-fill indeterminate" />
+              : <div className="queue-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
           </div>
           {job.progress.message && <span className="queue-msg">{job.progress.message}</span>}
         </div>

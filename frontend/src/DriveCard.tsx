@@ -125,7 +125,9 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
             {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
           </div>
           <div className="dc-tz-bar">
-            <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent ?? 0}%` }} />
+            {job.progress.percent === null
+              ? <div className="dc-tz-bar-fill indeterminate" />
+              : <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
           </div>
           {job.progress.message && <div className="dc-tz-msg">{job.progress.message}</div>}
         </div>

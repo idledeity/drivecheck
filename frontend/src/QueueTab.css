@@ -104,6 +104,16 @@
   transition: width 0.3s ease;
 }
 
+.queue-bar-fill.indeterminate {
+  width: 30%;
+  animation: queue-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes queue-indeterminate {
+  0%   { margin-left: -30%; }
+  100% { margin-left: 100%; }
+}
+
 .queue-msg {
   font-size: 10.5px;
   color: var(--t4);
