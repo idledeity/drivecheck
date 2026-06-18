@@ -39,6 +39,15 @@ export function formatRelativeTime(isoTimestamp: string): string {
   return `${days}d ago`
 }
 
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s % 60}s`
+  return `${s}s`
+}
+
 export function formatTimestamp(isoTimestamp: string): string {
   return new Date(isoTimestamp).toLocaleString(undefined, {
     dateStyle: "medium",

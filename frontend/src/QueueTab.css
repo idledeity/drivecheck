@@ -257,6 +257,13 @@
   100% { margin-left: 100%; }
 }
 
+.queue-msg-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 /* No max-width now that this is on its own line below the bar — it used to
    share a row with the bar and needed a cap to leave the bar room. Ellipsis
    stays as a safety net for an extremely long message. */
@@ -266,6 +273,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.queue-progress-time {
+  font-size: 10.5px;
+  color: var(--t4);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .queue-error {

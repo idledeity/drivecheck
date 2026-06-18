@@ -56,7 +56,7 @@ def _job_to_dict(job):
         "category": job.category,
         "params": job.params,
         "status": job.status.value,
-        "progress": asdict(progress) if progress else {"percent": None, "message": None},
+        "progress": asdict(progress) if progress else {"percent": None, "message": None, "eta_seconds": None},
         "result": job.result,
         "error": job.error,
         "created_at": job.created_at.isoformat(),

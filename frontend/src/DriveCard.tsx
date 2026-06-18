@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { IconArrowDown, IconArrowUp, IconBarcode, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
-import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
+import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import "./DriveCard.css"
 
@@ -30,6 +30,23 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
   const liveTemp = drive.vitals.temp ?? drive.temp
   const io = drive.vitals.io
+
+  // Ticks once a second only while a job is actually running — elapsed/ETA
+  // text below is derived from this plus job.started_at, not from polled
+  // job data (which only changes every few seconds at best).
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (job?.status !== "running") return
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [job?.status])
+
+  const elapsedSeconds = job?.status === "running" && job.started_at
+    ? (now - new Date(job.started_at).getTime()) / 1000
+    : null
+  // The backend already fills this in (operation's own estimate, or a
+  // percent/elapsed extrapolation) — see JobRegistry.get_progress().
+  const remainingSeconds = job?.progress.eta_seconds ?? null
 
   const [editingLabel, setEditingLabel] = useState(false)
   const [labelInput, setLabelInput] = useState("")
@@ -299,7 +316,16 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
               ? <div className="dc-tz-bar-fill indeterminate" />
               : <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
           </div>
-          {job.progress.message && <div className="dc-tz-msg">{job.progress.message}</div>}
+          {(job.progress.message || elapsedSeconds !== null) && (
+            <div className="dc-tz-msg">
+              {job.progress.message && <span className="dc-tz-msg-text">{job.progress.message}</span>}
+              {elapsedSeconds !== null && (
+                <span className="dc-tz-time">
+                  {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       ) : job?.status === "queued" ? (
         <div

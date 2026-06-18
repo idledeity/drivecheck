@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { IconAlertTriangle, IconBan, IconBarcode, IconCheck, IconClock, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
-import { driveTitle, formatRelativeTime } from "./format"
+import { driveTitle, formatDuration, formatRelativeTime } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { StubTab } from "./WorkspacePanel"
 import "./QueueTab.css"
@@ -62,6 +62,23 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
   const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
 
+  // Ticks once a second only while this row's job is running — elapsed/ETA
+  // text below is derived from this plus job.started_at, not from polled
+  // job data (which only changes every few seconds at best).
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (job.status !== "running") return
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [job.status])
+
+  const elapsedSeconds = job.status === "running" && job.started_at
+    ? (now - new Date(job.started_at).getTime()) / 1000
+    : null
+  // The backend already fills this in (operation's own estimate, or a
+  // percent/elapsed extrapolation) — see JobRegistry.get_progress().
+  const remainingSeconds = job.progress.eta_seconds ?? null
+
   return (
     <div className={`queue-row queue-row-${job.status}`} onClick={() => setExpanded(e => !e)}>
       <div className="queue-row-main">
@@ -93,7 +110,16 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
             </div>
             {job.progress.percent !== null && <span className="queue-pct">{job.progress.percent.toFixed(1)}%</span>}
           </div>
-          {job.progress.message && <span className="queue-msg">{job.progress.message}</span>}
+          {(job.progress.message || elapsedSeconds !== null) && (
+            <div className="queue-msg-row">
+              {job.progress.message && <span className="queue-msg">{job.progress.message}</span>}
+              {elapsedSeconds !== null && (
+                <span className="queue-progress-time">
+                  {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
       {job.status === "failed" && job.error && <div className="queue-error">{job.error}</div>}

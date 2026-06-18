@@ -63,6 +63,7 @@ export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancell
 export type OperationProgress = {
   percent: number | null
   message: string | null
+  eta_seconds: number | null
 }
 
 export type Job = {

@@ -22,6 +22,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime
 
 import db
@@ -86,10 +87,27 @@ class JobRegistry:
             return list(self._jobs.values())
 
     def get_progress(self, job_id: str) -> OperationProgress | None:
-        """Return the operation's current progress, or None if job_id is unknown."""
+        """Return the operation's current progress, or None if job_id is unknown.
+
+        If the operation didn't supply its own eta_seconds, fill one in here
+        by extrapolating from elapsed time (job.started_at) and percent —
+        this is the one place that has both the Job and the operation
+        instance, so it's the natural seam for that fallback rather than
+        having Operation track its own start time or Job know about
+        operation internals.
+        """
         with self._lock:
             instance = self._instances.get(job_id)
-        return instance.get_progress() if instance else None
+            job = self._jobs.get(job_id)
+        if instance is None:
+            return None
+        progress = instance.get_progress()
+        if progress.eta_seconds is None and progress.percent is not None and job and job.started_at:
+            if 0 < progress.percent < 100:
+                elapsed = (datetime.now() - job.started_at).total_seconds()
+                estimated = elapsed * (100 - progress.percent) / progress.percent
+                progress = replace(progress, eta_seconds=estimated)
+        return progress
 
     def cancel_job(self, job_id: str) -> bool:
         """Cancel a queued or running job. Returns False if unknown or already finished."""

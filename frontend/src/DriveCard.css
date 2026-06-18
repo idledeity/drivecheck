@@ -322,9 +322,22 @@
   line-height: 1;
   padding: 3px 0;
   color: var(--t4);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dc-tz-msg-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.dc-tz-time {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* ── Task/queued bubbles ── */

@@ -30,9 +30,17 @@ class ParamSpec:
 
 @dataclass
 class OperationProgress:
-    """Progress snapshot reported by a running operation."""
+    """Progress snapshot reported by a running operation.
+
+    eta_seconds is an operation-provided estimate of remaining time, used
+    when the operation actually knows its own pacing (e.g. a fixed total
+    duration). Left None for operations that can't estimate it themselves —
+    JobRegistry.get_progress() then falls back to extrapolating from elapsed
+    time (job.started_at) and percent, if percent is available.
+    """
     percent: float | None = None
     message: str | None = None
+    eta_seconds: float | None = None
 
 
 class OperationBase(ABC):
@@ -57,8 +65,30 @@ class OperationBase(ABC):
         """
 
     def get_progress(self) -> OperationProgress:
-        """Return current progress. Default: no progress info."""
-        return OperationProgress()
+        """Return current progress, assembled from get_percent()/get_message()/
+        get_eta_seconds() below. Operations whose percent and message are
+        derived together from one piece of state (e.g. parsing one smartctl
+        call) can override this directly instead of the three hooks."""
+        return OperationProgress(
+            percent=self.get_percent(),
+            message=self.get_message(),
+            eta_seconds=self.get_eta_seconds(),
+        )
+
+    def get_percent(self) -> float | None:
+        """0-100 completion estimate, or None if indeterminate. Default: no estimate."""
+        return None
+
+    def get_message(self) -> str | None:
+        """Short human-readable status (e.g. "Sleeping (10s)"). Default: none."""
+        return None
+
+    def get_eta_seconds(self) -> float | None:
+        """Operation's own estimate of remaining time, if it actually knows its
+        pacing (e.g. a fixed total duration). Default: None — let
+        JobRegistry.get_progress() fall back to extrapolating from elapsed
+        time and get_percent()."""
+        return None
 
     def cancel(self) -> None:
         """Request cancellation of a running operation. Default: no-op."""
