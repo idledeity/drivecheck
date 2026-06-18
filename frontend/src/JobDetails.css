@@ -1,0 +1,16 @@
+.job-detail-row {
+  display: flex;
+  gap: 8px;
+  font-size: 10.5px;
+}
+
+.job-detail-label {
+  color: var(--t4);
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.job-detail-value {
+  color: var(--t2);
+  overflow-wrap: anywhere;
+}

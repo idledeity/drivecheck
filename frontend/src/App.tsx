@@ -111,6 +111,9 @@ export default function App() {
     jobs.find(j => j.drive_guid === guid && j.status === "running")
       ?? jobs.find(j => j.drive_guid === guid && j.status === "queued")
 
+  const queuedJobsForDrive = (guid: string): Job[] =>
+    jobs.filter(j => j.drive_guid === guid && j.status === "queued")
+
   return (
     <div>
       {error && <div className="status-error">{error}</div>}
@@ -138,6 +141,7 @@ export default function App() {
                 footerSignals={settings?.footer_signals}
                 onLabelChange={handleLabelChange}
                 job={activeJobForDrive(d.guid)}
+                queuedJobs={queuedJobsForDrive(d.guid)}
               />
             ))}
           </div>

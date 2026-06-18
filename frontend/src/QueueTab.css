@@ -216,23 +216,6 @@
   line-height: 1;
 }
 
-.queue-detail-row {
-  display: flex;
-  gap: 8px;
-  font-size: 10.5px;
-}
-
-.queue-detail-label {
-  color: var(--t4);
-  flex-shrink: 0;
-  width: 70px;
-}
-
-.queue-detail-value {
-  color: var(--t2);
-  overflow-wrap: anywhere;
-}
-
 /* line-height:1, same reasoning as .queue-row-main — without it this
    inherits the global 150% line-height, which pads ~5px of empty space
    above/below text this small (e.g. 10.5px .queue-msg) for no visual gain. */
