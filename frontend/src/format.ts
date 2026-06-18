@@ -38,3 +38,17 @@ export function formatRelativeTime(isoTimestamp: string): string {
   const days = Math.floor(hours / 24)
   return `${days}d ago`
 }
+
+export function formatTimestamp(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  })
+}
+
+// "test_type" -> "Test type" — for rendering arbitrary job params/result keys
+// without needing each operation's ParamSpec labels just for a details view.
+export function humanizeKey(key: string): string {
+  const words = key.replace(/_/g, " ")
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}

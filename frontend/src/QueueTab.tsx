@@ -1,6 +1,7 @@
+import { useState } from "react"
 import { IconAlertTriangle, IconBan, IconBarcode, IconCheck, IconClock, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
-import { driveTitle, formatRelativeTime } from "./format"
+import { driveTitle, formatRelativeTime, formatTimestamp, humanizeKey } from "./format"
 import { StubTab } from "./WorkspacePanel"
 import "./QueueTab.css"
 
@@ -57,9 +58,13 @@ const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
 }
 
 function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void }) {
+  const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
+  const paramEntries = Object.entries(job.params)
+  const resultEntries = Object.entries(job.result ?? {})
+
   return (
-    <div className={`queue-row queue-row-${job.status}`}>
+    <div className={`queue-row queue-row-${job.status}`} onClick={() => setExpanded(e => !e)}>
       <div className="queue-row-main">
         <span className={`queue-status-icon queue-status-${job.status}`}>{STATUS_ICON[job.status]}</span>
         <span className="queue-drive-group">
@@ -73,7 +78,7 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
         <div className="queue-right">
           {job.finished_at && <span className="queue-time">{formatRelativeTime(job.finished_at)}</span>}
           {cancellable && (
-            <button className="queue-cancel" onClick={() => onCancel(job.id)} title="Cancel">
+            <button className="queue-cancel" onClick={e => { e.stopPropagation(); onCancel(job.id) }} title="Cancel">
               <IconX size={13} />
             </button>
           )}
@@ -93,6 +98,29 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
         </div>
       )}
       {job.status === "failed" && job.error && <div className="queue-error">{job.error}</div>}
+      {expanded && (
+        <div className="queue-details">
+          <DetailRow label="Category" value={job.category} />
+          <DetailRow label="Created" value={formatTimestamp(job.created_at)} />
+          {job.started_at && <DetailRow label="Started" value={formatTimestamp(job.started_at)} />}
+          {job.finished_at && <DetailRow label="Finished" value={formatTimestamp(job.finished_at)} />}
+          {paramEntries.map(([key, value]) => (
+            <DetailRow key={key} label={humanizeKey(key)} value={String(value)} />
+          ))}
+          {resultEntries.map(([key, value]) => (
+            <DetailRow key={key} label={humanizeKey(key)} value={String(value)} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="queue-detail-row">
+      <span className="queue-detail-label">{label}</span>
+      <span className="queue-detail-value">{value}</span>
     </div>
   )
 }

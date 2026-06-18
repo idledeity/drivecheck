@@ -22,6 +22,7 @@
   background: var(--bi);
   border: 1px solid var(--bd);
   margin-bottom: 6px;
+  cursor: pointer;
 }
 
 /* Grid, not flex: on mobile this needs to become 2 rows (icon/op/serial/right
@@ -204,6 +205,33 @@
   transition: color 0.15s, background 0.15s;
 }
 .queue-cancel:hover { color: var(--re); background: var(--rbg); }
+
+.queue-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--bd);
+  line-height: 1;
+}
+
+.queue-detail-row {
+  display: flex;
+  gap: 8px;
+  font-size: 10.5px;
+}
+
+.queue-detail-label {
+  color: var(--t4);
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.queue-detail-value {
+  color: var(--t2);
+  overflow-wrap: anywhere;
+}
 
 /* line-height:1, same reasoning as .queue-row-main — without it this
    inherits the global 150% line-height, which pads ~5px of empty space
