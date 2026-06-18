@@ -289,6 +289,28 @@
   line-height: 1;
 }
 
+/* Touch devices: scroll the running task's status message instead of
+   clipping it with ellipsis — same reasoning and same (hover:none) +
+   (pointer:coarse) gate as DriveCard's task-status row. */
+@media (hover: none) and (pointer: coarse) {
+  .queue-msg {
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-overflow: unset;
+    scrollbar-width: none;
+  }
+  .queue-msg::-webkit-scrollbar { display: none; }
+
+  /* Same right-only edge-fade hint as DriveCard's scrollable rows, applied
+     the same way — only via .queue-edge-fade (toggled by useEdgeFade.ts
+     when scrollWidth > clientWidth), not unconditionally. See DriveCard.css
+     for why it's one-sided and why it's conditional. */
+  .queue-edge-fade {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+  }
+}
+
 /* Tighten every layer of spacing — section gap, row padding/margin, the
    gaps between elements within a row — since on a narrow screen all of it
    compounds into a lot of width spent on whitespace instead of content. */

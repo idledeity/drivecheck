@@ -3,6 +3,7 @@ import { IconAlertTriangle, IconBan, IconBarcode, IconCheck, IconClock, IconLoad
 import type { Drive, Job } from "./types"
 import { driveTitle, formatDuration, formatRelativeTime } from "./format"
 import { JobDetailRows } from "./JobDetails"
+import { useEdgeFade } from "./useEdgeFade"
 import { StubTab } from "./WorkspacePanel"
 import "./QueueTab.css"
 
@@ -79,6 +80,10 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
   // percent/elapsed extrapolation) — see JobRegistry.get_progress().
   const remainingSeconds = job.progress.eta_seconds ?? null
 
+  // Mobile/touch only (see QueueTab.css) — only fade the message's edge when
+  // it's actually scrollable, same as DriveCard's scrollable rows.
+  const msgFade = useEdgeFade<HTMLSpanElement>()
+
   return (
     <div className={`queue-row queue-row-${job.status}`} onClick={() => setExpanded(e => !e)}>
       <div className="queue-row-main">
@@ -112,7 +117,11 @@ function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; 
           </div>
           {(job.progress.message || elapsedSeconds !== null) && (
             <div className="queue-msg-row">
-              {job.progress.message && <span className="queue-msg">{job.progress.message}</span>}
+              {job.progress.message && (
+                <span ref={msgFade.ref} className={`queue-msg${msgFade.fade ? " queue-edge-fade" : ""}`}>
+                  {job.progress.message}
+                </span>
+              )}
               {elapsedSeconds !== null && (
                 <span className="queue-progress-time">
                   {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}

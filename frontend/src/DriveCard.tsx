@@ -5,6 +5,7 @@ import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
+import { useEdgeFade } from "./useEdgeFade"
 import "./DriveCard.css"
 
 interface Props {
@@ -51,6 +52,17 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
   const [editingLabel, setEditingLabel] = useState(false)
   const [labelInput, setLabelInput] = useState("")
   const cancelLabelEdit = useRef(false)
+
+  // Each scrollable row (mobile/touch only — see DriveCard.css) gets its own
+  // overflow check, so the edge-fade only shows up on a row that's actually
+  // scrollable. dc-tn-id is shared by the running/queued task-zone branches
+  // below since only one of them ever mounts at a time.
+  const idFade = useEdgeFade<HTMLDivElement>()
+  const traitsFade = useEdgeFade<HTMLDivElement>()
+  const stateFade = useEdgeFade<HTMLDivElement>()
+  const tnIdFade = useEdgeFade<HTMLDivElement>()
+  const tzMsgFade = useEdgeFade<HTMLSpanElement>()
+  const fsFade = useEdgeFade<HTMLDivElement>()
 
   // Two independent bubbles: "task" shows the active job's full details,
   // "queued" lists every queued job for this drive. Mutually exclusive so
@@ -216,36 +228,38 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
       {/* Row 1: name + badge */}
       <div className="dc-r1">
         <div className="dc-sel-btn" />
-        {drive.manufacturer && <span className="dc-mfr">{drive.manufacturer}</span>}
-        <span className="dc-model">{drive.model ?? drive.device}</span>
-        {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
-        {editingLabel ? (
-          <input
-            className="dc-label-input"
-            autoFocus
-            value={labelInput}
-            placeholder="Label…"
-            onClick={e => e.stopPropagation()}
-            onChange={e => setLabelInput(e.target.value)}
-            onBlur={commitLabelEdit}
-            onKeyDown={e => {
-              if (e.key === "Enter") e.currentTarget.blur()
-              else if (e.key === "Escape") { cancelLabelEdit.current = true; e.currentTarget.blur() }
-            }}
-          />
-        ) : drive.label ? (
-          <span className="dc-label" onClick={startLabelEdit} title="Click to edit label">({drive.label})</span>
-        ) : (
-          <button className="dc-label-edit" onClick={startLabelEdit} title="Add label">
-            <IconPencil size={14} />
-          </button>
-        )}
+        <div ref={idFade.ref} className={`dc-r1-id${idFade.fade ? " dc-edge-fade" : ""}`}>
+          {drive.manufacturer && <span className="dc-mfr">{drive.manufacturer}</span>}
+          <span className="dc-model">{drive.model ?? drive.device}</span>
+          {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
+          {editingLabel ? (
+            <input
+              className="dc-label-input"
+              autoFocus
+              value={labelInput}
+              placeholder="Label…"
+              onClick={e => e.stopPropagation()}
+              onChange={e => setLabelInput(e.target.value)}
+              onBlur={commitLabelEdit}
+              onKeyDown={e => {
+                if (e.key === "Enter") e.currentTarget.blur()
+                else if (e.key === "Escape") { cancelLabelEdit.current = true; e.currentTarget.blur() }
+              }}
+            />
+          ) : drive.label ? (
+            <span className="dc-label" onClick={startLabelEdit} title="Click to edit label">({drive.label})</span>
+          ) : (
+            <button className="dc-label-edit" onClick={startLabelEdit} title="Add label">
+              <IconPencil size={14} />
+            </button>
+          )}
+        </div>
         <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
       </div>
 
       {/* Row 2: traits (left) + serial (right) */}
       <div className="dc-traits">
-        <div className="dc-traits-left">
+        <div ref={traitsFade.ref} className={`dc-traits-left${traitsFade.fade ? " dc-edge-fade" : ""}`}>
           {drive.drive_type && <span className="dc-tv">{drive.drive_type}</span>}
           {drive.capacity_bytes != null && (
             <><span className="dc-tsep">·</span><span className="dc-tv">{formatCapacity(drive.capacity_bytes)}</span></>
@@ -264,7 +278,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
       <div className="dc-ldr"><div className="dc-ldr-line" /></div>
 
       {/* Row 3: active state — path + temp + mount status */}
-      <div className="dc-state">
+      <div ref={stateFade.ref} className={`dc-state${stateFade.fade ? " dc-edge-fade" : ""}`}>
         <span className="dc-si"><IconServer size={11} /><span className="dc-sv">{drive.device}</span></span>
         {liveTemp !== null && (
           <>
@@ -292,8 +306,10 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
           onMouseLeave={disarmHover}
         >
           <div className="dc-tn">
-            <IconLoader2 size={11} className="spinning" />
-            <span>{job.operation_name}</span>
+            <div ref={tnIdFade.ref} className={`dc-tn-id${tnIdFade.fade ? " dc-edge-fade" : ""}`}>
+              <IconLoader2 size={11} className="spinning" />
+              <span>{job.operation_name}</span>
+            </div>
             {(job.progress.percent !== null || queuedJobs.length > 0) && (
               <div className="dc-tn-right">
                 {queuedJobs.length > 0 && (
@@ -318,7 +334,11 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
           </div>
           {(job.progress.message || elapsedSeconds !== null) && (
             <div className="dc-tz-msg">
-              {job.progress.message && <span className="dc-tz-msg-text">{job.progress.message}</span>}
+              {job.progress.message && (
+                <span ref={tzMsgFade.ref} className={`dc-tz-msg-text${tzMsgFade.fade ? " dc-edge-fade" : ""}`}>
+                  {job.progress.message}
+                </span>
+              )}
               {elapsedSeconds !== null && (
                 <span className="dc-tz-time">
                   {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}
@@ -336,8 +356,10 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
           onMouseLeave={disarmHover}
         >
           <div className="dc-tn">
-            <IconClock size={11} />
-            <span>Queued: {job.operation_name}</span>
+            <div ref={tnIdFade.ref} className={`dc-tn-id${tnIdFade.fade ? " dc-edge-fade" : ""}`}>
+              <IconClock size={11} />
+              <span>Queued: {job.operation_name}</span>
+            </div>
             {queuedJobs.length > 0 && (
               <div className="dc-tn-right">
                 <button
@@ -365,7 +387,11 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
 
       {/* Footer */}
       <div className="dc-ft">
-        <div className="dc-fs" title={drive.last_polled_at ? `Telemetry updated ${formatRelativeTime(drive.last_polled_at)}` : undefined}>
+        <div
+          ref={fsFade.ref}
+          className={`dc-fs${fsFade.fade ? " dc-edge-fade" : ""}`}
+          title={drive.last_polled_at ? `Telemetry updated ${formatRelativeTime(drive.last_polled_at)}` : undefined}
+        >
           {sigKeys.map(key => {
             const desc = SIGNALS[key]
             if (!desc) return null

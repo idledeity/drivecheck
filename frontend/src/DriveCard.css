@@ -47,6 +47,15 @@
   flex-shrink: 0;
 }
 
+.dc-r1-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
 .dc-sel-btn {
   width: 13px; height: 13px;
   border-radius: 50%;
@@ -400,3 +409,75 @@
 .dc-io-row.rd { color: var(--ior); }
 .dc-io-row.wr { color: var(--iow); }
 .dc-io-row svg { flex-shrink: 0; }
+
+/* Wrapper for the task-zone title icon+name, mirroring .dc-r1-id — lets the
+   name scroll on touch while .dc-tn-right (pct/queued pill) stays pinned at
+   the row's right edge outside this wrapper, same split as row 1's badge. */
+.dc-tn-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+/* ── Every row, touch devices: scroll instead of truncate ──
+   Desktop relies on each row's own ellipsis/overflow:hidden to clip within
+   the available width — there's no room to spare, but a mouse user never
+   needed to read cut-off text anyway (resize the window). A touch user
+   can't do that, so on a touch-primary device every row stops shrinking/
+   clipping its text and scrolls horizontally instead.
+
+   Gated on (hover: none) and (pointer: coarse) rather than a max-width
+   breakpoint — DriveCard.tsx already uses this same pair of media features
+   (window.matchMedia("(hover: hover) and (pointer: fine)")) to detect a
+   real mouse. A width breakpoint would also miss a phone in landscape,
+   which is often wider than a typical breakpoint despite still being a
+   touch screen with no way to "just resize the window". */
+@media (hover: none) and (pointer: coarse) {
+  .dc-r1-id,
+  .dc-traits-left,
+  .dc-state,
+  .dc-tn-id,
+  .dc-tz-msg-text,
+  .dc-fs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .dc-r1-id::-webkit-scrollbar,
+  .dc-traits-left::-webkit-scrollbar,
+  .dc-state::-webkit-scrollbar,
+  .dc-tn-id::-webkit-scrollbar,
+  .dc-tz-msg-text::-webkit-scrollbar,
+  .dc-fs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dc-model, .dc-label, .dc-tv, .dc-tn-id span {
+    flex-shrink: 0;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .dc-tz-msg-text {
+    text-overflow: unset;
+  }
+
+  /* Fade hint at the trailing edge instead of a hard cut — painted relative
+     to the element's own box (not its scroll content), so it stays pinned
+     at the visible right edge as the user scrolls rather than moving with
+     the content. Right-only, not both edges: a left fade at rest
+     (scrollLeft 0, the common case) would always clip the first ~16px of
+     real content for no reason — e.g. the "P" in "POWER-ON".
+
+     Applied only via .dc-edge-fade (toggled by useEdgeFade.ts, which checks
+     scrollWidth > clientWidth), not unconditionally on these selectors —
+     a plain always-on mask can't tell a row that's actually scrollable from
+     one that already fits, and fades both the same. */
+  .dc-edge-fade {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+  }
+}
