@@ -279,7 +279,6 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
             <span>{job.operation_name}</span>
             {(job.progress.percent !== null || queuedJobs.length > 0) && (
               <div className="dc-tn-right">
-                {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
                 {queuedJobs.length > 0 && (
                   <button
                     ref={pillRef}
@@ -291,6 +290,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
                     {queuedJobs.length} queued
                   </button>
                 )}
+                {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
               </div>
             )}
           </div>
