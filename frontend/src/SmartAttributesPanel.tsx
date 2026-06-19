@@ -75,10 +75,30 @@ function DriveAttributes({ guid }: { guid: string }) {
 
   const rows = [...(snapshot?.raw.smart_attributes ?? [])]
     .sort((a, b) => SEVERITY_RANK[a.status] - SEVERITY_RANK[b.status])
+  const testLog = snapshot?.raw.self_test_log ?? []
 
-  if (snapshot && rows.length === 0) return <p className="smart-empty">No attribute data available for this drive.</p>
-  if (rows.length === 0) return null
+  if (snapshot && rows.length === 0 && testLog.length === 0) {
+    return <p className="smart-empty">No attribute data available for this drive.</p>
+  }
 
+  return (
+    <>
+      {rows.length > 0 && (
+        <AttrList rows={rows} />
+      )}
+      {testLog.length > 0 && (
+        <>
+          {/* Drive's own onboard self-test log — independent of, and may predate,
+              any test DriveCheck itself has run (see History tab for those). */}
+          <div className="smart-section-title">Self-Test History (drive log)</div>
+          <AttrList rows={testLog} />
+        </>
+      )}
+    </>
+  )
+}
+
+function AttrList({ rows }: { rows: SmartAttributeRow[] }) {
   return (
     <div className="attr-list">
       {rows.map(row => (

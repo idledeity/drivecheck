@@ -10,6 +10,7 @@ from dataclasses import asdict
 from datetime import datetime
 
 from analysis.health import score_health
+from analysis.self_test_log import build_self_test_log
 from analysis.smart_attributes import build_attribute_rows
 from drive_tools import smartctl
 from drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
@@ -34,6 +35,7 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     snapshot.health = score_health(signals)
     rows = build_attribute_rows(data, drive_type, signals, snapshot.health)
     snapshot.extras["smart_attributes"] = [asdict(r) for r in rows]
+    snapshot.extras["self_test_log"] = [asdict(r) for r in build_self_test_log(data, drive_type)]
     snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]

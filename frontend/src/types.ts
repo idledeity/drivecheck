@@ -40,6 +40,7 @@ export type RawSnapshot = {
   raw: {
     smartctl?: Record<string, unknown>
     smart_attributes?: SmartAttributeRow[]
+    self_test_log?: SmartAttributeRow[]
   }
 }
 

@@ -310,3 +310,13 @@ def record_job(job: Job) -> None:
                 job.finished_at.isoformat() if job.finished_at else None,
             ),
         )
+
+
+def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:
+    """Return a drive's terminal jobs, most recent first."""
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT * FROM jobs WHERE drive_guid = ? ORDER BY created_at DESC LIMIT ?",
+            (guid, limit),
+        ).fetchall()

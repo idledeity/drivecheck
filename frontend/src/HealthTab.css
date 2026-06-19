@@ -101,6 +101,17 @@
   padding: 8px 0;
 }
 
+.smart-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  margin: 16px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bd);
+}
+
 .attr-list {
   display: flex;
   flex-direction: column;

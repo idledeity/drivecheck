@@ -199,6 +199,37 @@ def list_jobs():
     return jsonify([_job_to_dict(j) for j in job_registry.list_jobs()])
 
 
+def _history_row_to_dict(row):
+    op_cls = OPERATIONS.get(row["operation"])
+    return {
+        "id": row["id"],
+        "drive_guid": row["drive_guid"],
+        "operation": row["operation"],
+        "operation_name": op_cls.name if op_cls else row["operation"],
+        "category": row["category"],
+        "params": json.loads(row["params_json"]),
+        "status": row["status"],
+        # Terminal jobs have no live progress — shape matches _job_to_dict's
+        # own fallback so the frontend can reuse the same Job type/rendering.
+        "progress": {"percent": None, "message": None, "eta_seconds": None},
+        "result": json.loads(row["result_json"]) if row["result_json"] else None,
+        "error": row["error"],
+        "created_at": row["created_at"],
+        "started_at": row["started_at"],
+        "finished_at": row["finished_at"],
+    }
+
+
+@app.route("/api/jobs/history")
+def job_history():
+    guid = request.args.get("guid")
+    if not guid:
+        return jsonify({"error": "missing 'guid'"}), 400
+    limit = min(int(request.args.get("limit", 50)), 200)
+    rows = db.get_job_history(guid, limit)
+    return jsonify([_history_row_to_dict(r) for r in rows])
+
+
 @app.route("/api/jobs", methods=["POST"])
 def create_jobs():
     body = request.get_json(force=True) or {}

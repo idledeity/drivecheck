@@ -120,11 +120,6 @@ def _scsi_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:
         "accumulated_start_stop_cycles", "specified_cycle_count_over_device_lifetime",
     )
 
-    for i in range(3):
-        entry = data.get(f"scsi_self_test_{i}")
-        if entry:
-            rows.append(_self_test_row(i, entry))
-
     return rows
 
 
@@ -146,37 +141,6 @@ def _lifetime_cycle_row(cycles: dict, key: str, label: str, accumulated_field: s
         )]
 
     return [AttributeRow(key=key, label=label, value=f"{accumulated:,}", status="ok")]
-
-
-def _self_test_row(index: int, entry: dict) -> AttributeRow:
-    """Build a row for one scsi_self_test_N entry (most recent self-tests)."""
-    code = entry.get("code", {}).get("string", "Self-test")
-    result = entry.get("result", {})
-    result_str = result.get("string", "Unknown")
-    result_val = result.get("value", 0)
-
-    if "fail" in result_str.lower():
-        status = "crit"
-    elif result_val != 0:
-        status = "warn"
-    else:
-        status = "ok"
-
-    detail_parts = []
-    poh = entry.get("power_on_time", {}).get("hours")
-    if poh is not None:
-        detail_parts.append(f"at {poh:,}h")
-    sense_key = entry.get("sense_key", {}).get("string")
-    if sense_key:
-        detail_parts.append(sense_key)
-
-    return AttributeRow(
-        key=f"self_test_{index}",
-        label=f"Self-Test: {code}",
-        value=result_str,
-        status=status,
-        detail=" · ".join(detail_parts) or None,
-    )
 
 
 def _nvme_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:

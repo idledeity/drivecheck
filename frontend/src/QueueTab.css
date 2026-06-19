@@ -289,6 +289,12 @@
   line-height: 1;
 }
 
+.history-note {
+  font-size: 10.5px;
+  color: var(--t5);
+  margin-top: 4px;
+}
+
 /* Touch devices: scroll the running task's status message instead of
    clipping it with ellipsis — same reasoning and same (hover:none) +
    (pointer:coarse) gate as DriveCard's task-status row. */

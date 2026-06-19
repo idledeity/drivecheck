@@ -2,6 +2,7 @@ import { useState } from "react"
 import { IconChevronUp, IconChevronDown } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import HealthTab from "./HealthTab"
+import HistoryTab from "./HistoryTab"
 import QueueTab from "./QueueTab"
 import RunTaskTab from "./RunTaskTab"
 import "./WorkspacePanel.css"
@@ -52,7 +53,7 @@ export default function WorkspacePanel({ drives, selected, onToggleSelect, jobs,
           </div>
           <div className="ws-body">
             {tab === "health"  && <HealthTab drives={drives} selectedGuids={selected} onToggleSelect={onToggleSelect} />}
-            {tab === "history" && <StubTab label="History"  note="Past job executions for this drive." />}
+            {tab === "history" && <HistoryTab drives={drives} selectedGuids={selected} onToggleSelect={onToggleSelect} />}
             {tab === "queue"   && <QueueTab drives={drives} jobs={jobs} onCancel={onCancelJob} />}
             {tab === "tasks"   && <RunTaskTab drives={drives} selected={selected} onRun={onRunOperation} />}
           </div>
