@@ -22,29 +22,6 @@
 .health-subtab:hover  { color: var(--t2); background: rgba(255,255,255,0.05); }
 .health-subtab.active { color: var(--cy); background: rgba(24,196,238,0.1); }
 
-/* ── Drive switcher strip ── */
-.drive-switcher {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.drive-chip {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--t3);
-  background: var(--bi);
-  border: 1px solid var(--bd);
-  border-radius: 99px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s, background 0.1s;
-}
-
-.drive-chip:hover  { color: var(--t2); border-color: var(--bd2); }
-.drive-chip.active { color: var(--sel); border-color: var(--sel); background: rgba(168,85,247,0.08); }
-
 /* ── Per-drive sections (multi-select) ── */
 .smart-drive-section + .smart-drive-section {
   margin-top: 16px;

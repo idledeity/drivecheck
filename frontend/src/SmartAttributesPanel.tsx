@@ -5,26 +5,13 @@ import { formatCapacity } from "./format"
 interface Props {
   drives: Drive[]
   selectedGuids: string[]
-  onToggleSelect: (guid: string) => void
 }
 
 const SEVERITY_RANK: Record<SmartAttributeRow["status"], number> = { crit: 0, warn: 1, ok: 2 }
 
-export default function SmartAttributesPanel({ drives, selectedGuids, onToggleSelect }: Props) {
+export default function SmartAttributesPanel({ drives, selectedGuids }: Props) {
   return (
     <div className="smart-panel">
-      <div className="drive-switcher">
-        {drives.map(d => (
-          <button
-            key={d.guid}
-            className={`drive-chip${selectedGuids.includes(d.guid) ? " active" : ""}`}
-            onClick={() => onToggleSelect(d.guid)}
-          >
-            {driveLabel(d)}
-          </button>
-        ))}
-      </div>
-
       {selectedGuids.length === 0 && <p className="smart-empty">Select one or more drives to view SMART attributes.</p>}
 
       {selectedGuids.map(guid => (

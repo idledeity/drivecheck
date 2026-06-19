@@ -150,7 +150,6 @@ export default function App() {
       <WorkspacePanel
         drives={drives}
         selected={selected}
-        onToggleSelect={toggleSelect}
         jobs={jobs}
         onCancelJob={cancelJob}
         onRunOperation={runOperation}

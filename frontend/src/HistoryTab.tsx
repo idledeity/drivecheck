@@ -7,24 +7,11 @@ import "./HealthTab.css"
 interface Props {
   drives: Drive[]
   selectedGuids: string[]
-  onToggleSelect: (guid: string) => void
 }
 
-export default function HistoryTab({ drives, selectedGuids, onToggleSelect }: Props) {
+export default function HistoryTab({ drives, selectedGuids }: Props) {
   return (
     <div className="queue-tab">
-      <div className="drive-switcher">
-        {drives.map(d => (
-          <button
-            key={d.guid}
-            className={`drive-chip${selectedGuids.includes(d.guid) ? " active" : ""}`}
-            onClick={() => onToggleSelect(d.guid)}
-          >
-            {d.model ?? d.device}
-          </button>
-        ))}
-      </div>
-
       {selectedGuids.length === 0 && <p className="smart-empty">Select one or more drives to view job history.</p>}
 
       {selectedGuids.map(guid => (
