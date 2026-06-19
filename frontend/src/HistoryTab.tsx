@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { Drive, Job } from "./types"
 import { JobRow } from "./QueueTab"
+import DriveIdentity from "./DriveIdentity"
 import "./QueueTab.css"
 import "./HealthTab.css"
 
@@ -39,7 +40,7 @@ function DriveHistory({ guid, drive }: { guid: string; drive: Drive | undefined 
 
   return (
     <div className="queue-section">
-      <div className="queue-section-title">{drive ? (drive.model ?? drive.device) : guid}</div>
+      <DriveIdentity drive={drive} className="history-drive-header" />
       {jobs.length === 0 && <p className="smart-empty">No completed jobs for this drive yet.</p>}
       {jobs.map(job => (
         <JobRow key={job.id} job={job} drive={drive} onCancel={noopCancel} />

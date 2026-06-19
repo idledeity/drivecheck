@@ -13,6 +13,10 @@
   margin-bottom: 6px;
 }
 
+.history-drive-header {
+  margin-bottom: 8px;
+}
+
 .queue-row {
   display: flex;
   flex-direction: column;
@@ -25,19 +29,18 @@
   cursor: pointer;
 }
 
-/* Grid, not flex: on mobile this needs to become 2 rows (icon/op/serial/right
-   on top, drive spanning the full width below) without duplicating any
+/* Grid, not flex: on mobile this needs to become 2 rows (icon/op/right on
+   top, drive spanning the full width below) without duplicating any
    markup — named grid-template-areas let the same children just get
    reassigned to a different layout at the breakpoint below.
 
-   align-items:baseline, not center: the children mix font-sizes and (for
-   serial) a different font-family — different fonts place glyphs at
-   different offsets within a same-height box, so centering the boxes still
-   leaves the glyphs looking misaligned. Baseline alignment
-   uses each item's actual font metrics, which lines text up correctly
-   across a font/size change. The icon-only items don't carry a meaningful
-   baseline (they'd synthesize one from their SVG, not from any text), so
-   they opt back into center alignment individually via align-self. */
+   align-items:baseline, not center: the children mix font-sizes — different
+   fonts place glyphs at different offsets within a same-height box, so
+   centering the boxes still leaves the glyphs looking misaligned. Baseline
+   alignment uses each item's actual font metrics, which lines text up
+   correctly across a font/size change. The icon-only items don't carry a
+   meaningful baseline (they'd synthesize one from their SVG, not from any
+   text), so they opt back into center alignment individually via align-self. */
 /* drive/op tracks are minmax(0, max-content): sized to fit their own text,
    not stretched — a plain "auto"/"1fr" track grows to soak up whatever
    leftover row width exists, which is what was making the title and op name
@@ -45,12 +48,12 @@
    0 floor still lets them shrink (and the text inside ellipsis) once the
    row is too narrow for everything at full size. .queue-right is the only
    1fr track, so it alone absorbs leftover space — justify-self:end below
-   then pins its actual content (pct/time/cancel) to the row's right edge
+   then pins its actual content (serial/time/cancel) to the row's right edge
    instead of letting it stretch across that space too. */
 .queue-row-main {
   display: grid;
-  grid-template-columns: auto minmax(0, max-content) auto minmax(0, max-content) minmax(0, 1fr);
-  grid-template-areas: "icon drive serial op right";
+  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr);
+  grid-template-areas: "icon drive op right";
   align-items: baseline;
   gap: 8px;
   min-width: 0;
@@ -58,15 +61,11 @@
 }
 
 @media (max-width: 640px) {
-  /* The leftover-absorbing track moves to an unnamed spacer column between
-     op and serial here (rather than .queue-right, as on desktop) — on this
-     row op sits at the left and serial+right form a cluster at the right, so
-     the gap needs to open up *between* those two groups, not after both. */
   .queue-row-main {
-    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr);
     grid-template-areas:
-      "icon op    .    serial right"
-      "drive drive drive drive drive";
+      "icon op    right"
+      "drive drive drive";
     row-gap: 3px;
   }
 
@@ -75,6 +74,9 @@
   }
 }
 
+/* Serial lives here (not next to the drive name) so it always reads as
+   right-aligned, grouped with the row's other secondary metadata (time,
+   cancel) instead of getting squeezed up against a long drive/label string. */
 .queue-right {
   grid-area: right;
   justify-self: end;
@@ -91,63 +93,13 @@
 .queue-status-failed    { color: var(--re); }
 .queue-status-cancelled { color: var(--t4); }
 
-/* Plain grouping wrapper for the drive title + label — no pill now, just the
-   op name gets that. Still needs to be its own flex group so the mixed
-   font-sizes inside it can baseline-align against each other independently
-   of .queue-row-main's own row. (Serial used to live in here too; it's now
-   a separate grid item so it can be repositioned independently on mobile.)
-
-   display:flex is safe here (unlike .queue-serial below): this wrapper's
-   first in-flow child is .queue-drive, real text with a real baseline, so
-   its synthesized baseline (used by .queue-row-main's align-items:baseline)
-   correctly comes from that text, not from an icon. */
-.queue-drive-group {
+.queue-drive-id {
   grid-area: drive;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   min-width: 0;
-  overflow: hidden;
-}
-
-.queue-drive {
   font-size: 12.5px;
-  font-weight: 500;
-  color: var(--t2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
-  min-width: 0;
 }
 
-.queue-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--t2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-/* Deliberately NOT display:flex: a flex (or grid) container's own baseline
-   (when it is itself a grid item, as here) is taken from its *first in-flow
-   child* per spec — that would be the icon, giving the wrong reference
-   again. Left as a plain inline span, its baseline comes from its actual
-   text run via normal inline layout, so align-items:baseline on
-   .queue-row-main lines it up correctly against the row's other text items.
-   The icon is positioned with vertical-align instead of flex/grid alignment
-   for the same reason. */
-.queue-serial {
-  grid-area: serial;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--t2);
-}
-
-/* min-width:0 + ellipsis, same idea as .queue-drive-group's own
+/* min-width:0 + ellipsis, same idea as .queue-drive-id's own
    minmax(0,max-content) track — without this, op has no minimum below its
    own content width, so all the shrinking pressure on the row fell on the
    drive group alone. Now both grid tracks (drive, op) can give up space
@@ -174,6 +126,11 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--cy2);
+}
+
+.queue-serial {
+  font-size: 12px;
+  color: var(--t5);
 }
 
 .queue-time {

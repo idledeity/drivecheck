@@ -30,43 +30,7 @@
 }
 
 .smart-drive-header {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   margin-bottom: 8px;
-}
-
-.smart-drive-mfr {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--t4);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.smart-drive-mfr::after {
-  content: "·";
-  margin-left: 5px;
-  color: var(--t5);
-}
-
-.smart-drive-model {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--t1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.smart-drive-cap { flex-shrink: 0; }
-
-.smart-drive-serial {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--t4);
-  flex-shrink: 0;
 }
 
 /* ── Attribute list ── */

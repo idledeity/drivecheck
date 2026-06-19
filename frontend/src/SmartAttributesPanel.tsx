@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import type { Drive, RawSnapshot, SmartAttributeRow } from "./types"
-import { formatCapacity } from "./format"
-import Serial from "./Serial"
+import DriveIdentity from "./DriveIdentity"
 
 interface Props {
   drives: Drive[]
@@ -25,19 +24,8 @@ export default function SmartAttributesPanel({ drives, selectedGuids }: Props) {
   )
 }
 
-function driveLabel(drive?: Drive): string {
-  return drive ? (drive.model ?? drive.device) : "Unknown drive"
-}
-
 function DriveHeader({ drive }: { drive?: Drive }) {
-  return (
-    <div className="smart-drive-header">
-      {drive?.manufacturer && <span className="smart-drive-mfr">{drive.manufacturer}</span>}
-      <span className="smart-drive-model">{driveLabel(drive)}</span>
-      {drive?.capacity_bytes && <span className="smart-drive-model smart-drive-cap">{formatCapacity(drive.capacity_bytes)}</span>}
-      {drive?.serial && <Serial value={drive.serial} className="smart-drive-serial" />}
-    </div>
-  )
+  return <DriveIdentity drive={drive} className="smart-drive-header" />
 }
 
 function DriveAttributes({ guid }: { guid: string }) {

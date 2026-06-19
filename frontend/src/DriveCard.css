@@ -185,7 +185,7 @@
    against .dc-traits-left. The icon is positioned with vertical-align instead
    of flex alignment for the same reason. */
 .dc-serial {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t4);
   flex-shrink: 0;
 }

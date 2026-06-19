@@ -1,5 +1,3 @@
-import type { Drive } from "./types"
-
 export function formatCapacity(bytes: number | null): string {
   if (bytes === null) return "—"
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(0)} TB`
@@ -17,15 +15,6 @@ export function formatThroughput(bytesPerSec: number | null): string {
 export function formatPercent(pct: number | null): string {
   if (pct === null) return "—"
   return `${pct.toFixed(0)}%`
-}
-
-// Mirrors DriveCard's row-1 title (manufacturer + model + capacity) as plain text.
-// Excludes the user label — DriveCard renders that with its own lower-emphasis
-// styling, so callers that want it should render `drive.label` separately.
-export function driveTitle(drive: Drive): string {
-  const parts = [drive.manufacturer, drive.model ?? drive.device]
-  if (drive.capacity_bytes) parts.push(formatCapacity(drive.capacity_bytes))
-  return parts.filter(Boolean).join(" ")
 }
 
 export function formatRelativeTime(isoTimestamp: string): string {

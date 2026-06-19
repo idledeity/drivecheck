@@ -1,0 +1,84 @@
+.drive-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Scrollable (touch) / truncating (desktop) left group, kept separate from
+   the trailing serial so serial always stays fully visible at the right
+   edge — same split as DriveCard's row 1 (.dc-r1-id) vs its badge. */
+.di-id {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.di-mfr {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--t2);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: -4px;
+}
+.di-mfr::after {
+  content: "·";
+  margin-left: 2px;
+  color: var(--t5);
+}
+
+.di-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.di-cap { flex-shrink: 0; }
+
+.di-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.di-serial {
+  font-size: 12px;
+  color: var(--t4);
+  flex-shrink: 0;
+}
+
+/* Same touch-vs-mouse split as DriveCard's edge-fade rows: a mouse user can
+   resize to read truncated text, a touch user can't, so touch scrolls the
+   identity text instead of clipping it. */
+@media (hover: none) and (pointer: coarse) {
+  .di-id {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .di-id::-webkit-scrollbar {
+    display: none;
+  }
+  .di-model, .di-label {
+    flex-shrink: 0;
+    overflow: visible;
+    text-overflow: unset;
+  }
+  .di-edge-fade {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
+  }
+}
