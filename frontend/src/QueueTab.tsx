@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
-import { IconAlertTriangle, IconBan, IconBarcode, IconCheck, IconClock, IconLoader2, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { driveTitle, formatDuration, formatRelativeTime } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
 import { StubTab } from "./WorkspacePanel"
+import Serial from "./Serial"
 import "./QueueTab.css"
 
 interface Props {
@@ -94,9 +95,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           <span className="queue-drive">{drive ? driveTitle(drive) : job.drive_guid}</span>
           {drive?.label && <span className="queue-label">({drive.label})</span>}
         </span>
-        {drive?.serial && (
-          <span className="queue-serial"><IconBarcode size={13} />{drive.serial}</span>
-        )}
+        {drive?.serial && <Serial value={drive.serial} className="queue-serial" />}
         <span className="queue-op">{job.operation_name}</span>
         <div className="queue-right">
           {job.finished_at && <span className="queue-time">{formatRelativeTime(job.finished_at)}</span>}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { Drive, RawSnapshot, SmartAttributeRow } from "./types"
 import { formatCapacity } from "./format"
+import Serial from "./Serial"
 
 interface Props {
   drives: Drive[]
@@ -34,7 +35,7 @@ function DriveHeader({ drive }: { drive?: Drive }) {
       {drive?.manufacturer && <span className="smart-drive-mfr">{drive.manufacturer}</span>}
       <span className="smart-drive-model">{driveLabel(drive)}</span>
       {drive?.capacity_bytes && <span className="smart-drive-model smart-drive-cap">{formatCapacity(drive.capacity_bytes)}</span>}
-      {drive?.serial && <span className="smart-drive-serial">S/N {drive.serial}</span>}
+      {drive?.serial && <Serial value={drive.serial} className="smart-drive-serial" />}
     </div>
   )
 }

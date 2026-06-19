@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { IconArrowDown, IconArrowUp, IconBarcode, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
+import Serial from "./Serial"
 import "./DriveCard.css"
 
 interface Props {
@@ -271,7 +272,7 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
             <><span className="dc-tsep">·</span><span className="dc-tv">{drive.bus}</span></>
           )}
         </div>
-        {drive.serial && <span className="dc-serial"><IconBarcode size={13} />{drive.serial}</span>}
+        {drive.serial && <Serial value={drive.serial} className="dc-serial" />}
       </div>
 
       {/* Decorative leader line — 2/3 width */}

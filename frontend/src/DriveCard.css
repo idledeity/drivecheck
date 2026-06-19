@@ -187,17 +187,8 @@
 .dc-serial {
   font-size: 10px;
   color: var(--t4);
-  font-family: ui-monospace, Consolas, monospace;
-  white-space: nowrap;
   flex-shrink: 0;
 }
-.dc-serial svg {
-  color: var(--cy);
-  vertical-align: -2px;
-  margin-right: 3px;
-  opacity: 0.75;
-}
-.dc-serial svg { opacity: 0.75; flex-shrink: 0; }
 
 /* ── Row 3: active state ── */
 .dc-state {

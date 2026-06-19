@@ -145,14 +145,6 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--t2);
-  font-family: ui-monospace, Consolas, monospace;
-  white-space: nowrap;
-}
-.queue-serial svg {
-  color: var(--cy);
-  vertical-align: -2px;
-  margin-right: 3px;
-  opacity: 0.75;
 }
 
 /* min-width:0 + ellipsis, same idea as .queue-drive-group's own

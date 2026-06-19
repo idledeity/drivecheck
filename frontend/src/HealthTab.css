@@ -66,8 +66,6 @@
   margin-left: auto;
   font-size: 10px;
   color: var(--t4);
-  font-family: ui-monospace, Consolas, monospace;
-  white-space: nowrap;
   flex-shrink: 0;
 }
 

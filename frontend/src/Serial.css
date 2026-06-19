@@ -1,0 +1,15 @@
+.serial-tag {
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
+
+/* vertical-align, not flex/grid alignment: callers place this inside flex/grid
+   rows alongside text of other font-families, and baseline alignment on the
+   icon's own box wouldn't line it up with the surrounding text's glyphs. */
+.serial-tag svg {
+  color: var(--cy);
+  vertical-align: -2px;
+  margin-right: 3px;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
