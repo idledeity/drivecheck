@@ -414,18 +414,22 @@
   gap: 1px;
 }
 
+/* Named areas, not bare column order: lets the mobile override below
+   reflow the same four spans into a stacked layout instead of overriding
+   every column's content individually. */
 .log-row {
   display: grid;
   grid-template-columns: auto auto auto 1fr;
+  grid-template-areas: "ts level logger msg";
   gap: 10px;
   align-items: baseline;
   line-height: 1.6;
 }
 
-.log-ts     { color: var(--t5); white-space: nowrap; }
-.log-level  { font-weight: 600; white-space: nowrap; min-width: 36px; }
-.log-logger { color: var(--t4); white-space: nowrap; }
-.log-msg    { color: var(--t2); word-break: break-word; }
+.log-ts     { grid-area: ts;     color: var(--t5); white-space: nowrap; }
+.log-level  { grid-area: level;  font-weight: 600; white-space: nowrap; min-width: 36px; }
+.log-logger { grid-area: logger; color: var(--t4); white-space: nowrap; }
+.log-msg    { grid-area: msg;    color: var(--t2); word-break: break-word; min-width: 0; }
 
 .ll-debug { color: var(--t4); }
 .ll-info  { color: var(--cy); }
@@ -519,5 +523,26 @@
   .cfg-prop-control input[type="text"] {
     width: 100%;
     min-width: 0;
+  }
+
+  /* The single-row layout's three nowrap columns (timestamp, level,
+     logger) don't shrink, so on a phone-width content pane their combined
+     intrinsic width alone could already exceed the available space —
+     .so-content clips overflow rather than scrolling it, so the message
+     just got cut off. Stack the timestamp on its own line, level+logger
+     on a compact second line, and give the message a full-width third
+     line where it can actually wrap. */
+  .log-row {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "ts     ts"
+      "level  logger"
+      "msg    msg";
+    gap: 2px 10px;
+  }
+
+  .log-logger {
+    white-space: normal;
+    word-break: break-word;
   }
 }
