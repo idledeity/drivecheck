@@ -391,7 +391,7 @@ function LogsTab() {
     <div className="logs-tab">
       <div className="logs-toolbar">
         <button
-          className={`so-toolbar-btn logs-filter-btn${filterActive ? " active" : ""}`}
+          className={`so-toolbar-btn logs-filter-btn${filterOpen || filterActive ? " active" : ""}`}
           onClick={() => setFilterOpen(o => !o)}
           aria-expanded={filterOpen}
           title="Filter"
@@ -400,16 +400,25 @@ function LogsTab() {
           <span className="control-text">Filter</span>
           {filterActive && <span className="logs-filter-dot" title="A filter is active" />}
         </button>
-        <label className="logs-toggle" title="Line numbers">
-          <input type="checkbox" checked={showLineNumbers} onChange={e => setShowLineNumbers(e.target.checked)} />
+        <span className="logs-toolbar-sep" aria-hidden="true" />
+        <button
+          className={`so-toolbar-btn${showLineNumbers ? " active" : ""}`}
+          onClick={() => setShowLineNumbers(v => !v)}
+          aria-pressed={showLineNumbers}
+          title="Line numbers"
+        >
           <IconListNumbers size={14} />
           <span className="control-text">Line numbers</span>
-        </label>
-        <label className="logs-toggle" title="Line wrap">
-          <input type="checkbox" checked={lineWrap} onChange={e => setLineWrap(e.target.checked)} />
+        </button>
+        <button
+          className={`so-toolbar-btn${lineWrap ? " active" : ""}`}
+          onClick={() => setLineWrap(v => !v)}
+          aria-pressed={lineWrap}
+          title="Line wrap"
+        >
           <IconTextWrap size={14} />
           <span className="control-text">Line wrap</span>
-        </label>
+        </button>
       </div>
       {filterOpen && (
         <div className="logs-filter-row">
@@ -466,7 +475,7 @@ function LogsTab() {
         </div>
         <label className="logs-field" title="Export the full matching log history">
           <select
-            className="logs-select"
+            className="logs-select logs-export-select"
             value=""
             onChange={e => {
               if (e.target.value) handleExport(e.target.value as "txt" | "csv")

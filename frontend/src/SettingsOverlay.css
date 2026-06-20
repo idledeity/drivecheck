@@ -165,8 +165,34 @@
   border-radius: 4px;
   transition: color 0.15s, background 0.15s;
 }
-.so-toolbar-btn:hover:not(:disabled) { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
+/* --cy2 (brighter cyan, same one used for "running"-style emphasis
+   elsewhere) rather than --cy — hover should read as a brighter highlight
+   than .active's resting --cy, not the same shade, so the two states stay
+   distinguishable by intensity even where they share a hue. Applies to the
+   icon too via inheritance by default; .active overrides that at rest, but
+   :hover punches back through it below so a hovered active button still
+   brightens. */
+.so-toolbar-btn:hover:not(:disabled) { color: var(--cy2); background: rgba(0, 238, 255, 0.12); }
 .so-toolbar-btn:disabled { cursor: default; opacity: 0.5; }
+
+/* "On" state for a toolbar button used as a toggle (Filter, Line numbers,
+   Line wrap) rather than a one-shot action — some of these default to on
+   (Line wrap), so this is a steady-state look, not a momentary alert, and
+   needs to stay calm rather than loud. Only the icon goes cyan; the text
+   stays whatever color hover would otherwise give it. Two reasons: it
+   keeps the resting "on" look subtle, and the icon is the one part of
+   this button that's still visible after .control-text gets hidden at
+   narrow widths — tying the signal to text color would make it disappear
+   exactly when the button shrinks to icon-only. */
+.so-toolbar-btn.active {
+  background: rgba(24, 196, 238, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(24, 196, 238, 0.28);
+}
+.so-toolbar-btn.active svg { color: var(--cy); }
+.so-toolbar-btn.active:hover:not(:disabled) {
+  background: rgba(0, 238, 255, 0.16);
+}
+.so-toolbar-btn.active:hover:not(:disabled) svg { color: var(--cy2); }
 
 /* ── Config tab ── */
 
@@ -396,6 +422,16 @@
   position: relative;
 }
 
+/* Separates Filter (affects what's fetched) from the display toggles next
+   to it (purely client-side rendering prefs) — without this the three
+   buttons read as one undifferentiated group. */
+.logs-toolbar-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--bd);
+  flex-shrink: 0;
+}
+
 /* Small badge, not a text label change — the button stays "Filter" either
    way, this just flags that Severity/Entries aren't at their defaults
    while the row that shows them is collapsed (otherwise a filtered view
@@ -444,7 +480,7 @@
 
 /* Dropped before the row would otherwise wrap — the icon stays, so the
    control is still identifiable and its title attribute covers a11y/hover. */
-@container logs-toolbar (max-width: 345px) {
+@container logs-toolbar (max-width: 280px) {
   .control-text { display: none; }
 }
 
@@ -491,16 +527,12 @@
 }
 .logs-select:hover { border-color: var(--bd2); }
 
-.logs-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  color: var(--t3);
-  cursor: pointer;
-}
-.logs-toggle input { cursor: pointer; }
-.logs-toggle svg { color: var(--t4); flex-shrink: 0; }
+/* Export is an action, not a passive setting like Severity/Entries above —
+   the cyan-tinted border ties it to the rest of this tab's accent language
+   at rest without being loud about it; text stays neutral until hovered,
+   same as the toolbar buttons (muted by default, cyan only on interaction). */
+.logs-export-select { border-color: rgba(24, 196, 238, 0.3); }
+.logs-export-select:hover { color: var(--cy2); border-color: rgba(0, 238, 255, 0.5); }
 
 .logs-error {
   font-size: 12.5px;
@@ -558,7 +590,14 @@
   min-width: 30px;
   text-align: right;
   padding-right: 8px;
-  margin-right: 2px;
+  /* The padding above (plus the border) already reads as this column's
+     "gap" — it's just inside the box instead of plain whitespace, and the
+     tint is faint enough that the two aren't visually distinguishable. The
+     row's own 10px column gap then adds a second, separate gap right after
+     it, which is what made this one boundary look wider than the rest.
+     Partially canceling it here (not fully) leaves a few px of breathing
+     room right after the divider line instead of text touching it. */
+  margin-right: -6px;
 }
 .log-ts     { grid-area: ts;     color: var(--t5); white-space: nowrap; }
 .log-level  { grid-area: level;  font-weight: 600; white-space: nowrap; min-width: 36px; }
