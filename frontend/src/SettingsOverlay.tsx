@@ -303,13 +303,30 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
 
 const LOG_ENTRY_LIMITS = [100, 250, 500, 1000, 2000]
 
-type MinLevel = "all" | "debug" | "info" | "warn" | "error"
+// Mirrors logger.py's LogLevel enum — keep names aligned with the backend
+// if either changes. Not fetched at runtime: these are a fixed taxonomy
+// (not user data), and ConfigTab/LogsTab have independent fetch lifecycles,
+// so reusing /api/config's choices would mean either a duplicate request
+// or lifting state up, for protection against a change that's unlikely.
+const LOG_LEVELS = ["debug", "info", "warning", "error", "critical"] as const
+type LogLevelName = typeof LOG_LEVELS[number]
 
-// Same warn/warning and error/critical grouping as levelCls below — picking
-// "Warning" should also keep "warn", and "Error" should also keep
-// "critical".
-const LOG_LEVEL_RANK: Record<string, number> = { debug: 0, info: 1, warn: 2, warning: 2, error: 3, critical: 3 }
-const MIN_LEVEL_RANK: Record<MinLevel, number> = { all: -1, debug: 0, info: 1, warn: 2, error: 3 }
+// CSS class per category — warning/error double up with their neighbors
+// since there's no separate "notice" or "fatal" tier in the stylesheet.
+const LEVEL_CLASS: Record<LogLevelName, string> = {
+  debug: "ll-debug",
+  info: "ll-info",
+  warning: "ll-warn",
+  error: "ll-error",
+  critical: "ll-error",
+}
+
+// "all" is a frontend-only sentinel for "no filter", not a real severity.
+// CRITICAL is excluded as a filter option — same reasoning as logger.py's
+// cfg choices: not a sensible floor to filter down to, only a category
+// individual log calls can reach.
+type MinLevel = "all" | Exclude<LogLevelName, "critical">
+const MIN_LEVEL_OPTIONS: MinLevel[] = ["all", ...LOG_LEVELS.filter((l): l is Exclude<LogLevelName, "critical"> => l !== "critical")]
 
 function LogsTab() {
   const [records, setRecords] = useState<LogRecord[]>([])
@@ -324,7 +341,7 @@ function LogsTab() {
   const load = () => {
     setLoading(true)
     setError(null)
-    fetch(`/api/logs?n=${entryLimit}`)
+    fetch(`/api/logs?n=${entryLimit}&level=${minLevel}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -337,31 +354,18 @@ function LogsTab() {
       .finally(() => setLoading(false))
   }
 
-  // Re-fetch when the entry limit changes — it's a server-side `?n=` param,
-  // not a client-side filter, since the backend only ever keeps the last
-  // N lines in memory. The severity filter below is client-side: it's just
-  // hiding rows already in hand, no need to round-trip for that.
-  useEffect(() => { load() }, [entryLimit])
+  // Both are server-side params now — severity used to be filtered
+  // client-side, but that only ever hid rows within the already-fetched
+  // window, so a rare level (e.g. errors) could show "2 of 500" instead of
+  // the last `entryLimit` matching entries. The backend has the full log
+  // history available to search, the frontend doesn't.
+  useEffect(() => { load() }, [entryLimit, minLevel])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "instant" })
   }, [records])
 
-  const levelCls = (level: string) => {
-    switch (level) {
-      case "debug": return "ll-debug"
-      case "info":  return "ll-info"
-      case "warn":
-      case "warning": return "ll-warn"
-      case "error":
-      case "critical": return "ll-error"
-      default: return ""
-    }
-  }
-
-  const filtered = minLevel === "all"
-    ? records
-    : records.filter(r => (LOG_LEVEL_RANK[r.level] ?? 0) >= MIN_LEVEL_RANK[minLevel])
+  const levelCls = (level: string) => LEVEL_CLASS[level as LogLevelName] ?? ""
 
   return (
     <div className="logs-tab">
@@ -374,11 +378,9 @@ function LogsTab() {
             onChange={e => setMinLevel(e.target.value as MinLevel)}
             title="Minimum severity to show"
           >
-            <option value="all">All</option>
-            <option value="debug">Debug</option>
-            <option value="info">Info</option>
-            <option value="warn">Warning</option>
-            <option value="error">Error</option>
+            {MIN_LEVEL_OPTIONS.map(lvl => (
+              <option key={lvl} value={lvl}>{lvl[0].toUpperCase() + lvl.slice(1)}</option>
+            ))}
           </select>
         </label>
         <label className="logs-toggle" title="Line numbers">
@@ -396,7 +398,7 @@ function LogsTab() {
         <div className="logs-error">{error}</div>
       ) : (
         <div className={`logs-body${lineWrap ? "" : " logs-nowrap"}`}>
-          {filtered.map((rec, i) => (
+          {records.map((rec, i) => (
             <div key={i} className={`log-row${showLineNumbers ? " with-nums" : ""}`}>
               {showLineNumbers && <span className="log-num">{i + 1}</span>}
               <span className="log-ts">{rec.timestamp}</span>
@@ -422,9 +424,7 @@ function LogsTab() {
         </label>
         <div className="logs-footer-right">
           {records.length > 0 && (
-            <span className="logs-count">
-              {filtered.length === records.length ? `${records.length} entries` : `${filtered.length} of ${records.length} entries`}
-            </span>
+            <span className="logs-count">{records.length} entries</span>
           )}
           <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
             <IconRefresh size={13} className={loading ? "spinning" : ""} />
