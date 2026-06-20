@@ -301,16 +301,29 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
 // Logs tab
 // ---------------------------------------------------------------------------
 
+const LOG_ENTRY_LIMITS = [100, 250, 500, 1000, 2000]
+
+type MinLevel = "all" | "debug" | "info" | "warn" | "error"
+
+// Same warn/warning and error/critical grouping as levelCls below — picking
+// "Warning" should also keep "warn", and "Error" should also keep
+// "critical".
+const LOG_LEVEL_RANK: Record<string, number> = { debug: 0, info: 1, warn: 2, warning: 2, error: 3, critical: 3 }
+const MIN_LEVEL_RANK: Record<MinLevel, number> = { all: -1, debug: 0, info: 1, warn: 2, error: 3 }
+
 function LogsTab() {
   const [records, setRecords] = useState<LogRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [entryLimit, setEntryLimit] = useState(500)
+  const [minLevel, setMinLevel] = useState<MinLevel>("all")
+  const [showLineNumbers, setShowLineNumbers] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
     setLoading(true)
     setError(null)
-    fetch("/api/logs?n=500")
+    fetch(`/api/logs?n=${entryLimit}`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -323,7 +336,11 @@ function LogsTab() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  // Re-fetch when the entry limit changes — it's a server-side `?n=` param,
+  // not a client-side filter, since the backend only ever keeps the last
+  // N lines in memory. The severity filter below is client-side: it's just
+  // hiding rows already in hand, no need to round-trip for that.
+  useEffect(() => { load() }, [entryLimit])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "instant" })
@@ -341,21 +358,51 @@ function LogsTab() {
     }
   }
 
+  const filtered = minLevel === "all"
+    ? records
+    : records.filter(r => (LOG_LEVEL_RANK[r.level] ?? 0) >= MIN_LEVEL_RANK[minLevel])
+
   return (
     <div className="logs-tab">
       <div className="logs-toolbar">
-        <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
-          <IconRefresh size={13} className={loading ? "spinning" : ""} />
-          <span>Refresh</span>
-        </button>
-        {records.length > 0 && <span className="logs-count">{records.length} entries</span>}
+        <label className="logs-field">
+          Entries
+          <select
+            className="logs-select"
+            value={entryLimit}
+            onChange={e => setEntryLimit(Number(e.target.value))}
+            title="Entries to fetch"
+          >
+            {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <label className="logs-field">
+          Severity
+          <select
+            className="logs-select"
+            value={minLevel}
+            onChange={e => setMinLevel(e.target.value as MinLevel)}
+            title="Minimum severity to show"
+          >
+            <option value="all">All</option>
+            <option value="debug">Debug</option>
+            <option value="info">Info</option>
+            <option value="warn">Warning</option>
+            <option value="error">Error</option>
+          </select>
+        </label>
+        <label className="logs-linenum-toggle">
+          <input type="checkbox" checked={showLineNumbers} onChange={e => setShowLineNumbers(e.target.checked)} />
+          Line numbers
+        </label>
       </div>
       {error ? (
         <div className="logs-error">{error}</div>
       ) : (
         <div className="logs-body">
-          {records.map((rec, i) => (
-            <div key={i} className="log-row">
+          {filtered.map((rec, i) => (
+            <div key={i} className={`log-row${showLineNumbers ? " with-nums" : ""}`}>
+              {showLineNumbers && <span className="log-num">{i + 1}</span>}
               <span className="log-ts">{rec.timestamp}</span>
               <span className={`log-level ${levelCls(rec.level)}`}>{rec.level.toUpperCase()}</span>
               <span className="log-logger">{rec.logger}</span>
@@ -365,6 +412,17 @@ function LogsTab() {
           <div ref={bottomRef} />
         </div>
       )}
+      <div className="logs-footer">
+        {records.length > 0 && (
+          <span className="logs-count">
+            {filtered.length === records.length ? `${records.length} entries` : `${filtered.length} of ${records.length} entries`}
+          </span>
+        )}
+        <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
+          <IconRefresh size={13} className={loading ? "spinning" : ""} />
+          <span>Refresh</span>
+        </button>
+      </div>
     </div>
   )
 }

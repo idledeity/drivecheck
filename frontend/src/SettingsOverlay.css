@@ -79,7 +79,7 @@
   width: clamp(84px, 25vw - 48px, 170px);
   flex-shrink: 0;
   border-right: 1px solid var(--bd);
-  padding: 10px 8px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -110,7 +110,7 @@
   color: var(--t3);
   background: none;
   border: none;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: color 0.1s, background 0.1s;
@@ -130,7 +130,7 @@
   border: none;
   color: var(--t4);
   cursor: pointer;
-  padding: 6px;
+  padding: 5px;
   border-radius: 6px;
   transition: color 0.1s, background 0.1s;
 }
@@ -145,7 +145,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 20px 24px;
+  padding: 8px 20px;
   display: flex;
   flex-direction: column;
 }
@@ -193,7 +193,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .cfg-section-title {
@@ -202,8 +202,8 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--t4);
-  margin-bottom: 8px;
-  padding-bottom: 6px;
+  margin-bottom: 5px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--bd);
 }
 
@@ -337,8 +337,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 14px;
-  margin-top: 14px;
+  padding-top: 8px;
+  margin-top: 8px;
   border-top: 1px solid var(--bd);
   flex-shrink: 0;
 }
@@ -374,7 +374,7 @@
 .logs-tab {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   flex: 1;
   min-height: 0;
 }
@@ -383,6 +383,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* Count + Refresh, right-aligned as a pair — Refresh is rarely needed (the
+   tab already loads fresh on open), so it sits past the count rather than
+   competing for attention up in the filter row. */
+.logs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   flex-shrink: 0;
 }
 
@@ -390,6 +402,37 @@
   font-size: 11px;
   color: var(--t4);
 }
+
+.logs-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--t4);
+  cursor: pointer;
+}
+
+.logs-select {
+  font-size: 10.5px;
+  color: var(--t3);
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  cursor: pointer;
+}
+.logs-select:hover { border-color: var(--bd2); }
+
+.logs-linenum-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--t3);
+  cursor: pointer;
+}
+.logs-linenum-toggle input { cursor: pointer; }
 
 .logs-error {
   font-size: 12.5px;
@@ -426,6 +469,29 @@
   line-height: 1.6;
 }
 
+/* Extra leading column, only added when line numbers are toggled on —
+   keeping it out of the default template means the common case doesn't
+   pay for a column it isn't using. */
+.log-row.with-nums {
+  grid-template-columns: auto auto auto auto 1fr;
+  grid-template-areas: "num ts level logger msg";
+}
+
+/* Gutter treatment (dividing line + tinted background), not just a dim
+   color like .log-ts — sitting immediately to its left, the same muted
+   grey would just blend into the timestamp instead of reading as its own
+   column. */
+.log-num {
+  grid-area: num;
+  color: var(--t3);
+  background: rgba(255, 255, 255, 0.04);
+  border-right: 1px solid var(--bd);
+  white-space: nowrap;
+  min-width: 30px;
+  text-align: right;
+  padding-right: 8px;
+  margin-right: 2px;
+}
 .log-ts     { grid-area: ts;     color: var(--t5); white-space: nowrap; }
 .log-level  { grid-area: level;  font-weight: 600; white-space: nowrap; min-width: 36px; }
 .log-logger { grid-area: logger; color: var(--t4); white-space: nowrap; }
@@ -487,16 +553,16 @@
      padding and a smaller font" worth the complexity, and a font-size/gap
      snap is far less visually jarring than a width jump was. */
   .so-nav {
-    padding: 10px 4px;
+    padding: 8px 4px;
   }
   .so-nav-btn {
     gap: 5px;
-    padding: 6px 6px;
+    padding: 5px 6px;
     font-size: 11px;
   }
 
   .so-content {
-    padding: 14px 12px;
+    padding: 8px 12px;
   }
 
   /* The 1fr/auto split only works with room to spare — on a phone-width
@@ -539,6 +605,14 @@
       "level  logger"
       "msg    msg";
     gap: 2px 10px;
+  }
+
+  .log-row.with-nums {
+    grid-template-columns: auto auto 1fr;
+    grid-template-areas:
+      "num   ts     ts"
+      ".     level  logger"
+      ".     msg    msg";
   }
 
   .log-logger {
