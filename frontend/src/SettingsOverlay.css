@@ -392,24 +392,31 @@
   container: logs-toolbar / inline-size;
 }
 
-/* Count + Refresh, right-aligned as a pair — Refresh is rarely needed (the
-   tab already loads fresh on open), so it sits past the count rather than
-   competing for attention up in the filter row. */
+/* Entries (the fetch-limit control) on the left, count + Refresh grouped on
+   the right — cause then effect then action: Entries determines the count,
+   and Refresh is the rarely-needed action (the tab already loads fresh on
+   open) that trails past the count it would refresh. */
 .logs-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   flex-shrink: 0;
   container: logs-footer / inline-size;
 }
 
+.logs-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* Dropped before the row would otherwise wrap — the icon stays, so the
    control is still identifiable and its title attribute covers a11y/hover. */
-@container logs-toolbar (max-width: 365px) {
+@container logs-toolbar (max-width: 345px) {
   .control-text { display: none; }
 }
-@container logs-footer (max-width: 155px) {
+@container logs-footer (max-width: 265px) {
   .control-text { display: none; }
 }
 
@@ -439,7 +446,7 @@
 }
 .logs-select:hover { border-color: var(--bd2); }
 
-.logs-linenum-toggle {
+.logs-toggle {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -447,8 +454,8 @@
   color: var(--t3);
   cursor: pointer;
 }
-.logs-linenum-toggle input { cursor: pointer; }
-.logs-linenum-toggle svg { color: var(--t4); flex-shrink: 0; }
+.logs-toggle input { cursor: pointer; }
+.logs-toggle svg { color: var(--t4); flex-shrink: 0; }
 
 .logs-error {
   font-size: 12.5px;
@@ -635,4 +642,30 @@
     white-space: normal;
     word-break: break-word;
   }
+}
+
+/* Line-wrap toggled off: every row becomes a single line and the message
+   no longer breaks, so a long line just pushes the row wider than the
+   viewport instead of growing taller — overflow-x on .logs-body turns that
+   into horizontal scroll. Placed last (after the mobile block above) so it
+   overrides the phone-width stacked layout too: nowrap mode means single
+   line + horizontal scroll regardless of viewport, by design, not just on
+   desktop. */
+.logs-body.logs-nowrap {
+  overflow-x: auto;
+}
+.logs-body.logs-nowrap .log-row {
+  grid-template-columns: auto auto auto max-content;
+  grid-template-areas: "ts level logger msg";
+  width: max-content;
+  min-width: 100%;
+}
+.logs-body.logs-nowrap .log-row.with-nums {
+  grid-template-columns: auto auto auto auto max-content;
+  grid-template-areas: "num ts level logger msg";
+}
+.logs-body.logs-nowrap .log-msg,
+.logs-body.logs-nowrap .log-logger {
+  white-space: nowrap;
+  word-break: normal;
 }

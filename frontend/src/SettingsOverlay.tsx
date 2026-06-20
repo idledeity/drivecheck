@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -318,6 +318,7 @@ function LogsTab() {
   const [entryLimit, setEntryLimit] = useState(500)
   const [minLevel, setMinLevel] = useState<MinLevel>("all")
   const [showLineNumbers, setShowLineNumbers] = useState(false)
+  const [lineWrap, setLineWrap] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
@@ -366,17 +367,6 @@ function LogsTab() {
     <div className="logs-tab">
       <div className="logs-toolbar">
         <label className="logs-field">
-          Entries
-          <select
-            className="logs-select"
-            value={entryLimit}
-            onChange={e => setEntryLimit(Number(e.target.value))}
-            title="Entries to fetch"
-          >
-            {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
-        <label className="logs-field">
           Severity
           <select
             className="logs-select"
@@ -391,16 +381,21 @@ function LogsTab() {
             <option value="error">Error</option>
           </select>
         </label>
-        <label className="logs-linenum-toggle" title="Line numbers">
+        <label className="logs-toggle" title="Line numbers">
           <input type="checkbox" checked={showLineNumbers} onChange={e => setShowLineNumbers(e.target.checked)} />
           <IconListNumbers size={14} />
           <span className="control-text">Line numbers</span>
+        </label>
+        <label className="logs-toggle" title="Line wrap">
+          <input type="checkbox" checked={lineWrap} onChange={e => setLineWrap(e.target.checked)} />
+          <IconTextWrap size={14} />
+          <span className="control-text">Line wrap</span>
         </label>
       </div>
       {error ? (
         <div className="logs-error">{error}</div>
       ) : (
-        <div className="logs-body">
+        <div className={`logs-body${lineWrap ? "" : " logs-nowrap"}`}>
           {filtered.map((rec, i) => (
             <div key={i} className={`log-row${showLineNumbers ? " with-nums" : ""}`}>
               {showLineNumbers && <span className="log-num">{i + 1}</span>}
@@ -414,15 +409,28 @@ function LogsTab() {
         </div>
       )}
       <div className="logs-footer">
-        {records.length > 0 && (
-          <span className="logs-count">
-            {filtered.length === records.length ? `${records.length} entries` : `${filtered.length} of ${records.length} entries`}
-          </span>
-        )}
-        <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
-          <IconRefresh size={13} className={loading ? "spinning" : ""} />
-          <span className="control-text">Refresh</span>
-        </button>
+        <label className="logs-field">
+          Entries
+          <select
+            className="logs-select"
+            value={entryLimit}
+            onChange={e => setEntryLimit(Number(e.target.value))}
+            title="Entries to fetch"
+          >
+            {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <div className="logs-footer-right">
+          {records.length > 0 && (
+            <span className="logs-count">
+              {filtered.length === records.length ? `${records.length} entries` : `${filtered.length} of ${records.length} entries`}
+            </span>
+          )}
+          <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
+            <IconRefresh size={13} className={loading ? "spinning" : ""} />
+            <span className="control-text">Refresh</span>
+          </button>
+        </div>
       </div>
     </div>
   )
