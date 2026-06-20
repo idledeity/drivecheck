@@ -367,6 +367,18 @@ function LogsTab() {
 
   const levelCls = (level: string) => LEVEL_CLASS[level as LogLevelName] ?? ""
 
+  // Plain anchor click, not window.open — Content-Disposition: attachment
+  // makes the browser download rather than navigate either way, but a real
+  // anchor does it without a tab flashing open and closing. Uses the
+  // current severity filter (not entryLimit) since the point of exporting
+  // is getting the complete matching history, not just what's on screen.
+  const handleExport = (format: "txt" | "csv") => {
+    const params = new URLSearchParams({ level: minLevel, format })
+    const a = document.createElement("a")
+    a.href = `/api/logs/export?${params}`
+    a.click()
+  }
+
   return (
     <div className="logs-tab">
       <div className="logs-toolbar">
@@ -426,6 +438,20 @@ function LogsTab() {
           {records.length > 0 && (
             <span className="logs-count">{records.length} entries</span>
           )}
+          <label className="logs-field" title="Export the full matching log history">
+            <select
+              className="logs-select"
+              value=""
+              onChange={e => {
+                if (e.target.value) handleExport(e.target.value as "txt" | "csv")
+                e.target.value = ""
+              }}
+            >
+              <option value="" disabled>Export…</option>
+              <option value="txt">As .log</option>
+              <option value="csv">As .csv</option>
+            </select>
+          </label>
           <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
             <IconRefresh size={13} className={loading ? "spinning" : ""} />
             <span className="control-text">Refresh</span>

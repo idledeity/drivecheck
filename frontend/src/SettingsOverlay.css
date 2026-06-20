@@ -401,6 +401,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   flex-shrink: 0;
   container: logs-footer / inline-size;
 }
@@ -408,7 +409,9 @@
 .logs-footer-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* Dropped before the row would otherwise wrap — the icon stays, so the
@@ -416,7 +419,7 @@
 @container logs-toolbar (max-width: 345px) {
   .control-text { display: none; }
 }
-@container logs-footer (max-width: 265px) {
+@container logs-footer (max-width: 360px) {
   .control-text { display: none; }
 }
 

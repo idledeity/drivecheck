@@ -2,9 +2,10 @@ import atexit
 import json
 import logging
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from config import CONFIG
 import cfg
 from system_utils.logging import logger as _log
@@ -280,6 +281,30 @@ def get_logs():
         return jsonify({"error": "no log source available — configure logging.file or run as a systemd service"}), 404
 
     return jsonify(log_utils.filter_log_records(lines, limit, min_level))
+
+
+@app.route("/api/logs/export")
+def export_logs():
+    min_level = request.args.get("level", "all")
+    fmt = request.args.get("format", "txt")
+
+    lines = log_utils.read_log_lines()
+    if lines is None:
+        return jsonify({"error": "no log source available — configure logging.file or run as a systemd service"}), 404
+
+    # Uncapped — unlike get_logs() above, this wants the complete matching
+    # history, not just the last `n` for display.
+    records = log_utils.filter_log_records(lines, None, min_level)
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if fmt == "csv":
+        body, mimetype, ext = log_utils.format_as_csv(records), "text/csv", "csv"
+    else:
+        body, mimetype, ext = log_utils.format_as_text(records), "text/plain", "log"
+
+    return Response(body, mimetype=mimetype, headers={
+        "Content-Disposition": f'attachment; filename="drivecheck-{stamp}.{ext}"',
+    })
 
 
 if __name__ == "__main__":
