@@ -392,10 +392,40 @@
   container: logs-toolbar / inline-size;
 }
 
-/* Entries (the fetch-limit control) on the left, count + Refresh grouped on
-   the right — cause then effect then action: Entries determines the count,
-   and Refresh is the rarely-needed action (the tab already loads fresh on
-   open) that trails past the count it would refresh. */
+.logs-filter-btn {
+  position: relative;
+}
+
+/* Small badge, not a text label change — the button stays "Filter" either
+   way, this just flags that Severity/Entries aren't at their defaults
+   while the row that shows them is collapsed (otherwise a filtered view
+   with the row closed just looks like missing logs). */
+.logs-filter-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cy);
+}
+
+/* Severity + Entries, shown only while the Filter button is toggled open —
+   same row styling as .logs-toolbar above it, just a second line. */
+.logs-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* Count + Refresh on the left (quiet, low-emphasis — see .logs-count and
+   .logs-refresh-btn below), Export anchored right since it's the one thing
+   here someone's actively choosing/doing. Deliberately down to 3 small
+   items now that Severity/Entries moved into .logs-filter-row, specifically
+   so this row has no real reason to ever wrap on a phone; flex-wrap stays
+   on as a safety net rather than a relied-on behavior. */
 .logs-footer {
   display: flex;
   align-items: center;
@@ -406,12 +436,10 @@
   container: logs-footer / inline-size;
 }
 
-.logs-footer-right {
+.logs-footer-left {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* Dropped before the row would otherwise wrap — the icon stays, so the
@@ -419,14 +447,28 @@
 @container logs-toolbar (max-width: 345px) {
   .control-text { display: none; }
 }
-@container logs-footer (max-width: 360px) {
-  .control-text { display: none; }
-}
 
 .logs-count {
-  font-size: 11px;
-  color: var(--t4);
+  font-size: 10px;
+  color: var(--t5);
 }
+
+/* Icon-only always (no responsive .control-text) — small like .logs-count,
+   but a brighter resting color than it: same shade as .logs-count would
+   read as disabled/inert rather than as a button waiting to be clicked. */
+.logs-refresh-btn {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--t4);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.logs-refresh-btn:hover:not(:disabled) { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
+.logs-refresh-btn:disabled { cursor: default; opacity: 0.5; }
 
 .logs-field {
   display: flex;

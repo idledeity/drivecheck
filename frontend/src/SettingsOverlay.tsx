@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -328,15 +328,23 @@ const LEVEL_CLASS: Record<LogLevelName, string> = {
 type MinLevel = "all" | Exclude<LogLevelName, "critical">
 const MIN_LEVEL_OPTIONS: MinLevel[] = ["all", ...LOG_LEVELS.filter((l): l is Exclude<LogLevelName, "critical"> => l !== "critical")]
 
+const DEFAULT_ENTRY_LIMIT = 500
+
 function LogsTab() {
   const [records, setRecords] = useState<LogRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [entryLimit, setEntryLimit] = useState(500)
+  const [entryLimit, setEntryLimit] = useState(DEFAULT_ENTRY_LIMIT)
   const [minLevel, setMinLevel] = useState<MinLevel>("all")
   const [showLineNumbers, setShowLineNumbers] = useState(false)
   const [lineWrap, setLineWrap] = useState(true)
+  const [filterOpen, setFilterOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Entries deliberately doesn't count toward this — it reads more like
+  // normal pagination than a filter, and unlike severity, capping it can't
+  // make logs look like they've silently gone missing.
+  const filterActive = minLevel !== "all"
 
   const load = () => {
     setLoading(true)
@@ -382,19 +390,16 @@ function LogsTab() {
   return (
     <div className="logs-tab">
       <div className="logs-toolbar">
-        <label className="logs-field">
-          Severity
-          <select
-            className="logs-select"
-            value={minLevel}
-            onChange={e => setMinLevel(e.target.value as MinLevel)}
-            title="Minimum severity to show"
-          >
-            {MIN_LEVEL_OPTIONS.map(lvl => (
-              <option key={lvl} value={lvl}>{lvl[0].toUpperCase() + lvl.slice(1)}</option>
-            ))}
-          </select>
-        </label>
+        <button
+          className={`so-toolbar-btn logs-filter-btn${filterActive ? " active" : ""}`}
+          onClick={() => setFilterOpen(o => !o)}
+          aria-expanded={filterOpen}
+          title="Filter"
+        >
+          <IconFilter size={13} />
+          <span className="control-text">Filter</span>
+          {filterActive && <span className="logs-filter-dot" title="A filter is active" />}
+        </button>
         <label className="logs-toggle" title="Line numbers">
           <input type="checkbox" checked={showLineNumbers} onChange={e => setShowLineNumbers(e.target.checked)} />
           <IconListNumbers size={14} />
@@ -406,6 +411,34 @@ function LogsTab() {
           <span className="control-text">Line wrap</span>
         </label>
       </div>
+      {filterOpen && (
+        <div className="logs-filter-row">
+          <label className="logs-field">
+            Severity
+            <select
+              className="logs-select"
+              value={minLevel}
+              onChange={e => setMinLevel(e.target.value as MinLevel)}
+              title="Minimum severity to show"
+            >
+              {MIN_LEVEL_OPTIONS.map(lvl => (
+                <option key={lvl} value={lvl}>{lvl[0].toUpperCase() + lvl.slice(1)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="logs-field">
+            Entries
+            <select
+              className="logs-select"
+              value={entryLimit}
+              onChange={e => setEntryLimit(Number(e.target.value))}
+              title="Entries to fetch"
+            >
+              {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
       {error ? (
         <div className="logs-error">{error}</div>
       ) : (
@@ -423,40 +456,28 @@ function LogsTab() {
         </div>
       )}
       <div className="logs-footer">
-        <label className="logs-field">
-          Entries
-          <select
-            className="logs-select"
-            value={entryLimit}
-            onChange={e => setEntryLimit(Number(e.target.value))}
-            title="Entries to fetch"
-          >
-            {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
-        <div className="logs-footer-right">
+        <div className="logs-footer-left">
           {records.length > 0 && (
             <span className="logs-count">{records.length} entries</span>
           )}
-          <label className="logs-field" title="Export the full matching log history">
-            <select
-              className="logs-select"
-              value=""
-              onChange={e => {
-                if (e.target.value) handleExport(e.target.value as "txt" | "csv")
-                e.target.value = ""
-              }}
-            >
-              <option value="" disabled>Export…</option>
-              <option value="txt">As .log</option>
-              <option value="csv">As .csv</option>
-            </select>
-          </label>
-          <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
-            <IconRefresh size={13} className={loading ? "spinning" : ""} />
-            <span className="control-text">Refresh</span>
+          <button className="logs-refresh-btn" onClick={load} disabled={loading} title="Refresh logs">
+            <IconRefresh size={12} className={loading ? "spinning" : ""} />
           </button>
         </div>
+        <label className="logs-field" title="Export the full matching log history">
+          <select
+            className="logs-select"
+            value=""
+            onChange={e => {
+              if (e.target.value) handleExport(e.target.value as "txt" | "csv")
+              e.target.value = ""
+            }}
+          >
+            <option value="" disabled>Export as…</option>
+            <option value="txt">.log</option>
+            <option value="csv">.csv</option>
+          </select>
+        </label>
       </div>
     </div>
   )
