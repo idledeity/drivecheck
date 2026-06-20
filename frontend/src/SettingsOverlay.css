@@ -379,12 +379,17 @@
   min-height: 0;
 }
 
+/* container-type lets the text-hiding rules below react to this row's own
+   available width rather than the viewport's — the same panel width can
+   leave this row cramped or roomy depending on the nav sidebar's fluid
+   width, so a viewport media query would hide text at the wrong moments. */
 .logs-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  container: logs-toolbar / inline-size;
 }
 
 /* Count + Refresh, right-aligned as a pair — Refresh is rarely needed (the
@@ -396,6 +401,16 @@
   justify-content: flex-end;
   gap: 10px;
   flex-shrink: 0;
+  container: logs-footer / inline-size;
+}
+
+/* Dropped before the row would otherwise wrap — the icon stays, so the
+   control is still identifiable and its title attribute covers a11y/hover. */
+@container logs-toolbar (max-width: 365px) {
+  .control-text { display: none; }
+}
+@container logs-footer (max-width: 155px) {
+  .control-text { display: none; }
 }
 
 .logs-count {
@@ -433,6 +448,7 @@
   cursor: pointer;
 }
 .logs-linenum-toggle input { cursor: pointer; }
+.logs-linenum-toggle svg { color: var(--t4); flex-shrink: 0; }
 
 .logs-error {
   font-size: 12.5px;

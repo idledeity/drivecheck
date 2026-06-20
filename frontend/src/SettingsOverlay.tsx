@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -391,9 +391,10 @@ function LogsTab() {
             <option value="error">Error</option>
           </select>
         </label>
-        <label className="logs-linenum-toggle">
+        <label className="logs-linenum-toggle" title="Line numbers">
           <input type="checkbox" checked={showLineNumbers} onChange={e => setShowLineNumbers(e.target.checked)} />
-          Line numbers
+          <IconListNumbers size={14} />
+          <span className="control-text">Line numbers</span>
         </label>
       </div>
       {error ? (
@@ -420,7 +421,7 @@ function LogsTab() {
         )}
         <button className="so-toolbar-btn" onClick={load} disabled={loading} title="Refresh logs">
           <IconRefresh size={13} className={loading ? "spinning" : ""} />
-          <span>Refresh</span>
+          <span className="control-text">Refresh</span>
         </button>
       </div>
     </div>
