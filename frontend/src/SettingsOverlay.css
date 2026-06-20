@@ -64,7 +64,19 @@
 }
 
 .so-nav {
-  width: 140px;
+  /* One continuous formula instead of two percentages stitched together at
+     a breakpoint — that always produced a seam wherever the two disagreed
+     (18% vs 25%), no matter how the floor/ceiling were tuned. 25vw - 48px
+     is a straight line in viewport width with a negative intercept, which
+     is what makes its *effective share* of the panel grow with viewport
+     instead of shrink (the usual fluid-sizing direction) — exactly the
+     "smaller slice when narrow, bigger when wide" effect that was the
+     actual goal, now produced by one expression with no jump anywhere.
+     Floor/ceiling (84-170px) clamp the two ends; the line crosses them
+     around viewport 528px and 872px respectively. Real phones (320-430px)
+     sit well below 528, so in practice they're pinned flat at the 84px
+     floor — that's the number to change if mobile still feels off. */
+  width: clamp(84px, 25vw - 48px, 170px);
   flex-shrink: 0;
   border-right: 1px solid var(--bd);
   padding: 10px 8px;
@@ -163,11 +175,19 @@
   border-bottom: 1px solid var(--bd);
 }
 
+/* Named areas, not a plain 2-column grid: this lets the description sit
+   under the name when there's room for the control to sit inline, but
+   under the control once a narrow row forces the control down onto its own
+   line (see the mobile override below) — same three elements, just
+   reflowed, no JS or duplicated markup needed. */
 .cfg-prop-row {
   display: grid;
   grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label   control"
+    "desc    control";
   align-items: center;
-  gap: 20px;
+  gap: 4px 20px;
   padding: 4px 6px;
   border-radius: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
@@ -175,14 +195,8 @@
 }
 .cfg-prop-row.dirty { background: rgba(24, 196, 238, 0.05); }
 
-.cfg-prop-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
 .cfg-prop-label {
+  grid-area: label;
   font-size: 12.5px;
   line-height: 1.2;
   color: var(--t2);
@@ -190,6 +204,7 @@
   align-items: center;
   gap: 6px;
   cursor: default;
+  min-width: 0;
 }
 .cfg-prop-row.dirty .cfg-prop-label { color: var(--cy); }
 
@@ -203,6 +218,14 @@
   cursor: help;
 }
 .cfg-tooltip-anchor:hover .cfg-tooltip-icon { color: var(--t1); }
+
+/* Dotted underline hints the display name is hoverable/tappable for its
+   raw config key, now that the key isn't shown inline anymore. */
+.cfg-prop-name {
+  cursor: help;
+  border-bottom: 1px dotted var(--t5);
+}
+.cfg-prop-name:hover { border-bottom-color: var(--t2); }
 
 .cfg-tooltip-bubble {
   position: fixed;
@@ -223,6 +246,7 @@
 }
 .cfg-tooltip-bubble-above { transform: translate(-50%, -100%); }
 .cfg-tooltip-bubble-below { transform: translate(-50%, 0); }
+.cfg-tooltip-bubble-mono  { font-family: ui-monospace, Consolas, monospace; }
 
 .cfg-restart-badge {
   font-size: 9px;
@@ -236,18 +260,15 @@
   padding: 0 4px;
 }
 
-.cfg-prop-key {
-  font-size: 10.5px;
-  line-height: 1.2;
-  color: var(--t4);
-  font-family: ui-monospace, Consolas, monospace;
-}
-
 .cfg-prop-description {
-  font-size: 10.5px;
+  grid-area: desc;
+  font-size: 9.5px;
   line-height: 1.3;
   color: #a99f90;
-  padding-left: 10px;
+}
+
+.cfg-prop-control {
+  grid-area: control;
 }
 
 .cfg-prop-control select,
@@ -416,4 +437,55 @@
   border: 1px solid var(--bd);
   border-radius: 3px;
   padding: 1px 5px;
+}
+
+/* ── Mobile ──
+   Placed last so it wins the cascade over the unconditional rules above
+   regardless of source order elsewhere — a media query earlier in the file
+   loses to a same-specificity rule that comes later, even when the query
+   matches. */
+@media (max-width: 640px) {
+  /* Width no longer needs a breakpoint (the continuous formula above
+     already tapers it down), but the nav buttons' own type/spacing still
+     snap here — there's no clean continuous equivalent for "tighter
+     padding and a smaller font" worth the complexity, and a font-size/gap
+     snap is far less visually jarring than a width jump was. */
+  .so-nav {
+    padding: 10px 4px;
+  }
+  .so-nav-btn {
+    gap: 5px;
+    padding: 6px 6px;
+    font-size: 11px;
+  }
+
+  .so-content {
+    padding: 14px 12px;
+  }
+
+  /* The 1fr/auto split only works with room to spare — on a phone-width
+     panel it squeezed the control column down against the control's 130px
+     min-width. Stack everything onto its own full-width line instead, and
+     move the description after the control (rather than after the label,
+     as in the wide layout above) since it's the control it now sits right
+     under. */
+  .cfg-prop-row {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "label"
+      "control"
+      "desc";
+    gap: 6px;
+  }
+
+  .cfg-prop-control {
+    width: 100%;
+  }
+
+  .cfg-prop-control select,
+  .cfg-prop-control input[type="number"],
+  .cfg-prop-control input[type="text"] {
+    width: 100%;
+    min-width: 0;
+  }
 }

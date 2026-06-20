@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
@@ -41,7 +42,7 @@ export default function SettingsOverlay({ onClose }: Props) {
                 onClick={() => setTab(t.id)}
               >
                 <t.icon size={14} className={t.iconClass} />
-                {t.label}
+                <span>{t.label}</span>
               </button>
             ))}
           </nav>
@@ -159,7 +160,17 @@ function ConfigTab() {
   )
 }
 
-function InfoTooltip({ text }: { text: string }) {
+// Hover-to-reveal on a real mouse; tap-to-reveal on touch, dismissed by
+// tapping anywhere else. Used both for the (i) tooltip icon and for
+// revealing a prop's raw config key off its display name.
+//
+// Pointer events filtered to pointerType "mouse", not plain onMouseEnter/
+// onMouseLeave: touch devices synthesize a compatibility mouseenter *and* a
+// later mouseleave around a tap (to mimic hover for code that only knows
+// about mouse events), which would silently re-close a tooltip a tap had
+// just opened. Pointer events carry the real input source, so touch never
+// reaches this hover path at all — it relies solely on onClick below.
+function HoverReveal({ text, className, mono, children }: { text: string; className?: string; mono?: boolean; children: ReactNode }) {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number; placement: "above" | "below" } | null>(null)
 
@@ -175,13 +186,37 @@ function InfoTooltip({ text }: { text: string }) {
       placement: above ? "above" : "below",
     })
   }
+  const hide = () => setPos(null)
+
+  useEffect(() => {
+    if (!pos) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!anchorRef.current?.contains(e.target as Node)) hide()
+    }
+    // Deferred via setTimeout, not attached immediately: React flushes this
+    // effect synchronously within the same click that opened the tooltip,
+    // before that click's native bubble phase has finished reaching
+    // document — an immediately-attached listener would catch its own
+    // opening click and close the tooltip right back up.
+    const id = window.setTimeout(() => document.addEventListener("click", onDocClick, true), 0)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener("click", onDocClick, true)
+    }
+  }, [pos])
 
   return (
-    <span className="cfg-tooltip-anchor" ref={anchorRef} onMouseEnter={show} onMouseLeave={() => setPos(null)}>
-      <IconInfoCircle size={12} className="cfg-tooltip-icon" />
+    <span
+      className={`cfg-tooltip-anchor${className ? ` ${className}` : ""}`}
+      ref={anchorRef}
+      onPointerEnter={e => { if (e.pointerType === "mouse") show() }}
+      onPointerLeave={e => { if (e.pointerType === "mouse") hide() }}
+      onClick={e => { e.stopPropagation(); show() }}
+    >
+      {children}
       {pos && createPortal(
         <span
-          className={`cfg-tooltip-bubble cfg-tooltip-bubble-${pos.placement}`}
+          className={`cfg-tooltip-bubble cfg-tooltip-bubble-${pos.placement}${mono ? " cfg-tooltip-bubble-mono" : ""}`}
           style={{ top: pos.top, left: pos.left }}
         >
           {text}
@@ -202,15 +237,15 @@ interface PropRowProps {
 function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
   return (
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}`}>
-      <div className="cfg-prop-meta">
-        <label className="cfg-prop-label">
-          {prop.label}
-          <span className="cfg-prop-key">({prop.key})</span>
-          {prop.restart_required && <span className="cfg-restart-badge">restart</span>}
-          {prop.tooltip && <InfoTooltip text={prop.tooltip} />}
-        </label>
-        <span className="cfg-prop-description">{prop.description}</span>
-      </div>
+      <label className="cfg-prop-label">
+        <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
+        {prop.restart_required && <span className="cfg-restart-badge">restart</span>}
+        {prop.tooltip && (
+          <HoverReveal text={prop.tooltip}>
+            <IconInfoCircle size={12} className="cfg-tooltip-icon" />
+          </HoverReveal>
+        )}
+      </label>
       <div className="cfg-prop-control">
         {prop.type === "enum" && (
           <select className="cfg-ctl-enum" value={String(value)} onChange={e => onChange(e.target.value)}>
@@ -248,6 +283,7 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
           />
         )}
       </div>
+      <span className="cfg-prop-description">{prop.description}</span>
     </div>
   )
 }
