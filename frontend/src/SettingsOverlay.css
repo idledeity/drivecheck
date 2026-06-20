@@ -84,6 +84,20 @@
   flex-direction: column;
   gap: 2px;
   background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: width 0.15s ease;
+}
+
+/* User-toggled, independent of the fluid width formula above — overrides
+   it outright via the extra class's higher specificity rather than fighting
+   it with !important. */
+.so-nav.collapsed {
+  width: 44px;
+  padding: 10px 4px;
+}
+.so-nav.collapsed .so-nav-btn {
+  justify-content: center;
+  padding: 8px;
 }
 
 .so-nav-btn {
@@ -103,6 +117,24 @@
 }
 .so-nav-btn:hover  { color: var(--t1); background: rgba(255, 255, 255, 0.05); }
 .so-nav-btn.active { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
+
+/* Pushed to the bottom of the sidebar via margin-top:auto on .so-nav's flex
+   column, separate from the tab buttons above it. */
+.so-nav-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--t4);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.1s, background 0.1s;
+}
+.so-nav-collapse-btn:hover { color: var(--t1); background: rgba(255, 255, 255, 0.05); }
 
 .so-nav-icon-config { color: var(--cy); opacity: 0.65; flex-shrink: 0; }
 .so-nav-icon-logs   { color: var(--wa); opacity: 0.65; flex-shrink: 0; }

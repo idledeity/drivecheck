@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -19,6 +19,7 @@ interface Props {
 
 export default function SettingsOverlay({ onClose }: Props) {
   const [tab, setTab] = useState<SettingsTab>("config")
+  const [navCollapsed, setNavCollapsed] = useState(false)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -34,17 +35,25 @@ export default function SettingsOverlay({ onClose }: Props) {
           <button className="so-close" onClick={onClose}><IconX size={14} /></button>
         </div>
         <div className="so-body">
-          <nav className="so-nav">
+          <nav className={`so-nav${navCollapsed ? " collapsed" : ""}`}>
             {TABS.map(t => (
               <button
                 key={t.id}
                 className={`so-nav-btn${tab === t.id ? " active" : ""}`}
                 onClick={() => setTab(t.id)}
+                title={navCollapsed ? t.label : undefined}
               >
                 <t.icon size={14} className={t.iconClass} />
-                <span>{t.label}</span>
+                {!navCollapsed && <span>{t.label}</span>}
               </button>
             ))}
+            <button
+              className="so-nav-collapse-btn"
+              onClick={() => setNavCollapsed(c => !c)}
+              title={navCollapsed ? "Expand categories" : "Collapse categories"}
+            >
+              {navCollapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
+            </button>
           </nav>
           <div className="so-content">
             {tab === "config" && <ConfigTab />}
