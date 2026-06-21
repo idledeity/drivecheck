@@ -6,43 +6,42 @@ from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
-from config import CONFIG
 import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
-
-_log_cfg = CONFIG.get("logging", {})
-_log.setup(level=_log_cfg.get("level", "info"), file_path=_log_cfg.get("file"))
-cfg.load(Path(__file__).parent.parent / "config.yaml")
-cfg.apply_live()
-
-logger = logging.getLogger(__name__)
-
 from collector import Collector
-from operations.registry import OPERATIONS
+from operations.registry import OPERATIONS, discover as discover_operations
 from job_registry import JobRegistry
 from job_models import JobStatus
 import db
 import settings
 
-_collector_cfg = CONFIG["collector"]
-collector = Collector(
-    scan_interval=_collector_cfg["scan_interval"],
-    poll_intervals=_collector_cfg["poll_intervals"],
-    scan_probes=_collector_cfg["scan_probes"],
-    traits_probes=_collector_cfg["traits_probes"],
-    telemetry_probes=_collector_cfg["telemetry_probes"],
-    vitals_probes=_collector_cfg["vitals_probes"],
-    keep_history_days=_collector_cfg["keep_history_days"],
-    max_workers=_collector_cfg["max_workers"],
-    probe_timeout=_collector_cfg["probe_timeout"],
+cfg.register("server.host",
+    default="127.0.0.1", type="str", label="Host",
+    section="Server", description="Address the Flask server binds to.",
+    restart_required=True,
+)
+cfg.register("server.port",
+    default=4343, type="int", label="Port",
+    section="Server", description="Port the Flask server listens on.",
+    min=1, max=65535, restart_required=True,
+)
+cfg.register("server.debug",
+    default=False, type="bool", label="Debug mode",
+    section="Server", description="Enable Flask debug mode.",
+    restart_required=True,
 )
 
-_jobs_cfg = CONFIG["jobs"]
-job_registry = JobRegistry(
-    max_parallel=_jobs_cfg.get("max_parallel"),
-    get_context=collector.get_drive_context,
-)
+_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+cfg.load(_CONFIG_PATH)
+_log.setup_from_config()
+cfg.apply_live()
+discover_operations()
+
+logger = logging.getLogger(__name__)
+
+collector = Collector.from_config()
+job_registry = JobRegistry.from_config(get_context=collector.get_drive_context)
 
 app = Flask(__name__)
 
@@ -253,8 +252,6 @@ def cancel_job(job_id):
     return jsonify({"status": "ok"})
 
 
-_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
-
 @app.route("/api/config", methods=["GET"])
 def get_config():
     return jsonify(cfg.props())
@@ -323,10 +320,9 @@ if __name__ == "__main__":
     atexit.register(collector.stop)
     atexit.register(job_registry.shutdown)
 
-    server_cfg = CONFIG["server"]
     app.run(
-        host=server_cfg["host"],
-        port=server_cfg["port"],
-        debug=server_cfg["debug"],
+        host=cfg.get("server.host"),
+        port=cfg.get("server.port"),
+        debug=cfg.get("server.debug"),
         use_reloader=args.reload,
     )

@@ -11,7 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from config import CONFIG
+import cfg
 from system_utils.logging.logger import LogLevel
 
 _LOG_RE = re.compile(
@@ -33,7 +33,7 @@ def read_log_lines(max_lines: int | None = None) -> list[str] | None:
     app doesn't currently pass max_lines, so both sources return their full
     available history.
     """
-    log_path = CONFIG.get("logging", {}).get("file")
+    log_path = cfg.get("logging.file")
     if log_path:
         try:
             lines = Path(log_path).read_text(encoding="utf-8").splitlines()

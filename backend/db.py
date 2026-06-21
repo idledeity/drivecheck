@@ -13,11 +13,20 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from config import CONFIG
+import cfg
 from drive_models import DriveIOActivity
 from job_models import Job
 
-_DB_PATH = (Path(__file__).parent.parent / CONFIG["data"]["dir"] / "drivecheck.db").resolve()
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+cfg.register("data.dir",
+    default="./data", type="str", label="Data directory",
+    section="Data", description="Directory for the SQLite database and settings file.",
+    restart_required=True,
+)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS drive_records (
@@ -105,9 +114,15 @@ CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
 """
 
 
+def _db_path() -> Path:
+    """Resolved at call time, not import time — cfg.get() needs cfg.load() to
+    have already run, which isn't guaranteed at db.py's own import time."""
+    return (Path(__file__).parent.parent / cfg.get("data.dir") / "drivecheck.db").resolve()
+
+
 @contextmanager
 def _connection():
-    conn = sqlite3.connect(_DB_PATH)
+    conn = sqlite3.connect(_db_path())
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
         yield conn
@@ -121,7 +136,7 @@ def _connection():
 
 def init() -> None:
     """Create the database file and schema if needed, and enable WAL mode."""
-    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _db_path().parent.mkdir(parents=True, exist_ok=True)
     with _connection() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(_SCHEMA)

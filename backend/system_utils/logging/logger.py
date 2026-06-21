@@ -1,8 +1,10 @@
 """
 logger.py — Logging configuration for drivecheck.
 
-Call setup() once at startup (before cfg.load()), then cfg.apply_live()
-will apply the configured level via the on_changed callback registered here.
+Call setup() once at startup, right after cfg.load() (so level/file reflect
+config.yaml rather than just defaults). cfg.apply_live() then applies the
+configured level via the on_changed callback registered here — redundant
+with setup()'s own call to _apply_level, but harmless.
 
 Each module gets its own named logger via the standard library:
 
@@ -107,6 +109,13 @@ cfg.register("logging.level",
     on_changed=_apply_level,
 )
 
+cfg.register("logging.file",
+    default="data/drivecheck.log", type="str", label="Log file",
+    section="Logging",
+    description="Path to the log file, or null to disable file logging.",
+    restart_required=True,
+)
+
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
@@ -119,7 +128,7 @@ class _Formatter(logging.Formatter):
 
 
 def setup(level: str, file_path: str | None) -> None:
-    """Configure the root logger. Call once before cfg.load()."""
+    """Configure the root logger. Call once at startup, after cfg.load()."""
     formatter = _Formatter(_FMT, datefmt=_DATEFMT)
     root = logging.getLogger()
 
@@ -134,3 +143,12 @@ def setup(level: str, file_path: str | None) -> None:
         root.addHandler(fh)
 
     _apply_level(level)
+
+
+def setup_from_config() -> None:
+    """Configure the root logger from the registered logging.* cfg values.
+
+    Call once at startup, after cfg.load(). logging.file is restart_required
+    (no live on_changed path), so reading it once here is sufficient.
+    """
+    setup(level=cfg.get("logging.level"), file_path=cfg.get("logging.file"))

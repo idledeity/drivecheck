@@ -55,7 +55,7 @@ _yaml.indent(mapping=2, sequence=4, offset=2)  # matches config.yaml's existing 
 class ConfigProp:
     key: str
     default: object
-    type: str              # "int" | "float" | "str" | "bool" | "enum"
+    type: str              # "int" | "float" | "str" | "bool" | "enum" | "list"
     label: str
     section: str
     description: str           # short, always shown below the control
@@ -271,6 +271,8 @@ def _coerce(value: object, prop: ConfigProp) -> object:
             return bool(value)
         if t in ("str", "enum"):
             return str(value)
+        if t == "list":
+            return [str(item) for item in value]
     except (ValueError, TypeError) as e:
         raise ValueError(f"{prop.key}: cannot coerce {value!r} to {t}: {e}") from e
     return value
@@ -278,6 +280,10 @@ def _coerce(value: object, prop: ConfigProp) -> object:
 
 def _validate(value: object, prop: ConfigProp) -> None:
     if value is None:
+        return
+    if prop.type == "list":
+        if not isinstance(value, list):
+            raise ValueError(f"{prop.key}: must be a list, got {value!r}")
         return
     if prop.min is not None and value < prop.min:
         raise ValueError(f"{prop.key}: {value} is below minimum {prop.min}")

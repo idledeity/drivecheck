@@ -211,7 +211,7 @@ drivecheck/
 │   ├── .venv/
 │   ├── app.py                  (Flask entry point + API routes)
 │   ├── collector.py            (background polling thread + registry)
-│   ├── config.py               (loads config.yaml)
+│   ├── cfg.py                   (typed config registry — register()/get()/set(), backed by config.yaml)
 │   ├── db.py                   (SQLite schema + access)
 │   ├── settings.py             (user settings, persisted to data/settings.json)
 │   ├── models.py                (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
@@ -724,7 +724,13 @@ ORDER BY captured_at
 
 ## Config File
 
-Location: `config.yaml` at project root, loaded by `backend/config.py`.
+Location: `config.yaml` at project root. Each setting is declared with
+`cfg.register()` in the module that owns it (e.g. `collector.py` registers
+`collector.*`, `db.py` registers `data.dir`) and read back via `cfg.get()`;
+`backend/cfg.py` overlays `config.yaml` onto the registered defaults. Scalar
+types (`int`/`float`/`str`/`bool`/`enum`) and lists of strings are
+supported; see `GET`/`PATCH /api/config` in `app.py` for the settings UI's
+view of the registry.
 (`docs/backend/designs/config.yaml.example` is an early draft and has drifted
 from the fields below — `config.yaml` is the source of truth.)
 

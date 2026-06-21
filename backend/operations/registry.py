@@ -4,26 +4,38 @@ operations.registry — Operation registry.
 All operations available to the Jobs system, keyed by a stable string used
 in the API and persisted on Job rows.
 
-Auto-discovered at import time by scanning operations/catalog/ for regular
+Populated by discover(), which scans operations/catalog/ for regular
 operations and operations/catalog/debug/ for debug operations (the latter
-only if config.yaml: jobs.enable_debug_operations is true). To add an
-operation, drop a module into the appropriate catalog directory — no
-registration step needed. Shared base classes (e.g. one operation family
-with a common run() split across short/long variants) can live in the same
-directory too, as long as they leave at least one abstractmethod
-unimplemented — inspect.isabstract() excludes them from discovery.
+only if jobs.enable_debug_operations is true). discover() must be called
+once after cfg.load() — app.py does this at startup. To add an operation,
+drop a module into the appropriate catalog directory — no registration step
+needed. Shared base classes (e.g. one operation family with a common run()
+split across short/long variants) can live in the same directory too, as
+long as they leave at least one abstractmethod unimplemented —
+inspect.isabstract() excludes them from discovery.
 """
 
 import importlib
 import inspect
 import pkgutil
 
-from config import CONFIG
+import cfg
 from operations.operation import OperationBase
 
 
-def _discover() -> dict[str, type[OperationBase]]:
-    enable_debug = CONFIG["jobs"]["enable_debug_operations"]
+
+cfg.register("jobs.enable_debug_operations",
+    default=True, type="bool", label="Enable debug operations",
+    section="Jobs", description="Adds debug-only operations (e.g. Sleep) for exercising the queue/scheduler.",
+    restart_required=True,
+)
+
+OPERATIONS: dict[str, type[OperationBase]] = {}
+
+
+def discover() -> None:
+    """Populate OPERATIONS by scanning the catalog. Call once after cfg.load()."""
+    enable_debug = cfg.get("jobs.enable_debug_operations")
     found: dict[str, type[OperationBase]] = {}
 
     def _scan(package_name: str) -> None:
@@ -44,7 +56,5 @@ def _discover() -> dict[str, type[OperationBase]]:
     if enable_debug:
         _scan("operations.catalog.debug")
 
-    return found
-
-
-OPERATIONS: dict[str, type[OperationBase]] = _discover()
+    OPERATIONS.clear()
+    OPERATIONS.update(found)

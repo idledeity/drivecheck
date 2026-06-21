@@ -37,6 +37,7 @@ from dataclasses import asdict, fields, replace
 from datetime import datetime
 from types import ModuleType
 
+import cfg
 import db
 from analysis.descriptor_rank import score_descriptor
 from drive_tools.timeout import ProbeTimeout
@@ -52,6 +53,76 @@ _TICK_INTERVAL = 1.0
 
 # How often to check whether history pruning is due.
 _PRUNE_INTERVAL = 86400
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+cfg.register("collector.scan_interval",
+    default=300, type="int", label="Scan interval",
+    section="Collector", description="Seconds between drive scans.",
+    min=10, max=3600, restart_required=True,
+)
+cfg.register("collector.keep_history_days",
+    default=90, type="int", label="History retention",
+    section="Collector", description="Days of time-series history to retain before pruning.",
+    min=1, max=3650, restart_required=True,
+)
+cfg.register("collector.max_workers",
+    default=4, type="int", label="Worker threads",
+    section="Collector", description="Thread pool size for per-drive channel polling.",
+    min=1, max=64, restart_required=True,
+)
+cfg.register("collector.probe_timeout",
+    default=30, type="int", label="Probe timeout",
+    section="Collector", description="Subprocess timeout (seconds) for probe calls (e.g. smartctl).",
+    min=1, max=600, restart_required=True,
+)
+cfg.register("collector.poll_intervals.telemetry",
+    default=300, type="int", label="Telemetry interval",
+    section="Collector", description="Seconds between signals + heartbeat polls.",
+    min=1, max=86400, restart_required=True,
+)
+cfg.register("collector.poll_intervals.snapshot",
+    default=14400, type="int", label="Snapshot interval",
+    section="Collector", description="Seconds between raw smartctl JSON snapshot persistence.",
+    min=1, max=604800, restart_required=True,
+)
+cfg.register("collector.poll_intervals.vitals",
+    default=10, type="int", label="Vitals interval",
+    section="Collector", description="Seconds between cheap temperature + disk IO activity reads.",
+    min=1, max=86400, restart_required=True,
+)
+cfg.register("collector.poll_intervals.traits",
+    default=86400, type="int", label="Traits interval",
+    section="Collector", description="Seconds between traits probe re-runs for already-known drives.",
+    min=1, max=2592000, restart_required=True,
+)
+cfg.register("collector.scan_probes",
+    default=["probes.scan.smartctl_scan"], type="list", label="Scan probes",
+    section="Collector", description="Dotted-path probe modules run to discover attached drives.",
+    restart_required=True,
+)
+cfg.register("collector.traits_probes",
+    default=["probes.traits.smartctl_traits"], type="list", label="Traits probes",
+    section="Collector", description="Dotted-path probe modules run to populate drive traits.",
+    restart_required=True,
+)
+cfg.register("collector.telemetry_probes",
+    default=["probes.telemetry.smartctl_telemetry"], type="list", label="Telemetry probes",
+    section="Collector", description="Dotted-path probe modules run each telemetry poll, chained in order.",
+    restart_required=True,
+)
+cfg.register("collector.vitals_probes",
+    default=[
+        "probes.vitals.hwmon_temp",
+        "probes.vitals.smartctl_vitals",
+        "probes.vitals.sysfs_io",
+        "probes.vitals.mount_status",
+    ], type="list", label="Vitals probes",
+    section="Collector", description="Dotted-path probe modules run each vitals poll, chained in order.",
+    restart_required=True,
+)
 
 
 def _load_probes(dotted_paths: list[str]) -> list[ModuleType]:
@@ -115,6 +186,30 @@ class Collector:
         # (guid, channel) -> Future for work currently running on the executor,
         # guarded by self._lock.
         self._inflight: dict[tuple[str, str], Future] = {}
+
+    @classmethod
+    def from_config(cls) -> "Collector":
+        """Construct a Collector from the registered collector.* cfg values.
+
+        All of these are restart_required — there's no live on_changed path,
+        so reading them once here at startup is sufficient.
+        """
+        return cls(
+            scan_interval=cfg.get("collector.scan_interval"),
+            poll_intervals={
+                "telemetry": cfg.get("collector.poll_intervals.telemetry"),
+                "snapshot": cfg.get("collector.poll_intervals.snapshot"),
+                "vitals": cfg.get("collector.poll_intervals.vitals"),
+                "traits": cfg.get("collector.poll_intervals.traits"),
+            },
+            scan_probes=cfg.get("collector.scan_probes"),
+            traits_probes=cfg.get("collector.traits_probes"),
+            telemetry_probes=cfg.get("collector.telemetry_probes"),
+            vitals_probes=cfg.get("collector.vitals_probes"),
+            keep_history_days=cfg.get("collector.keep_history_days"),
+            max_workers=cfg.get("collector.max_workers"),
+            probe_timeout=cfg.get("collector.probe_timeout"),
+        )
 
     def start(self) -> None:
         """Start the background poll loop."""

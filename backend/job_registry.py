@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 
+import cfg
 import db
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,17 @@ from operations.operation import OperationBase, OperationCancelled, OperationPro
 from operations.registry import OPERATIONS
 from drive_models import DriveContext
 from job_models import Job, JobStatus
+
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+cfg.register("jobs.max_parallel",
+    default=2, type="int", label="Max parallel jobs",
+    section="Jobs", description="Cap on simultaneously-running jobs across all drives.",
+    min=1, max=8, restart_required=True,
+)
 
 
 class JobRegistry:
@@ -44,6 +56,15 @@ class JobRegistry:
         self._running: set[str] = set()   # drive guids with a job currently executing
         self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=self._max_parallel, thread_name_prefix="job")
+
+    @classmethod
+    def from_config(cls, get_context: Callable[[str], DriveContext | None]) -> "JobRegistry":
+        """Construct a JobRegistry from the registered jobs.max_parallel cfg value.
+
+        restart_required — there's no live on_changed path, so reading it
+        once here at startup is sufficient.
+        """
+        return cls(max_parallel=cfg.get("jobs.max_parallel"), get_context=get_context)
 
     def create_jobs(self, guids: list[str], operation_key: str, params: dict) -> list[Job] | None:
         """Create one queued job per drive that supports the operation.
