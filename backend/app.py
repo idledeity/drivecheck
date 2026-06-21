@@ -308,6 +308,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--reload", action="store_true", default=False)
+    parser.add_argument("--port", type=int, default=None,
+        help="Override server.port for this run only (doesn't touch config.yaml)")
     args = parser.parse_args()
 
     settings.init()
@@ -322,7 +324,7 @@ if __name__ == "__main__":
 
     app.run(
         host=cfg.get("server.host"),
-        port=cfg.get("server.port"),
+        port=args.port if args.port is not None else cfg.get("server.port"),
         debug=cfg.get("server.debug"),
         use_reloader=args.reload,
     )
