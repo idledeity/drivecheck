@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 
-import cfg
+from settings import cfg
 import db
 
 logger = logging.getLogger(__name__)

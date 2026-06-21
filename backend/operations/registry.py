@@ -19,7 +19,7 @@ import importlib
 import inspect
 import pkgutil
 
-import cfg
+from settings import cfg
 from operations.operation import OperationBase
 
 cfg.register("jobs.enable_debug_operations",

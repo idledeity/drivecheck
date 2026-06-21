@@ -18,7 +18,7 @@ import enum
 import logging
 from pathlib import Path
 
-import cfg
+from settings import cfg
 
 # ---------------------------------------------------------------------------
 # Categories

@@ -9,7 +9,7 @@ after the app is fully initialised.
 
 Usage in a module:
 
-    import cfg
+    from settings import cfg
 
     cfg.register("collector.scan_interval",
         default=300, type="int", label="Scan interval",

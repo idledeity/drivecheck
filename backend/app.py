@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
-import cfg
+from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
 from drive_collector.collector import Collector
@@ -14,7 +14,7 @@ from operations.registry import OPERATIONS, discover as discover_operations
 from job_registry import JobRegistry
 from job_models import JobStatus
 import db
-import settings
+from settings import user_settings
 
 cfg.register("server.host",
     default="127.0.0.1", type="str", label="Host",
@@ -156,14 +156,14 @@ def drive_raw_snapshot_latest(guid):
 
 @app.route("/api/settings", methods=["GET"])
 def get_settings():
-    return jsonify(settings.load())
+    return jsonify(user_settings.load())
 
 
 @app.route("/api/settings", methods=["PATCH"])
 def patch_settings():
-    current = settings.load()
+    current = user_settings.load()
     current.update(request.get_json(force=True))
-    settings.save(current)
+    user_settings.save(current)
     return jsonify(current)
 
 
@@ -321,7 +321,7 @@ if __name__ == "__main__":
         help="Override server.port for this run only (doesn't touch config.yaml)")
     args = parser.parse_args()
 
-    settings.init()
+    user_settings.init()
     db.init()
     collector.start()
     atexit.register(collector.stop)

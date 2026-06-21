@@ -11,7 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
-import cfg
+from settings import cfg
 from system_utils.logging.logger import LogLevel
 
 _LOG_RE = re.compile(
