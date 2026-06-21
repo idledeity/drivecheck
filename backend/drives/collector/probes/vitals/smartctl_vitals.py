@@ -7,8 +7,12 @@ narrow: only extracts temperature.current. Full SMART-attribute mapping stays
 the telemetry channel's job (probes.telemetry.smartctl_telemetry).
 """
 
+import logging
+
 from drives.tools import smartctl
 from drives.drive_models import DriveState, DriveVitals
+
+logger = logging.getLogger(__name__)
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -22,6 +26,7 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
     if temp is not None:
         vitals.temp = temp
         vitals.temp_source = "smartctl"
+        logger.debug("fallback smartctl temp for %s: %dC", descriptor.info_name, temp)
     return vitals
 
 

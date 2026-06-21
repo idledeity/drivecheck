@@ -17,10 +17,13 @@ inspect.isabstract() excludes them from discovery.
 
 import importlib
 import inspect
+import logging
 import pkgutil
 
 from settings import cfg
 from operations.operation import OperationBase
+
+logger = logging.getLogger(__name__)
 
 cfg.register("jobs.enable_debug_operations",
     default=True, type="bool", label="Enable debug operations",
@@ -48,8 +51,10 @@ def discover() -> None:
                     and attr.__module__ == module.__name__
                     and not inspect.isabstract(attr)
                 ):
+                    logger.debug("discovered operation '%s' -> %s", module_info.name, attr.__name__)
                     found[module_info.name] = attr
 
+    logger.debug("scanning operations.catalog (debug operations %s)", "enabled" if enable_debug else "disabled")
     _scan("operations.catalog")
     if enable_debug:
         _scan("operations.catalog.debug")

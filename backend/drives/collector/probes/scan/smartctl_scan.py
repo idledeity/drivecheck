@@ -7,8 +7,12 @@ same physical drive accessible via two paths) are resolved later by the
 collector after the traits probe populates serial numbers.
 """
 
+import logging
+
 from drives.tools import smartctl
 from drives.drive_models import DriveDescriptor
+
+logger = logging.getLogger(__name__)
 
 
 def run() -> list[DriveDescriptor]:
@@ -20,4 +24,5 @@ def run() -> list[DriveDescriptor]:
             access_type=dev["type"],
             info_name=dev["info_name"],
         ))
+    logger.debug("scan found %d device(s)", len(descriptors))
     return descriptors

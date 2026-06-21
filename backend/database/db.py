@@ -9,6 +9,7 @@ doesn't matter.
 """
 
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -16,6 +17,8 @@ from pathlib import Path
 from system_utils import paths
 from drives.drive_models import DriveIOActivity
 from jobs.job_models import Job
+
+logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS drive_records (
@@ -123,6 +126,7 @@ def _connection():
 
 def init() -> None:
     """Create the database file and schema if needed, and enable WAL mode."""
+    logger.info("initializing database: %s", _db_path())
     _db_path().parent.mkdir(parents=True, exist_ok=True)
     with _connection() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
@@ -143,6 +147,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def get_drive_record(guid: str) -> sqlite3.Row | None:
     """Return the persisted drive record for a GUID, or None if not yet seen."""
+    logger.debug("looking up drive record: %s", guid)
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(
@@ -162,6 +167,7 @@ def upsert_drive_record(
     Insert a drive record on first sighting, or refresh its identity fields on
     subsequent sightings. first_seen is preserved across updates.
     """
+    logger.debug("upserting drive record: guid=%s serial=%s model=%s", guid, serial, model)
     with _connection() as conn:
         conn.execute(
             """
@@ -179,6 +185,7 @@ def upsert_drive_record(
 
 def set_drive_label(guid: str, label: str | None) -> None:
     """Persist a user-assigned label for a drive."""
+    logger.info("setting label for drive %s: %r", guid, label)
     with _connection() as conn:
         conn.execute("UPDATE drive_records SET label = ? WHERE guid = ?", (label, guid))
 
@@ -195,7 +202,9 @@ def record_signals(guid: str, captured_at: str, signals: dict) -> None:
         if value is not None
     ]
     if not rows:
+        logger.debug("no non-null signals to record for drive %s", guid)
         return
+    logger.debug("recording %d signal(s) for drive %s", len(rows), guid)
     with _connection() as conn:
         conn.executemany(
             "INSERT INTO drive_signals (drive_guid, captured_at, signal, value) VALUES (?, ?, ?, ?)",
@@ -210,6 +219,7 @@ def record_heartbeat(
     raw_snapshot_id: int | None = None,
 ) -> None:
     """Record a poll heartbeat — presence and temperature at this point in time."""
+    logger.debug("recording heartbeat for drive %s: temp_c=%s", guid, temp_c)
     with _connection() as conn:
         conn.execute(
             "INSERT INTO drive_heartbeats (drive_guid, captured_at, temp_c, raw_snapshot_id) VALUES (?, ?, ?, ?)",
@@ -225,6 +235,7 @@ def record_vitals(
     io: DriveIOActivity,
 ) -> None:
     """Record a vitals reading — cheap temp + IO activity at this point in time."""
+    logger.debug("recording vitals for drive %s: temp_c=%s source=%s", guid, temp_c, temp_source)
     with _connection() as conn:
         conn.execute(
             """
@@ -242,6 +253,7 @@ def record_vitals(
 
 def record_raw_snapshot(guid: str, captured_at: str, probe: str, raw_json: str) -> int:
     """Persist a raw probe snapshot and return its row id."""
+    logger.debug("recording raw snapshot for drive %s (probe=%s, %d bytes)", guid, probe, len(raw_json))
     with _connection() as conn:
         cursor = conn.execute(
             "INSERT INTO drive_raw_snapshots (drive_guid, captured_at, probe, raw_json) VALUES (?, ?, ?, ?)",
@@ -252,6 +264,7 @@ def record_raw_snapshot(guid: str, captured_at: str, probe: str, raw_json: str) 
 
 def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
     """Return the most recent raw snapshot for a drive, or None if none recorded yet."""
+    logger.debug("looking up latest raw snapshot for drive %s", guid)
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(
@@ -269,13 +282,16 @@ _HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals", "drive_r
 
 def prune_history(cutoff_iso: str) -> None:
     """Delete time-series rows captured before cutoff_iso (ISO 8601 string)."""
+    logger.info("pruning history older than %s from %s", cutoff_iso, ", ".join(_HISTORY_TABLES))
     with _connection() as conn:
         for table in _HISTORY_TABLES:
-            conn.execute(f"DELETE FROM {table} WHERE captured_at < ?", (cutoff_iso,))
+            deleted = conn.execute(f"DELETE FROM {table} WHERE captured_at < ?", (cutoff_iso,)).rowcount
+            logger.debug("pruned %d row(s) from %s", deleted, table)
 
 
 def get_last_pruned_at() -> str | None:
     """Return the ISO timestamp of the last history prune, or None if never pruned."""
+    logger.debug("looking up last history prune timestamp")
     with _connection() as conn:
         row = conn.execute("SELECT last_pruned_at FROM collector_state").fetchone()
         return row[0] if row else None
@@ -283,6 +299,7 @@ def get_last_pruned_at() -> str | None:
 
 def set_last_pruned_at(captured_at_iso: str) -> None:
     """Persist the timestamp of the most recent history prune."""
+    logger.debug("setting last history prune timestamp: %s", captured_at_iso)
     with _connection() as conn:
         conn.execute("DELETE FROM collector_state")
         conn.execute("INSERT INTO collector_state (last_pruned_at) VALUES (?)", (captured_at_iso,))
@@ -294,6 +311,7 @@ def set_last_pruned_at(captured_at_iso: str) -> None:
 
 def record_job(job: Job) -> None:
     """Persist a terminal job (completed/failed/cancelled) for future History tab use."""
+    logger.debug("recording job %s in history: %s (%s)", job.id[:8], job.operation, job.status.value)
     with _connection() as conn:
         conn.execute(
             """
@@ -316,6 +334,7 @@ def record_job(job: Job) -> None:
 
 def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:
     """Return a drive's terminal jobs, most recent first."""
+    logger.debug("looking up job history for drive %s (limit=%d)", guid, limit)
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(

@@ -6,6 +6,7 @@ frontend's Settings → Logs tab.
 """
 import csv
 import io
+import logging
 import os
 import re
 import subprocess
@@ -13,6 +14,8 @@ from pathlib import Path
 
 from settings import cfg
 from system_utils.logging.logger import LogLevel
+
+logger = logging.getLogger(__name__)
 
 _LOG_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[([A-Z ]{5})\] ([\w.]+): (.+)$"
@@ -37,9 +40,10 @@ def read_log_lines(max_lines: int | None = None) -> list[str] | None:
     if log_path:
         try:
             lines = Path(log_path).read_text(encoding="utf-8").splitlines()
+            logger.debug("read %d log line(s) from %s", len(lines), log_path)
             return lines[-max_lines:] if max_lines is not None else lines
         except FileNotFoundError:
-            pass
+            logger.debug("log file not found: %s — falling back to journald", log_path)
 
     # Detect systemd: JOURNAL_STREAM is set by systemd on service processes.
     if os.environ.get("JOURNAL_STREAM"):
@@ -49,10 +53,13 @@ def read_log_lines(max_lines: int | None = None) -> list[str] | None:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                return result.stdout.splitlines()
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+                lines = result.stdout.splitlines()
+                logger.debug("read %d log line(s) from journald", len(lines))
+                return lines
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            logger.warning("journalctl unavailable: %s", e)
 
+    logger.warning("no log source available (logging.file unset and not running under systemd)")
     return None
 
 

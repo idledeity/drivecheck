@@ -7,8 +7,12 @@ type, form factor, rpm, bus — that the collector caches in DriveContext and
 re-uses across polls rather than re-querying every time.
 """
 
+import logging
+
 from drives.tools import smartctl
 from drives.drive_models import DriveDescriptor, DriveTraits, DriveType
+
+logger = logging.getLogger(__name__)
 
 
 def run(descriptor: DriveDescriptor) -> DriveTraits:
@@ -17,7 +21,7 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
 
     rotation_rate = data.get("rotation_rate")
 
-    return DriveTraits(
+    traits = DriveTraits(
         serial=data.get("serial_number"),
         model=data.get("model_name") or data.get("scsi_product"),
         manufacturer=data.get("scsi_vendor"),
@@ -27,6 +31,11 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
         rpm=rotation_rate if rotation_rate and rotation_rate > 0 else None,
         bus=_parse_bus(data),
     )
+    logger.debug(
+        "traits for %s: serial=%s model=%s type=%s",
+        descriptor.info_name, traits.serial, traits.model, traits.drive_type,
+    )
+    return traits
 
 
 def _infer_drive_type(data: dict) -> DriveType:

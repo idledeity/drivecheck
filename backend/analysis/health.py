@@ -7,8 +7,12 @@ into ok/warn/crit flags and an overall DriveHealth. The frontend only renders
 those statuses.
 """
 
+import logging
+
 from analysis.severity import flag
 from drives.drive_models import DCSignals, DriveHealth
+
+logger = logging.getLogger(__name__)
 
 
 def score_health(signals: DCSignals) -> DriveHealth:
@@ -29,4 +33,5 @@ def score_health(signals: DCSignals) -> DriveHealth:
     else:
         status = None  # Unrated
 
+    logger.debug("scored health: status=%s flags=%s", status, flags)
     return DriveHealth(health_status=status, signal_flags=flags)

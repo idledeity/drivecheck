@@ -7,9 +7,12 @@ itself is returned unchanged, since mount status isn't part of the persisted
 vitals history.
 """
 
+import logging
 from pathlib import Path
 
 from drives.drive_models import DriveState, DriveVitals
+
+logger = logging.getLogger(__name__)
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -21,11 +24,13 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 
     try:
         mounts = Path("/proc/mounts").read_text().splitlines()
-    except OSError:
+    except OSError as e:
+        logger.warning("failed to read /proc/mounts: %s", e)
         return vitals
 
     prefix = f"/dev/{block_device}"
     state.attachment.is_mounted = any(line.split(" ", 1)[0].startswith(prefix) for line in mounts)
+    logger.debug("mount status for %s: is_mounted=%s", block_device, state.attachment.is_mounted)
     return vitals
 
 

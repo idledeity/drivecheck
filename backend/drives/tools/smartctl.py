@@ -1,9 +1,12 @@
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
 
 from drives.tools.timeout import get_timeout
+
+logger = logging.getLogger(__name__)
 
 
 class SelfTestType(Enum):
@@ -33,6 +36,7 @@ def run_smartctl(*args) -> dict:
     exceeded, returns {} — callers read fields via .get() with defaults, so a
     timed-out probe degrades to "unknown" rather than raising.
     """
+    logger.debug("smartctl -j %s", " ".join(args))
     try:
         result = subprocess.run(
             ["sudo", "-n", "smartctl", "-j"] + list(args),
@@ -41,6 +45,7 @@ def run_smartctl(*args) -> dict:
             timeout=get_timeout(),
         )
     except subprocess.TimeoutExpired:
+        logger.warning("smartctl timed out: %s", " ".join(args))
         return {}
     return json.loads(result.stdout)
 
@@ -74,6 +79,7 @@ def _run_smartctl_action(*args) -> SmartctlResult:
     gives exit_status=-1 with no "messages" at all for that case). So unlike
     run_smartctl(), these calls skip JSON and surface smartctl's real message.
     """
+    logger.debug("smartctl %s", " ".join(args))
     try:
         result = subprocess.run(
             ["sudo", "-n", "smartctl"] + list(args),
@@ -82,20 +88,27 @@ def _run_smartctl_action(*args) -> SmartctlResult:
             timeout=get_timeout(),
         )
     except subprocess.TimeoutExpired:
+        logger.warning("smartctl timed out: %s", " ".join(args))
         return SmartctlResult(success=False, message="smartctl timed out")
 
     lines = [
         line.strip() for line in result.stdout.splitlines()
         if line.strip() and not line.startswith("smartctl ") and not line.startswith("Copyright")
     ]
-    return SmartctlResult(success=result.returncode == 0, message=" ".join(lines))
+    success = result.returncode == 0
+    message = " ".join(lines)
+    if not success:
+        logger.warning("smartctl action failed (exit %d): %s", result.returncode, message)
+    return SmartctlResult(success=success, message=message)
 
 
 def self_test_start(device_name: str, access_type: str, test_type: SelfTestType) -> SmartctlResult:
     """smartctl -t <test_type>: start a SMART self-test."""
+    logger.info("starting %s self-test on %s", test_type.value, device_name)
     return _run_smartctl_action("-t", test_type.value, "-d", access_type, device_name)
 
 
 def self_test_abort(device_name: str, access_type: str) -> SmartctlResult:
     """smartctl -X: abort whatever SMART self-test is currently running on the drive."""
+    logger.info("aborting self-test on %s", device_name)
     return _run_smartctl_action("-X", "-d", access_type, device_name)

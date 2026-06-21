@@ -75,6 +75,7 @@ class JobRegistry:
         """
         op_cls = OPERATIONS.get(operation_key)
         if op_cls is None:
+            logger.debug("create_jobs: unknown operation '%s'", operation_key)
             return None
 
         merged_params = {p.name: p.default for p in op_cls.params}
@@ -100,6 +101,8 @@ class JobRegistry:
             self._dispatch()
         if created:
             logger.info("queued %d job(s) for operation '%s'", len(created), operation_key)
+        else:
+            logger.debug("create_jobs: no eligible drive(s) for operation '%s' among %s", operation_key, guids)
         return created
 
     def list_jobs(self) -> list[Job]:
@@ -135,15 +138,19 @@ class JobRegistry:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
+                logger.debug("cancel_job: unknown job %s", job_id)
                 return False
             if job.status == JobStatus.QUEUED:
                 self._pending.remove(job_id)
                 job.status = JobStatus.CANCELLED
                 job.finished_at = datetime.now()
+                logger.info("job %s cancelled while queued: %s", job.id[:8], job.operation)
             elif job.status == JobStatus.RUNNING:
                 self._instances[job_id].cancel()
+                logger.info("job %s cancel requested: %s", job.id[:8], job.operation)
                 return True
             else:
+                logger.debug("cancel_job: job %s already finished (%s)", job.id[:8], job.status.value)
                 return False
         db.record_job(job)
         return True
@@ -196,4 +203,5 @@ class JobRegistry:
 
     def shutdown(self) -> None:
         """Allow any in-flight jobs to finish on their own, without blocking shutdown."""
+        logger.info("shutting down job registry (%d running)", len(self._running))
         self._executor.shutdown(wait=False)

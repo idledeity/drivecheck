@@ -8,8 +8,12 @@ threshold definition, not two) and returns AttributeRow entries ready for the
 frontend to render directly.
 """
 
+import logging
+
 from analysis.severity import flag
 from drives.drive_models import AttributeRow, DCSignals, DriveHealth, DriveType
+
+logger = logging.getLogger(__name__)
 
 # ATA SMART attribute IDs that map onto a DCSignals field — reuse its signal_flags
 # entry instead of re-deriving a threshold here.
@@ -19,11 +23,13 @@ _ATA_SIGNAL_IDS = {5: "reallocated", 190: "temp", 194: "temp", 197: "pending", 1
 def build_attribute_rows(data: dict, drive_type: DriveType, signals: DCSignals, health: DriveHealth) -> list[AttributeRow]:
     """Build display-ready, classified attribute rows for a drive's raw SMART data."""
     if drive_type == DriveType.NVME:
-        return _nvme_rows(data, health)
+        rows = _nvme_rows(data, health)
     elif drive_type == DriveType.SAS:
-        return _scsi_rows(data, health)
+        rows = _scsi_rows(data, health)
     else:
-        return _ata_rows(data, health)
+        rows = _ata_rows(data, health)
+    logger.debug("built %d attribute row(s) for drive_type=%s", len(rows), drive_type)
+    return rows
 
 
 def _ata_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:

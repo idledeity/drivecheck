@@ -6,6 +6,7 @@ DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
 The DCSignals mapping is documented in drives.drive_models.DCSignals.
 """
 
+import logging
 from dataclasses import asdict
 from datetime import datetime
 
@@ -14,6 +15,8 @@ from analysis.self_test_log import build_self_test_log
 from analysis.smart_attributes import build_attribute_rows
 from drives.tools import smartctl
 from drives.drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
+
+logger = logging.getLogger(__name__)
 
 _PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 
@@ -40,6 +43,11 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
     snapshot.probe_log.append(ProbeRecord(probe=_PROBE_NAME, success=not errors, errors=errors))
+
+    if errors:
+        logger.warning("telemetry poll for %s reported errors: %s", descriptor.info_name, errors)
+    else:
+        logger.debug("telemetry poll for %s: health=%s", descriptor.info_name, snapshot.health.health_status)
 
     return snapshot
 

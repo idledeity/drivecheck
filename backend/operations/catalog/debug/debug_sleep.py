@@ -5,10 +5,13 @@ Sleeps for a configurable duration, reporting progress along the way.
 Loaded only if config.yaml: jobs.enable_debug_operations is true.
 """
 
+import logging
 import threading
 
 from operations.operation import OperationBase, OperationCancelled, ParamSpec
 from drives.drive_models import DriveContext
+
+logger = logging.getLogger(__name__)
 
 _STEP_SECONDS = 0.25
 
@@ -38,6 +41,7 @@ class DebugSleepOperation(OperationBase):
         elapsed = 0.0
         self._remaining = duration
         self._message = f"Sleeping ({duration:.0f}s)"
+        logger.debug("debug sleep starting: duration=%.0fs fail=%s", duration, fail)
         while elapsed < duration:
             if self._cancel_event.wait(min(_STEP_SECONDS, duration - elapsed)):
                 self._message = "Cancelled"

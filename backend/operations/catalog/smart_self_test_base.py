@@ -16,6 +16,7 @@ smartctl's JSON, so the poll loop dispatches on drive_type:
     indeterminate (percent=None) until the entry reports a final result.
 """
 
+import logging
 import threading
 from abc import abstractmethod
 
@@ -24,6 +25,8 @@ from drives.tools import smartctl
 from drives.tools.smartctl import SelfTestType
 from drives.tools.timeout import ProbeTimeout
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
+
+logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_SECONDS = 30
 _SMARTCTL_CALL_TIMEOUT_SECONDS = 30
@@ -76,11 +79,13 @@ class SmartSelfTestOperation(OperationBase):
 
             result_string = self._scsi_status(data) if drive_type == DriveType.SAS else self._ata_status(data)
             if result_string is None:
+                logger.debug("self-test poll for %s: percent=%s message=%s", device, self._percent, self._message)
                 continue  # still running; self._percent/_message already updated
 
             self._percent = 100.0
             if "without error" in result_string.lower() or result_string == "Completed":
                 self._message = "Done"
+                logger.info("self-test on %s completed: %s", device, result_string)
                 return {"device": device, "test_type": self.test_type.value, "result": result_string}
             self._message = "Failed"
             raise RuntimeError(f"self-test ended: {result_string}")

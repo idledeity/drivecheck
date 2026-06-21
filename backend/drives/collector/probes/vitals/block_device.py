@@ -9,9 +9,12 @@ Resolved once per drive at discovery time.
 """
 
 import json
+import logging
 import subprocess
 
 from drives.tools.timeout import get_timeout
+
+logger = logging.getLogger(__name__)
 
 
 def run(serial: str | None) -> str | None:
@@ -27,15 +30,19 @@ def run(serial: str | None) -> str | None:
             timeout=get_timeout(),
         )
     except subprocess.TimeoutExpired:
+        logger.warning("lsblk timed out resolving block device for serial %s", serial)
         return None
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError:
+        logger.warning("lsblk returned invalid JSON resolving block device for serial %s", serial)
         return None
 
     for device in data.get("blockdevices", []):
         if device.get("serial") == serial:
+            logger.debug("resolved block device for serial %s: %s", serial, device.get("name"))
             return device.get("name")
+    logger.debug("no block device matched serial %s", serial)
     return None
 
 

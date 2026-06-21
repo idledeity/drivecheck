@@ -6,7 +6,11 @@ path and a megaraid passthrough), score_descriptor picks the best access path
 by traits completeness, with controller-specific types as a tiebreaker penalty.
 """
 
+import logging
+
 from drives.drive_models import DriveDescriptor, DriveTraits, DriveType
+
+logger = logging.getLogger(__name__)
 
 _CONTROLLER_ACCESS_TYPES = ("megaraid", "cciss")
 
@@ -25,4 +29,5 @@ def score_descriptor(descriptor: DriveDescriptor, traits: DriveTraits) -> int:
     # score before this tiebreaker applies.
     if not any(ct in descriptor.access_type for ct in _CONTROLLER_ACCESS_TYPES):
         score += 1
+    logger.debug("scored descriptor %s: %d", descriptor.info_name, score)
     return score

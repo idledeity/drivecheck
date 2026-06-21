@@ -127,7 +127,9 @@ cfg.register("collector.vitals_probes",
 
 def _load_probes(dotted_paths: list[str]) -> list[ModuleType]:
     """Import and return each dotted-path probe module, in order."""
-    return [importlib.import_module(path) for path in dotted_paths]
+    modules = [importlib.import_module(path) for path in dotted_paths]
+    logger.debug("loaded probe module(s): %s", ", ".join(dotted_paths) or "none")
+    return modules
 
 
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
@@ -213,10 +215,12 @@ class Collector:
 
     def start(self) -> None:
         """Start the background poll loop."""
+        logger.info("starting collector poll loop")
         self._thread.start()
 
     def stop(self) -> None:
         """Signal the background loop to stop and shut down the executor."""
+        logger.info("stopping collector poll loop")
         self._stop_event.set()
         self._thread.join(timeout=5)
         self._executor.shutdown(wait=False)
@@ -245,6 +249,7 @@ class Collector:
         with self._lock:
             state = self._drive_states.get(guid)
             if state is None:
+                logger.debug("set_drive_label: unknown drive %s", guid)
                 return False
             state.label = label
         db.set_drive_label(guid, label)
@@ -262,10 +267,12 @@ class Collector:
             known = set(self._drive_states.keys())
         if guids is not None:
             if not set(guids) <= known:
+                logger.debug("trigger_poll: unknown guid(s) in %s", guids)
                 return False
             target = guids
         else:
             target = list(known)
+        logger.info("triggering immediate telemetry poll for %d drive(s)", len(target))
         for g in target:
             sched = self._schedules.get(g)
             if sched:
@@ -275,6 +282,7 @@ class Collector:
 
     def trigger_scan(self) -> None:
         """Force an immediate drive scan, blocking until complete."""
+        logger.info("triggering immediate drive scan")
         self._scan_due = 0
         wait(self._tick())
 
@@ -356,6 +364,7 @@ class Collector:
     def _run_channel_safe(self, state: DriveState, channel: str, now: float) -> None:
         """Run a channel's probe(s), isolating errors so one drive can't disrupt others."""
         guid = state.context.guid
+        logger.debug("running %s channel for %s", channel, guid)
         try:
             with ProbeTimeout(self._probe_timeout):
                 if channel == "telemetry":
@@ -489,6 +498,7 @@ class Collector:
                 unknown.append(d)
 
         if unknown:
+            logger.debug("reconcile: %d unknown descriptor(s) to discover", len(unknown))
             self._discover(unknown, matched_guids, now)
 
         self._remove_gone_drives(matched_guids)
@@ -525,6 +535,10 @@ class Collector:
         """Create a new DriveState or append newly discovered paths to an existing one."""
         with self._lock:
             if guid in self._drive_states:
+                logger.info(
+                    "additional access path discovered for known drive %s: %s (%s)",
+                    guid, best_descriptor.device_name, best_descriptor.access_type,
+                )
                 self._append_descriptors(self._drive_states[guid], all_descriptors)
             else:
                 logger.info(

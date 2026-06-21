@@ -11,14 +11,18 @@ scsi_self_test_1, ...) instead of an array, so _scsi_log scans until it hits
 a gap rather than assuming a fixed count.
 """
 
+import logging
+
 from drives.drive_models import AttributeRow, DriveType
+
+logger = logging.getLogger(__name__)
 
 
 def build_self_test_log(data: dict, drive_type: DriveType) -> list[AttributeRow]:
     """Build display-ready rows for a drive's native self-test history, most recent first."""
-    if drive_type == DriveType.SAS:
-        return _scsi_log(data)
-    return _ata_log(data)
+    rows = _scsi_log(data) if drive_type == DriveType.SAS else _ata_log(data)
+    logger.debug("built %d self-test log row(s)", len(rows))
+    return rows
 
 
 def _ata_log(data: dict) -> list[AttributeRow]:

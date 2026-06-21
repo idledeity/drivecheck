@@ -9,9 +9,12 @@ defensive future-proofing for SATA/NVMe drives.
 """
 
 import glob
+import logging
 from pathlib import Path
 
 from drives.drive_models import DriveState, DriveVitals
+
+logger = logging.getLogger(__name__)
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -22,6 +25,7 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 
     temp_files = glob.glob(f"/sys/block/{block_device}/device/hwmon*/**/temp1_*", recursive=True)
     if not temp_files:
+        logger.debug("no hwmon temp files found for %s", block_device)
         return vitals
 
     temp = None
@@ -43,6 +47,7 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
         vitals.temp = temp
         vitals.temp_source = "hwmon"
         vitals.extras = extras
+        logger.debug("hwmon temp for %s: %dC", block_device, temp)
     return vitals
 
 

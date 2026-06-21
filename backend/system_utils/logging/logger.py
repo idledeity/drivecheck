@@ -20,6 +20,8 @@ from pathlib import Path
 
 from settings import cfg
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Categories
 # ---------------------------------------------------------------------------
@@ -145,6 +147,7 @@ def setup(level: str, file_path: str | None) -> None:
         root.addHandler(fh)
 
     _apply_level(level)
+    logger.info("logging initialized: level=%s file=%s", level, file_path or "disabled")
 
 
 def setup_from_config(config_path: str | Path) -> None:

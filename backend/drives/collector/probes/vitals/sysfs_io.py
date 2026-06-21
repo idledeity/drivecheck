@@ -7,9 +7,12 @@ state.vitals.io_raw). Pure sysfs read, no subprocess — cheap enough for the
 high-rate vitals channel.
 """
 
+import logging
 from pathlib import Path
 
 from drives.drive_models import DriveIOActivity, DriveState, DriveVitals
+
+logger = logging.getLogger(__name__)
 
 _SECTOR_SIZE = 512  # bytes; diskstats sector counts are always in 512-byte units
 
@@ -22,7 +25,8 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 
     try:
         fields = Path(f"/sys/class/block/{block_device}/stat").read_text().split()
-    except OSError:
+    except OSError as e:
+        logger.warning("failed to read sysfs stat for %s: %s", block_device, e)
         return vitals
 
     raw = [int(f) for f in fields]
@@ -50,6 +54,10 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
         read_bytes_per_sec=(read_sectors * _SECTOR_SIZE) / elapsed,
         write_bytes_per_sec=(write_sectors * _SECTOR_SIZE) / elapsed,
         busy_pct=min(100.0, (io_ticks_ms / 1000) / elapsed * 100),
+    )
+    logger.debug(
+        "io for %s: read_iops=%.1f write_iops=%.1f busy_pct=%.1f",
+        block_device, vitals.io.read_iops, vitals.io.write_iops, vitals.io.busy_pct,
     )
     return vitals
 

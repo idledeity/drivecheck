@@ -7,6 +7,7 @@ the drive without writing to it. Progress is parsed from dd's
 returns rather than newlines — only the final summary line ends with '\\n'.
 """
 
+import logging
 import re
 import select
 import subprocess
@@ -14,6 +15,8 @@ import threading
 
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ParamSpec
 from drives.drive_models import DriveContext
+
+logger = logging.getLogger(__name__)
 
 _PROGRESS_RE = re.compile(r"^(\d+) bytes")
 
@@ -112,6 +115,7 @@ class DDReadTestOperation(OperationBase):
             total_bytes = None
 
         self._message = "Starting"
+        logger.info("starting dd read test on %s: %s", device, " ".join(cmd))
         self._proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
@@ -155,6 +159,7 @@ class DDReadTestOperation(OperationBase):
 
         self._percent = 100.0
         self._message = "Done"
+        logger.info("dd read test on %s completed: %d bytes read", device, bytes_read)
         return {"bytes_read": bytes_read, "device": device, "block_size": block_size}
 
     def get_progress(self) -> OperationProgress:
