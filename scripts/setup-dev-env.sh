@@ -28,7 +28,7 @@ echo ""
 echo "=== [3/5] Python venv + backend deps ==="
 python3 -m venv "$REPO_DIR/backend/.venv"
 "$REPO_DIR/backend/.venv/bin/pip" install --upgrade pip
-"$REPO_DIR/backend/.venv/bin/pip" install flask pyyaml
+"$REPO_DIR/backend/.venv/bin/pip" install flask pyyaml pytest pytest-cov
 
 echo ""
 echo "=== [4/5] Frontend dependencies ==="

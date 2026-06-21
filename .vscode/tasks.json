@@ -26,6 +26,13 @@
       "label": "Start All",
       "dependsOn": ["Kill Backend", "Start Frontend"],
       "dependsOrder": "sequence"
+    },
+    {
+      "label": "Backend Tests",
+      "type": "shell",
+      "command": "cd backend && .venv/bin/python -m pytest -v",
+      "group": "test",
+      "presentation": { "panel": "dedicated", "reveal": "always" }
     }
   ]
 }

@@ -28,6 +28,16 @@
       "cwd": "${workspaceFolder}/frontend"
     },
     {
+      "name": "Backend: Current Test File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "cwd": "${workspaceFolder}/backend",
+      "args": ["-v", "${file}"],
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Full Stack (external)",
       "type": "debugpy",
       "request": "launch",
