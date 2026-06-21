@@ -3,7 +3,7 @@ operations.operation — Operation interface for the Jobs system.
 
 Operations are user-initiated tasks performed on a drive (SMART tests,
 read scans, etc.), distinct from the passive collector probes. Each
-operation is a class registered in operations.registry.OPERATIONS; a Job
+operation is a class registered in operations.operation_registry.OPERATIONS; a Job
 holds one instance of that class for the duration of its run.
 """
 

@@ -1,5 +1,5 @@
 """
-operations.registry — Operation registry.
+operations.operation_registry — Operation registry.
 
 All operations available to the Jobs system, keyed by a stable string used
 in the API and persisted on Job rows.

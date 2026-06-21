@@ -2,7 +2,7 @@
 job_registry.py — In-memory job queue + scheduler for the Operations/Jobs system.
 
 Jobs are created against one or more drives and run via operation instances
-from operations.registry.OPERATIONS. Dispatch enforces two constraints:
+from operations.operation_registry.OPERATIONS. Dispatch enforces two constraints:
   - at most `max_parallel` jobs running at once, across all drives (if
     max_parallel is None, this constraint is a no-op -- see _dispatch)
   - at most one running job per drive
@@ -30,7 +30,7 @@ from database import db
 
 logger = logging.getLogger(__name__)
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
-from operations.registry import OPERATIONS
+from operations.operation_registry import OPERATIONS
 from drive_models import DriveContext
 from jobs.job_models import Job, JobStatus
 

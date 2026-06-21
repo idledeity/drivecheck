@@ -2,7 +2,7 @@
 operations.catalog.smart_self_test_base — Shared logic for SMART self-tests.
 
 `test_type` is left as an abstract property, so this class still has an
-unimplemented abstractmethod and registry._discover() skips it via
+unimplemented abstractmethod and operation_registry.discover() skips it via
 inspect.isabstract() — even though it lives in operations/catalog alongside
 the concrete short/long test operations that subclass it and set `test_type`.
 
