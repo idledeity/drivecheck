@@ -15,7 +15,7 @@ from pathlib import Path
 
 from system_utils import paths
 from drive_models import DriveIOActivity
-from job_models import Job
+from jobs.job_models import Job
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS drive_records (

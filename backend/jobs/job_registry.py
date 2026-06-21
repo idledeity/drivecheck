@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
 from operations.registry import OPERATIONS
 from drive_models import DriveContext
-from job_models import Job, JobStatus
+from jobs.job_models import Job, JobStatus
 
 
 # ---------------------------------------------------------------------------

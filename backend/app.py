@@ -11,8 +11,8 @@ from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
 from drive_collector.collector import Collector
 from operations.registry import OPERATIONS, discover as discover_operations
-from job_registry import JobRegistry
-from job_models import JobStatus
+from jobs.job_registry import JobRegistry
+from jobs.job_models import JobStatus
 from database import db
 from settings import user_settings
 
