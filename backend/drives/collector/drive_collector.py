@@ -1,5 +1,5 @@
 """
-collector.py — Drive collector.
+drive_collector.py — Drive collector.
 
 Discovers drives via the scan probe, runs traits and telemetry probes for
 each, and maintains a live registry of DriveState objects keyed by GUID.
@@ -40,9 +40,9 @@ from types import ModuleType
 from settings import cfg
 from database import db
 from analysis.descriptor_rank import score_descriptor
-from drive_tools.timeout import ProbeTimeout
-from drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
-from drive_collector.probes.vitals.block_device import run as resolve_block_device
+from drives.tools.timeout import ProbeTimeout
+from drives.drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
+from drives.collector.probes.vitals.block_device import run as resolve_block_device
 
 logger = logging.getLogger(__name__)
 
@@ -99,26 +99,26 @@ cfg.register("collector.poll_intervals.traits",
     min=1, max=2592000, restart_required=True,
 )
 cfg.register("collector.scan_probes",
-    default=["drive_collector.probes.scan.smartctl_scan"], type="list", label="Scan probes",
+    default=["drives.collector.probes.scan.smartctl_scan"], type="list", label="Scan probes",
     section="Collector", description="Dotted-path probe modules run to discover attached drives.",
     restart_required=True,
 )
 cfg.register("collector.traits_probes",
-    default=["drive_collector.probes.traits.smartctl_traits"], type="list", label="Traits probes",
+    default=["drives.collector.probes.traits.smartctl_traits"], type="list", label="Traits probes",
     section="Collector", description="Dotted-path probe modules run to populate drive traits.",
     restart_required=True,
 )
 cfg.register("collector.telemetry_probes",
-    default=["drive_collector.probes.telemetry.smartctl_telemetry"], type="list", label="Telemetry probes",
+    default=["drives.collector.probes.telemetry.smartctl_telemetry"], type="list", label="Telemetry probes",
     section="Collector", description="Dotted-path probe modules run each telemetry poll, chained in order.",
     restart_required=True,
 )
 cfg.register("collector.vitals_probes",
     default=[
-        "drive_collector.probes.vitals.hwmon_temp",
-        "drive_collector.probes.vitals.smartctl_vitals",
-        "drive_collector.probes.vitals.sysfs_io",
-        "drive_collector.probes.vitals.mount_status",
+        "drives.collector.probes.vitals.hwmon_temp",
+        "drives.collector.probes.vitals.smartctl_vitals",
+        "drives.collector.probes.vitals.sysfs_io",
+        "drives.collector.probes.vitals.mount_status",
     ], type="list", label="Vitals probes",
     section="Collector", description="Dotted-path probe modules run each vitals poll, chained in order.",
     restart_required=True,

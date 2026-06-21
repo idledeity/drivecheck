@@ -11,7 +11,7 @@ scsi_self_test_1, ...) instead of an array, so _scsi_log scans until it hits
 a gap rather than assuming a fixed count.
 """
 
-from drive_models import AttributeRow, DriveType
+from drives.drive_models import AttributeRow, DriveType
 
 
 def build_self_test_log(data: dict, drive_type: DriveType) -> list[AttributeRow]:

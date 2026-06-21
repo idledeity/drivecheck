@@ -31,7 +31,7 @@ from database import db
 logger = logging.getLogger(__name__)
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
 from operations.operation_registry import OPERATIONS
-from drive_models import DriveContext
+from drives.drive_models import DriveContext
 from jobs.job_models import Job, JobStatus
 
 

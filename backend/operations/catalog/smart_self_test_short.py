@@ -5,7 +5,7 @@ A quick electrical/mechanical check plus a partial read scan. Good as a
 first pass before committing to the much longer extended test.
 """
 
-from drive_tools.smartctl import SelfTestType
+from drives.tools.smartctl import SelfTestType
 from operations.catalog.smart_self_test_base import SmartSelfTestOperation
 
 

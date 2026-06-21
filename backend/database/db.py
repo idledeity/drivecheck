@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from system_utils import paths
-from drive_models import DriveIOActivity
+from drives.drive_models import DriveIOActivity
 from jobs.job_models import Job
 
 _SCHEMA = """

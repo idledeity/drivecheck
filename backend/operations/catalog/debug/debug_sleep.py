@@ -8,7 +8,7 @@ Loaded only if config.yaml: jobs.enable_debug_operations is true.
 import threading
 
 from operations.operation import OperationBase, OperationCancelled, ParamSpec
-from drive_models import DriveContext
+from drives.drive_models import DriveContext
 
 _STEP_SECONDS = 0.25
 

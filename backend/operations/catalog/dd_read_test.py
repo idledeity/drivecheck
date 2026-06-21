@@ -13,7 +13,7 @@ import subprocess
 import threading
 
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ParamSpec
-from drive_models import DriveContext
+from drives.drive_models import DriveContext
 
 _PROGRESS_RE = re.compile(r"^(\d+) bytes")
 

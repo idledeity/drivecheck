@@ -11,7 +11,7 @@ Resolved once per drive at discovery time.
 import json
 import subprocess
 
-from drive_tools.timeout import get_timeout
+from drives.tools.timeout import get_timeout
 
 
 def run(serial: str | None) -> str | None:
@@ -40,8 +40,8 @@ def run(serial: str | None) -> str | None:
 
 
 if __name__ == "__main__":
-    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
-    from drive_collector.probes.traits.smartctl_traits import run as fetch_traits
+    from drives.collector.probes.scan.smartctl_scan import run as scan_drives
+    from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
 
     for descriptor in scan_drives():
         traits = fetch_traits(descriptor)

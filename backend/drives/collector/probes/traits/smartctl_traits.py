@@ -7,8 +7,8 @@ type, form factor, rpm, bus — that the collector caches in DriveContext and
 re-uses across polls rather than re-querying every time.
 """
 
-from drive_tools import smartctl
-from drive_models import DriveDescriptor, DriveTraits, DriveType
+from drives.tools import smartctl
+from drives.drive_models import DriveDescriptor, DriveTraits, DriveType
 
 
 def run(descriptor: DriveDescriptor) -> DriveTraits:
@@ -70,7 +70,7 @@ def _parse_bus(data: dict) -> str | None:
 
 if __name__ == "__main__":
     from dataclasses import asdict
-    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
+    from drives.collector.probes.scan.smartctl_scan import run as scan_drives
 
     for descriptor in scan_drives():
         print(f"\n{descriptor.info_name}")

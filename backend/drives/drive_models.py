@@ -179,7 +179,7 @@ class DriveVitals:
     extras: dict = field(default_factory=dict)   # extra hwmon temp1_* thresholds, if any
     captured_at: datetime | None = None
     # Collector-internal: raw diskstats reading (epoch seconds, 17 fields) from this
-    # tick, carried on the *previous* DriveVitals so drive_collector.probes.vitals.sysfs_io
+    # tick, carried on the *previous* DriveVitals so drives.collector.probes.vitals.sysfs_io
     # can compute deltas next tick. Not exposed via the API.
     io_raw: tuple[float, list[int]] | None = None
 

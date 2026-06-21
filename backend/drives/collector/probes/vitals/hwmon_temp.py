@@ -11,7 +11,7 @@ defensive future-proofing for SATA/NVMe drives.
 import glob
 from pathlib import Path
 
-from drive_models import DriveState, DriveVitals
+from drives.drive_models import DriveState, DriveVitals
 
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
@@ -50,10 +50,10 @@ if __name__ == "__main__":
     import uuid
     from datetime import datetime
 
-    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
-    from drive_collector.probes.traits.smartctl_traits import run as fetch_traits
-    from drive_collector.probes.vitals.block_device import run as resolve_block_device
-    from drive_models import DriveAttachment, DriveContext
+    from drives.collector.probes.scan.smartctl_scan import run as scan_drives
+    from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
+    from drives.collector.probes.vitals.block_device import run as resolve_block_device
+    from drives.drive_models import DriveAttachment, DriveContext
 
     for descriptor in scan_drives():
         traits = fetch_traits(descriptor)

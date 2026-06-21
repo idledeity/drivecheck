@@ -6,7 +6,7 @@ path and a megaraid passthrough), score_descriptor picks the best access path
 by traits completeness, with controller-specific types as a tiebreaker penalty.
 """
 
-from drive_models import DriveDescriptor, DriveTraits, DriveType
+from drives.drive_models import DriveDescriptor, DriveTraits, DriveType
 
 _CONTROLLER_ACCESS_TYPES = ("megaraid", "cciss")
 

@@ -7,8 +7,8 @@ same physical drive accessible via two paths) are resolved later by the
 collector after the traits probe populates serial numbers.
 """
 
-from drive_tools import smartctl
-from drive_models import DriveDescriptor
+from drives.tools import smartctl
+from drives.drive_models import DriveDescriptor
 
 
 def run() -> list[DriveDescriptor]:

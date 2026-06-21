@@ -6,7 +6,7 @@ reported in `ata_smart_data.self_test.polling_minutes.extended`). The
 thorough complement to the short test.
 """
 
-from drive_tools.smartctl import SelfTestType
+from drives.tools.smartctl import SelfTestType
 from operations.catalog.smart_self_test_base import SmartSelfTestOperation
 
 

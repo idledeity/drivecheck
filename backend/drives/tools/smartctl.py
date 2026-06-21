@@ -3,7 +3,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 
-from drive_tools.timeout import get_timeout
+from drives.tools.timeout import get_timeout
 
 
 class SelfTestType(Enum):
@@ -29,7 +29,7 @@ def run_smartctl(*args) -> dict:
     result.returncode; this wrapper does not raise on non-zero exits so that
     partial JSON output (still returned on most error codes) is not lost.
 
-    Subject to the ambient timeout set by drive_tools.timeout.ProbeTimeout. If
+    Subject to the ambient timeout set by drives.tools.timeout.ProbeTimeout. If
     exceeded, returns {} — callers read fields via .get() with defaults, so a
     timed-out probe degrades to "unknown" rather than raising.
     """

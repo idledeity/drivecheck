@@ -1,9 +1,9 @@
 """
-drive_tools.timeout — ambient per-thread subprocess timeout.
+drives.tools.timeout — ambient per-thread subprocess timeout.
 
-Probes call drive_tools wrappers (smartctl, lsblk, ...) without knowing
+Probes call drives.tools wrappers (smartctl, lsblk, ...) without knowing
 anything about collector.probe_timeout. The collector sets the timeout for
-the duration of a channel's probe chain via ProbeTimeout; drive_tools
+the duration of a channel's probe chain via ProbeTimeout; drives.tools
 wrappers read it via get_timeout() when invoking subprocess.run. Each
 channel's probe chain runs synchronously on a single thread, so thread-local
 state set at the start of that chain is visible to every subprocess call made

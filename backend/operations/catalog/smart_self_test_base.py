@@ -19,10 +19,10 @@ smartctl's JSON, so the poll loop dispatches on drive_type:
 import threading
 from abc import abstractmethod
 
-from drive_models import DriveContext, DriveType
-from drive_tools import smartctl
-from drive_tools.smartctl import SelfTestType
-from drive_tools.timeout import ProbeTimeout
+from drives.drive_models import DriveContext, DriveType
+from drives.tools import smartctl
+from drives.tools.smartctl import SelfTestType
+from drives.tools.timeout import ProbeTimeout
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
 
 _POLL_INTERVAL_SECONDS = 30

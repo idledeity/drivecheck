@@ -8,7 +8,7 @@ those statuses.
 """
 
 from analysis.severity import flag
-from drive_models import DCSignals, DriveHealth
+from drives.drive_models import DCSignals, DriveHealth
 
 
 def score_health(signals: DCSignals) -> DriveHealth:

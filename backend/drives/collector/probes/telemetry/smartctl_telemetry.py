@@ -3,7 +3,7 @@ probes.telemetry.smartctl_telemetry — telemetry probe backed by smartctl -a.
 
 Accepts a DriveContext, queries live SMART data, and returns a populated
 DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
-The DCSignals mapping is documented in drive_models.DCSignals.
+The DCSignals mapping is documented in drives.drive_models.DCSignals.
 """
 
 from dataclasses import asdict
@@ -12,8 +12,8 @@ from datetime import datetime
 from analysis.health import score_health
 from analysis.self_test_log import build_self_test_log
 from analysis.smart_attributes import build_attribute_rows
-from drive_tools import smartctl
-from drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
+from drives.tools import smartctl
+from drives.drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
 
 _PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 
@@ -110,9 +110,9 @@ def _map_nvme(data: dict) -> DCSignals:
 
 
 if __name__ == "__main__":
-    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
-    from drive_collector.probes.traits.smartctl_traits import run as fetch_traits
-    from drive_models import DriveContext
+    from drives.collector.probes.scan.smartctl_scan import run as scan_drives
+    from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
+    from drives.drive_models import DriveContext
     import uuid
 
     for descriptor in scan_drives():
