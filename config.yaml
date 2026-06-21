@@ -19,16 +19,16 @@ collector:
   # Probe chains, run in order. Each stage's results are merged/concatenated —
   # see Probe System in CLAUDE.md.
   scan_probes:
-    - probes.scan.smartctl_scan
+    - drive_collector.probes.scan.smartctl_scan
   traits_probes:
-    - probes.traits.smartctl_traits
+    - drive_collector.probes.traits.smartctl_traits
   telemetry_probes:
-    - probes.telemetry.smartctl_telemetry
+    - drive_collector.probes.telemetry.smartctl_telemetry
   vitals_probes:
-    - probes.vitals.hwmon_temp
-    - probes.vitals.smartctl_vitals
-    - probes.vitals.sysfs_io
-    - probes.vitals.mount_status
+    - drive_collector.probes.vitals.hwmon_temp
+    - drive_collector.probes.vitals.smartctl_vitals
+    - drive_collector.probes.vitals.sysfs_io
+    - drive_collector.probes.vitals.mount_status
 
 jobs:
   # Cap on simultaneously-running jobs across all drives. Per-drive exclusivity

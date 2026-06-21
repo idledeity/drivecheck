@@ -29,8 +29,8 @@ if __name__ == "__main__":
     import uuid
     from datetime import datetime
 
-    from probes.scan.smartctl_scan import run as scan_drives
-    from probes.traits.smartctl_traits import run as fetch_traits
+    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
+    from drive_collector.probes.traits.smartctl_traits import run as fetch_traits
     from drive_models import DriveContext
 
     for descriptor in scan_drives():

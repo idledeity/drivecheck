@@ -70,7 +70,7 @@ def _parse_bus(data: dict) -> str | None:
 
 if __name__ == "__main__":
     from dataclasses import asdict
-    from probes.scan.smartctl_scan import run as scan_drives
+    from drive_collector.probes.scan.smartctl_scan import run as scan_drives
 
     for descriptor in scan_drives():
         print(f"\n{descriptor.info_name}")

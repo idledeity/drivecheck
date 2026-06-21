@@ -141,7 +141,7 @@ activity or job execution.
 - `_run_channel_safe` (and the scan path in `_do_tick`) wrap probe execution in
   `drive_tools.timeout.ProbeTimeout(collector.probe_timeout)`, an ambient
   per-thread timeout (default 30s). `drive_tools/smartctl.py` and
-  `probes/vitals/block_device.py` read it via `get_timeout()` and pass it to
+  `drive_collector/probes/vitals/block_device.py` read it via `get_timeout()` and pass it to
   `subprocess.run`, returning `{}`/`None` on `TimeoutExpired`. Probes
   themselves stay timeout-agnostic — they read fields via `.get()` with
   defaults, so a timed-out call degrades to "unknown" for that cycle rather
@@ -210,20 +210,21 @@ drivecheck/
 ├── backend/
 │   ├── .venv/
 │   ├── app.py                  (Flask entry point + API routes)
-│   ├── collector.py            (background polling thread + registry)
 │   ├── cfg.py                   (typed config registry — register()/get()/set(), backed by config.yaml)
 │   ├── db.py                   (SQLite schema + access)
 │   ├── settings.py             (user settings, persisted to data/settings.json)
 │   ├── models.py                (DriveDescriptor, DriveContext, DriveState, DriveSnapshot, DCSignals, etc.)
+│   ├── drive_collector/
+│   │   ├── collector.py        (background polling thread + registry)
+│   │   └── probes/
+│   │       ├── scan/smartctl_scan.py             (default scan probe)
+│   │       ├── traits/smartctl_traits.py         (default traits probe)
+│   │       └── telemetry/smartctl_telemetry.py   (default telemetry probe)
 │   ├── analysis/
 │   │   ├── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
 │   │   ├── severity.py         (shared ok/warn/crit threshold helper)
 │   │   ├── health.py           (DCSignals -> DriveHealth: signal_flags + health_status)
 │   │   └── smart_attributes.py (raw smartctl data -> AttributeRow list for the SMART tab)
-│   ├── probes/
-│   │   ├── scan/smartctl_scan.py             (default scan probe)
-│   │   ├── traits/smartctl_traits.py         (default traits probe)
-│   │   └── telemetry/smartctl_telemetry.py   (default telemetry probe)
 │   └── drive_tools/
 │       └── smartctl.py         (raw subprocess wrapper around smartctl -j)
 ├── frontend/
@@ -257,7 +258,7 @@ Architecture and Project Status).
 
 ### Overview
 The collector delegates data collection to a probe system, organized as
-`probes/scan/`, `probes/traits/`, `probes/telemetry/`, `probes/vitals/` subpackages.
+`drive_collector/probes/scan/`, `drive_collector/probes/traits/`, `drive_collector/probes/telemetry/`, `drive_collector/probes/vitals/` subpackages.
 Each stage's probe list (`scan_probes`, `traits_probes`, `telemetry_probes`,
 `vitals_probes` in `config.yaml`) is loaded by dotted path via
 `collector._load_probes` (see Probe config below), so users can write their
@@ -271,7 +272,7 @@ value wins — `_merge_traits` in `collector.py`).
 
 ### Scan probes
 Discover attached drives. Take no arguments. Return a list of `DriveDescriptor`s.
-The default (`probes/scan/smartctl_scan.py`) runs `smartctl --scan -j` and parses
+The default (`drive_collector/probes/scan/smartctl_scan.py`) runs `smartctl --scan -j` and parses
 the result. Could be swapped for `lsblk`, a vendor tool, or any custom discovery
 logic. If `scan_probes` lists more than one, each runs independently and their
 descriptor lists are concatenated — the collector's existing dedup-by-serial
@@ -322,19 +323,19 @@ through `telemetry_probes` (loaded from config) in order; the result becomes
 ### Vitals probes
 Receive and return the full `DriveVitals`, chained in `vitals_probes` (config)
 order. Each probe checks what's already filled in and fills in what it can:
-- `probes/vitals/hwmon_temp.py` — runs first; if `/sys/block/<dev>/device/hwmon*`
+- `drive_collector/probes/vitals/hwmon_temp.py` — runs first; if `/sys/block/<dev>/device/hwmon*`
   exists (drivetemp bound), sets `temp`, `temp_source = "hwmon"`, and `extras`
   (other `temp1_*` thresholds). No-op (returns `vitals` unchanged) if hwmon is
   unavailable — true today for all native SAS drives (see Project Status).
-- `probes/vitals/smartctl_vitals.py` — only acts if `vitals.temp is None`; runs
+- `drive_collector/probes/vitals/smartctl_vitals.py` — only acts if `vitals.temp is None`; runs
   `smartctl -A` and sets `temp`/`temp_source = "smartctl"` if it reports a
   temperature.
-- `probes/vitals/sysfs_io.py` — reads `/sys/class/block/<dev>/stat` and sets `io`
+- `drive_collector/probes/vitals/sysfs_io.py` — reads `/sys/class/block/<dev>/stat` and sets `io`
   from the delta against the previous tick's reading, carried on
   `state.vitals.io_raw` (collector-internal, not exposed via the API). First
   reading for a drive leaves `io` at its zero default since there's no previous
   sample yet.
-- `probes/vitals/mount_status.py` — reads `/proc/mounts` and sets
+- `drive_collector/probes/vitals/mount_status.py` — reads `/proc/mounts` and sets
   `state.attachment.is_mounted` (true if `block_device` or any of its
   partitions appears as a mount source). Side-effect on `attachment`, not
   `vitals` — mount status isn't part of the persisted vitals history.
@@ -358,19 +359,19 @@ loaded via `collector._load_probes`:
 
 ```yaml
 scan_probes:
-  - probes.scan.smartctl_scan
+  - drive_collector.probes.scan.smartctl_scan
 
 traits_probes:
-  - probes.traits.smartctl_traits
+  - drive_collector.probes.traits.smartctl_traits
 
 telemetry_probes:
-  - probes.telemetry.smartctl_telemetry
+  - drive_collector.probes.telemetry.smartctl_telemetry
 
 vitals_probes:
-  - probes.vitals.hwmon_temp
-  - probes.vitals.smartctl_vitals
-  - probes.vitals.sysfs_io
-  - probes.vitals.mount_status
+  - drive_collector.probes.vitals.hwmon_temp
+  - drive_collector.probes.vitals.smartctl_vitals
+  - drive_collector.probes.vitals.sysfs_io
+  - drive_collector.probes.vitals.mount_status
 ```
 
 Users can write their own probe module (matching the `run()` signature for
@@ -425,7 +426,7 @@ How the drive is attached right now — ephemeral.
 - `device_path` — preferred access path
 - `descriptors` — all DriveDescriptors that resolved to this serial
 - `is_mounted` — whether `block_device` (or any of its partitions) is currently
-  mounted, refreshed each vitals tick by `probes/vitals/mount_status.py`
+  mounted, refreshed each vitals tick by `drive_collector/probes/vitals/mount_status.py`
 - `block_device` — underlying block device name (e.g. `"sdb"`), resolved once at
   discovery time via `lsblk` by matching `traits.serial`; `None` if no match
   (e.g. drives with no serial). Used by the vitals probes for sysfs lookups.
@@ -716,7 +717,7 @@ ORDER BY captured_at
 - Hub-and-spoke multi-node mode
 - SMART retention policy UI
 - Downsampling for long-range chart queries
-- External probe directory (user probes live in project `probes/` for now)
+- External probe directory (user probes live in project `drive_collector/probes/` for now)
 - Controller-aware or thermal job scheduling
 - Physical bay mapping / LED illumination
 
@@ -752,16 +753,16 @@ collector:
     vitals: 10         # seconds — cheap temp + disk IO activity, phase-staggered per drive
     traits: 86400      # seconds — re-run traits probes for already-known drives
   scan_probes:
-    - probes.scan.smartctl_scan
+    - drive_collector.probes.scan.smartctl_scan
   traits_probes:
-    - probes.traits.smartctl_traits
+    - drive_collector.probes.traits.smartctl_traits
   telemetry_probes:
-    - probes.telemetry.smartctl_telemetry
+    - drive_collector.probes.telemetry.smartctl_telemetry
   vitals_probes:
-    - probes.vitals.hwmon_temp
-    - probes.vitals.smartctl_vitals
-    - probes.vitals.sysfs_io
-    - probes.vitals.mount_status
+    - drive_collector.probes.vitals.hwmon_temp
+    - drive_collector.probes.vitals.smartctl_vitals
+    - drive_collector.probes.vitals.sysfs_io
+    - drive_collector.probes.vitals.mount_status
 
 data:
   dir: ./data
@@ -799,10 +800,10 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] Data models designed (models.py written)
 [x] Probe system architecture decided
 [x] drive_tools/smartctl.py (raw subprocess wrapper)
-[x] probes/scan/smartctl_scan.py
-[x] probes/traits/smartctl_traits.py
-[x] probes/telemetry/smartctl_telemetry.py
-[x] collector.py (sequential polling — see gaps below)
+[x] drive_collector/probes/scan/smartctl_scan.py
+[x] drive_collector/probes/traits/smartctl_traits.py
+[x] drive_collector/probes/telemetry/smartctl_telemetry.py
+[x] drive_collector/collector.py (sequential polling — see gaps below)
 [x] db.py (SQLite schema + access)
 [x] app.py routes (drives, settings, refresh, collector status)
 [x] User settings persistence (settings.py, data/settings.json)
@@ -811,7 +812,7 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] drive_raw_snapshots persistence
 [x] Per-channel, phase-staggered collector scheduler (telemetry/snapshot channels,
     tick-based loop, debounced forced refresh — see Collector / Polling intervals)
-[x] High-rate `vitals` channel (10s default): probes/vitals/ package
+[x] High-rate `vitals` channel (10s default): drive_collector/probes/vitals/ package
     (block_device, sysfs_io, hwmon_temp, smartctl_vitals), DriveState.vitals,
     drive_vitals table + record_vitals(), exposed via /api/drives "vitals" block.
     hwmon/drivetemp is built and wired but intentionally inert on native SAS
@@ -826,7 +827,7 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
 [x] ThreadPoolExecutor + per-drive timeout (`collector.max_workers`,
     `collector.probe_timeout` — due channels run on a thread pool;
     `drive_tools.timeout.ProbeTimeout` sets an ambient per-thread timeout that
-    `drive_tools/smartctl.py` and `probes/vitals/block_device.py` apply to
+    `drive_tools/smartctl.py` and `drive_collector/probes/vitals/block_device.py` apply to
     their subprocess calls)
 [x] threading.Event for clean collector shutdown (`stop()`, `atexit`-registered
     in `app.py`)
