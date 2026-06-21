@@ -27,6 +27,11 @@ Retrieving a value:
 
     interval = cfg.get("collector.scan_interval")
 
+peek() is the one exception to "register before load before get": it reads
+a single key straight off disk, independent of load()/_raw, for bootstrap
+callers (logging) that need a real value before cfg.load() can safely run
+— load() itself needs logging configured to log through. See logger.py.
+
 See also: GET /api/config, PATCH /api/config in app.py.
 """
 import logging
@@ -74,6 +79,7 @@ class ConfigProp:
 _props:  dict[str, ConfigProp] = {}            # registered props, keyed by dotted path
 _values: dict[str, object]    = {}             # current values (defaults overlaid by YAML)
 _raw:    CommentedMap          = CommentedMap()  # parsed YAML, comments/formatting intact
+_loaded: bool                  = False           # True once load() has run at least once
 
 
 # ---------------------------------------------------------------------------
@@ -108,10 +114,47 @@ def register(
 # Load / save
 # ---------------------------------------------------------------------------
 
+def peek(key: str, path: str | Path) -> object:
+    """Return the current value for `key` if cfg has already loaded (same
+    as get() — includes any set()/set_many() mutations since then, not just
+    what's on disk); otherwise read it directly from `path`, bypassing
+    load()/_raw entirely.
+
+    The direct-read branch is for bootstrap callers that need a real config
+    value before cfg.load() can safely run (logging: load() itself needs
+    logging configured to log through it). It coerces and validates using
+    the key's registered metadata but never touches _values. Falls back to
+    the registered default — silently, since this typically runs before
+    logging exists — if the file is missing, the key isn't present, or the
+    value fails validation; load() will re-discover and log any such
+    problem once it runs.
+    """
+    if key not in _props:
+        raise KeyError(f"unknown config key: {key!r}")
+    if _loaded:
+        return get(key)
+    prop = _props[key]
+    try:
+        with open(path) as f:
+            raw = _yaml.load(f) or CommentedMap()
+    except FileNotFoundError:
+        return prop.default
+    flat = _flatten(raw)
+    if key not in flat:
+        return prop.default
+    try:
+        coerced = _coerce(flat[key], prop)
+        _validate(coerced, prop)
+        return coerced
+    except (ValueError, TypeError):
+        return prop.default
+
+
 def load(path: str | Path) -> None:
     """Overlay YAML values onto registered props. Does NOT fire callbacks."""
-    global _raw
+    global _raw, _loaded
     logger.info("loading config: %s", path)
+    _loaded = True
     try:
         with open(path) as f:
             _raw = _yaml.load(f) or CommentedMap()
@@ -182,7 +225,7 @@ def set(key: str, value: object) -> bool:
 def apply_live() -> None:
     """Fire on_changed for every live-applicable prop with its current value.
 
-    Call once after load() to apply loaded values that take effect without a
+    Call once at startup to apply loaded values that take effect without a
     restart. Any future live prop registered in any module is picked up here
     automatically — no per-module init calls needed.
     """

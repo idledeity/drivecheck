@@ -22,8 +22,6 @@ import pkgutil
 import cfg
 from operations.operation import OperationBase
 
-
-
 cfg.register("jobs.enable_debug_operations",
     default=True, type="bool", label="Enable debug operations",
     section="Jobs", description="Adds debug-only operations (e.g. Sleep) for exercising the queue/scheduler.",

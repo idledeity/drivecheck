@@ -33,12 +33,21 @@ cfg.register("server.debug",
 )
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
-cfg.load(_CONFIG_PATH)
-_log.setup_from_config()
-cfg.apply_live()
-discover_operations()
+
+# Logging has to work *before* cfg.load() runs (load() itself logs), so it's
+# configured from a direct peek at the file rather than cfg.get().
+_log.setup_from_config(_CONFIG_PATH)
 
 logger = logging.getLogger(__name__)
+logger.info("drivecheck starting...")
+
+cfg.load(_CONFIG_PATH)
+cfg.apply_live()
+discover_operations()
+logger.info(
+    "%d operation(s) loaded: %s",
+    len(OPERATIONS), ", ".join(OPERATIONS.keys()) or "none",
+)
 
 collector = Collector.from_config()
 job_registry = JobRegistry.from_config(get_context=collector.get_drive_context)
@@ -314,10 +323,6 @@ if __name__ == "__main__":
 
     settings.init()
     db.init()
-    logger.info(
-        "drivecheck starting — %d operation(s) loaded: %s",
-        len(OPERATIONS), ", ".join(OPERATIONS.keys()) or "none",
-    )
     collector.start()
     atexit.register(collector.stop)
     atexit.register(job_registry.shutdown)

@@ -3,14 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 
-import cfg
-
-
-def _settings_path() -> Path:
-    """Resolved at call time, not import time — cfg.get() needs cfg.load() to
-    have already run, which isn't guaranteed at settings.py's own import time."""
-    return (Path(__file__).parent.parent / cfg.get("data.dir") / "settings.json").resolve()
-
+from system_utils import paths
 
 DEFAULTS: dict = {
     "footer_signals": {
@@ -18,6 +11,10 @@ DEFAULTS: dict = {
         "SAS":     ["power_on_hours", "reallocated", "load_unload_cycles", "uncorrected"],
     }
 }
+
+
+def _settings_path() -> Path:
+    return paths.data_dir() / "settings.json"
 
 
 def init() -> None:

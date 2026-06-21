@@ -13,20 +13,9 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-import cfg
+from system_utils import paths
 from drive_models import DriveIOActivity
 from job_models import Job
-
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-
-cfg.register("data.dir",
-    default="./data", type="str", label="Data directory",
-    section="Data", description="Directory for the SQLite database and settings file.",
-    restart_required=True,
-)
-
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS drive_records (
@@ -115,9 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
 
 
 def _db_path() -> Path:
-    """Resolved at call time, not import time — cfg.get() needs cfg.load() to
-    have already run, which isn't guaranteed at db.py's own import time."""
-    return (Path(__file__).parent.parent / cfg.get("data.dir") / "drivecheck.db").resolve()
+    return paths.data_dir() / "drivecheck.db"
 
 
 @contextmanager

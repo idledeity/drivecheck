@@ -1,10 +1,12 @@
 """
 logger.py — Logging configuration for drivecheck.
 
-Call setup() once at startup, right after cfg.load() (so level/file reflect
-config.yaml rather than just defaults). cfg.apply_live() then applies the
-configured level via the on_changed callback registered here — redundant
-with setup()'s own call to _apply_level, but harmless.
+Call setup_from_config() once at startup, before cfg.load() — it reads
+logging.level/file via cfg.peek() (a direct, one-off disk read) rather than
+cfg.get(), specifically so logging is already configured by the time
+cfg.load() runs and tries to log through it. cfg.apply_live() then applies
+the configured level via the on_changed callback registered here —
+redundant with setup()'s own call to _apply_level, but harmless.
 
 Each module gets its own named logger via the standard library:
 
@@ -128,7 +130,7 @@ class _Formatter(logging.Formatter):
 
 
 def setup(level: str, file_path: str | None) -> None:
-    """Configure the root logger. Call once at startup, after cfg.load()."""
+    """Configure the root logger. Call once at startup, before cfg.load()."""
     formatter = _Formatter(_FMT, datefmt=_DATEFMT)
     root = logging.getLogger()
 
@@ -145,10 +147,16 @@ def setup(level: str, file_path: str | None) -> None:
     _apply_level(level)
 
 
-def setup_from_config() -> None:
-    """Configure the root logger from the registered logging.* cfg values.
+def setup_from_config(config_path: str | Path) -> None:
+    """Configure the root logger by peeking logging.* straight out of
+    `config_path`, before cfg.load() has run.
 
-    Call once at startup, after cfg.load(). logging.file is restart_required
-    (no live on_changed path), so reading it once here is sufficient.
+    Call once at startup, before cfg.load() — that's the whole point: by
+    the time load() parses the same file and logs about it, the handlers
+    set up here are already in place. logging.file is restart_required (no
+    live on_changed path), so reading it once here is sufficient.
     """
-    setup(level=cfg.get("logging.level"), file_path=cfg.get("logging.file"))
+    setup(
+        level=cfg.peek("logging.level", config_path),
+        file_path=cfg.peek("logging.file", config_path),
+    )
