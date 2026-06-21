@@ -13,7 +13,7 @@ from drive_collector.collector import Collector
 from operations.registry import OPERATIONS, discover as discover_operations
 from job_registry import JobRegistry
 from job_models import JobStatus
-import db
+from database import db
 from settings import user_settings
 
 cfg.register("server.host",

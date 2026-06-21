@@ -38,7 +38,7 @@ from datetime import datetime
 from types import ModuleType
 
 from settings import cfg
-import db
+from database import db
 from analysis.descriptor_rank import score_descriptor
 from drive_tools.timeout import ProbeTimeout
 from drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals

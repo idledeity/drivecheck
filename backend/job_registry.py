@@ -26,7 +26,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from settings import cfg
-import db
+from database import db
 
 logger = logging.getLogger(__name__)
 from operations.operation import OperationBase, OperationCancelled, OperationProgress
