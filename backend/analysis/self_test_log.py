@@ -35,7 +35,10 @@ def _ata_row(index: int, entry: dict) -> AttributeRow:
     status_info = entry.get("status", {})
     result_str = status_info.get("string", "Unknown")
 
-    if status_info.get("passed") is False or "fail" in result_str.lower() or "error" in result_str.lower():
+    # Every real smartctl failure string says "failure" (electrical/servo-seek/
+    # read/unknown failure) — "fail" alone catches them. A bare "error" check
+    # would also match the success string "Completed without error".
+    if status_info.get("passed") is False or "fail" in result_str.lower():
         status = "crit"
     elif "aborted" in result_str.lower() or "interrupted" in result_str.lower():
         status = "warn"

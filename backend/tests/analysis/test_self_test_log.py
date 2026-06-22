@@ -1,5 +1,3 @@
-import pytest
-
 from analysis.self_test_log import build_self_test_log
 from drives.drive_models import DriveType
 
@@ -8,12 +6,6 @@ def test_ata_log_empty_when_missing():
     assert build_self_test_log({}, DriveType.HDD) == []
 
 
-@pytest.mark.xfail(
-    reason="_ata_row's 'error' in result_str.lower() check matches smartctl's own "
-           "success string 'Completed without error', so a clean ATA self-test is "
-           "misclassified as crit. Looks like a real bug, not a test bug.",
-    strict=True,
-)
 def test_ata_log_passed_entry_is_ok():
     data = {"ata_smart_self_test_log": {"standard": {"table": [
         {"type": {"string": "Short offline"}, "status": {"string": "Completed without error", "passed": True},
