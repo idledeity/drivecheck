@@ -1,14 +1,6 @@
 import json
 
-import pytest
-
 from settings import user_settings
-from system_utils import paths
-
-
-@pytest.fixture(autouse=True)
-def isolated_data_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(paths, "data_dir", lambda: tmp_path)
 
 
 def test_load_without_file_returns_defaults():

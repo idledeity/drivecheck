@@ -5,13 +5,10 @@ import pytest
 from database import db
 from drives.drive_models import DriveIOActivity
 from jobs.job_models import Job, JobStatus
-from system_utils import paths
 
 
 @pytest.fixture(autouse=True)
-def isolated_data_dir(tmp_path, monkeypatch):
-    """Point paths.data_dir() at a per-test tmp_path so db.py never touches a real db."""
-    monkeypatch.setattr(paths, "data_dir", lambda: tmp_path)
+def _init_db(isolated_data_dir):
     db.init()
 
 
