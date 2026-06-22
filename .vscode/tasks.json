@@ -33,6 +33,19 @@
       "command": "cd backend && .venv/bin/python -m pytest -v",
       "group": "test",
       "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Frontend Tests",
+      "type": "shell",
+      "command": "cd frontend && npm test",
+      "group": "test",
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Test All",
+      "dependsOn": ["Backend Tests", "Frontend Tests"],
+      "dependsOrder": "sequence",
+      "group": "test"
     }
   ]
 }

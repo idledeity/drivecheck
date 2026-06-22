@@ -40,3 +40,17 @@ Requires a Debian/Ubuntu (apt-based) host.
 
 A VS Code workspace is included (`.vscode/`) with launch configs and tasks
 for running/debugging both the backend and frontend together.
+
+## Testing
+
+```sh
+cd backend && .venv/bin/python -m pytest -v   # backend
+cd frontend && npm test                       # frontend
+```
+
+Or from VS Code: Command Palette → "Run Task" → `Backend Tests`,
+`Frontend Tests`, or `Test All` (runs both).
+
+For frontend tests, the [Vitest VS Code extension](https://marketplace.visualstudio.com/items?itemName=vitest.explorer)
+is optional but gives inline pass/fail and per-test debugging in the Testing
+sidebar — it auto-detects the `test` config in `frontend/vite.config.ts`.
