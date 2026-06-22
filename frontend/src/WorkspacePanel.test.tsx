@@ -22,14 +22,14 @@ describe('WorkspacePanel', () => {
   it('defaults to the Health tab, expanded', () => {
     renderPanel()
     expect(screen.getByRole('button', { name: 'Health' })).toHaveClass('active')
-    expect(screen.getByText(/Health score/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
   })
 
   it('collapses the body when the toggle is clicked', async () => {
     renderPanel()
-    expect(screen.getByText(/Health score/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '' })) // the chevron toggle has no accessible name
-    expect(screen.queryByText(/Health score/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Overview' })).not.toBeInTheDocument()
   })
 
   it('switches to the Queue tab', async () => {

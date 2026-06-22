@@ -45,7 +45,7 @@ function Section({ title, jobs, drives, onCancel }: {
   if (jobs.length === 0) return null
   return (
     <div className="queue-section">
-      <div className="queue-section-title">{title}</div>
+      <h3 className="queue-section-title">{title}</h3>
       {jobs.map(job => (
         <JobRow key={job.id} job={job} drive={drives.find(d => d.guid === job.drive_guid)} onCancel={onCancel} />
       ))}

@@ -16,7 +16,7 @@ describe('HealthTab', () => {
   it('defaults to the overview sub-tab without fetching anything', () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
     expect(screen.getByRole('button', { name: 'Overview' })).toHaveClass('active')
-    expect(screen.getByText(/Health score/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
   })
 

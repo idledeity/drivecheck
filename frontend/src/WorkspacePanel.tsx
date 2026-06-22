@@ -65,7 +65,7 @@ export default function WorkspacePanel({ drives, selected, jobs, onCancelJob, on
 export function StubTab({ label, note }: { label: string; note: string }) {
   return (
     <div className="ws-stub">
-      <span className="ws-stub-label">{label}</span>
+      <h2 className="ws-stub-label">{label}</h2>
       <span className="ws-stub-note">{note}</span>
     </div>
   )

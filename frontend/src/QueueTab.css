@@ -5,12 +5,12 @@
 }
 
 .queue-section-title {
+  margin: 0 0 6px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--t4);
-  margin-bottom: 6px;
 }
 
 .history-drive-header {

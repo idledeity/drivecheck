@@ -66,7 +66,7 @@ function DriveAttributes({ guid }: { guid: string }) {
         <>
           {/* Drive's own onboard self-test log — independent of, and may predate,
               any test DriveCheck itself has run (see History tab for those). */}
-          <div className="smart-section-title">Self-Test History (drive log)</div>
+          <h3 className="smart-section-title">Self-Test History (drive log)</h3>
           <AttrList rows={testLog} />
         </>
       )}
