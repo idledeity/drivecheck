@@ -1,9 +1,9 @@
 import type { Drive, Job } from '../types'
 
 // Minimal stand-in for the Response shape the components actually call:
-// r.status and r.json(). Not a full Response — just enough surface area.
+// r.status, r.ok, and r.json(). Not a full Response — just enough surface area.
 export function fetchJsonResponse(data: unknown, status = 200) {
-  return { status, json: () => Promise.resolve(data) } as Response
+  return { status, ok: status >= 200 && status < 300, json: () => Promise.resolve(data) } as Response
 }
 
 export function makeDrive(overrides: Partial<Drive> = {}): Drive {
