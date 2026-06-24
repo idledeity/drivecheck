@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -76,6 +76,7 @@ function ConfigTab() {
   const [saving, setSaving] = useState(false)
   const [restartKeys, setRestartKeys] = useState<string[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
 
   useEffect(() => {
     fetch("/api/config").then(r => r.json()).then(setConfigProps).catch(() => {})
@@ -83,6 +84,19 @@ function ConfigTab() {
 
   const sections = [...new Set(configProps.map(p => p.section))]
   const pendingCount = Object.keys(pending).length
+  const pendingNeedsRestart = Object.keys(pending).some(
+    key => configProps.find(p => p.key === key)?.restart_required,
+  )
+
+  // Reverts the "Confirm?" state automatically if the user doesn't follow
+  // through with a second click, and also if pending changes are cleared
+  // some other way (e.g. a successful save) while it's armed.
+  useEffect(() => {
+    if (!confirmingDiscard) return
+    const id = window.setTimeout(() => setConfirmingDiscard(false), 3000)
+    return () => window.clearTimeout(id)
+  }, [confirmingDiscard])
+  useEffect(() => { if (pendingCount === 0) setConfirmingDiscard(false) }, [pendingCount])
 
   const getValue = (prop: ConfigProp): unknown =>
     prop.key in pending ? pending[prop.key] : prop.value
@@ -162,7 +176,24 @@ function ConfigTab() {
               : "No Changes"}
         </button>
         {pendingCount > 0 && (
-          <button className="cfg-discard-btn" onClick={() => setPending({})}>Discard</button>
+          <button
+            className={`cfg-discard-btn${confirmingDiscard ? " confirming" : ""}`}
+            onClick={() => {
+              if (confirmingDiscard) {
+                setPending({})
+              } else {
+                setConfirmingDiscard(true)
+              }
+            }}
+          >
+            {confirmingDiscard ? "Confirm?" : "Discard"}
+          </button>
+        )}
+        {pendingNeedsRestart && (
+          <span className="cfg-restart-note">
+            <IconPower size={12} />
+            Restart required after save
+          </span>
         )}
       </div>
     </div>
@@ -248,7 +279,12 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}`}>
       <label className="cfg-prop-label">
         <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
-        {prop.restart_required && <span className="cfg-restart-badge">restart</span>}
+        {prop.restart_required && (
+          <HoverReveal text="Requires an app restart to take effect">
+            <IconPower size={11} className="cfg-restart-icon" />
+          </HoverReveal>
+        )}
+        {prop.restart_required && dirty && <span className="cfg-restart-badge">Requires Restart</span>}
         {prop.tooltip && (
           <HoverReveal text={prop.tooltip}>
             <IconInfoCircle size={12} className="cfg-tooltip-icon" />
