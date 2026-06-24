@@ -16,3 +16,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 afterEach(() => {
   cleanup()
 })
+
+// jsdom doesn't implement scrollIntoView at all (it does no layout).
+Element.prototype.scrollIntoView = () => {}
