@@ -211,7 +211,16 @@
   margin-bottom: 14px;
   flex-shrink: 0;
 }
-.cfg-banner-warn  { color: var(--wa); background: var(--wbg); border: 1px solid rgba(255, 178, 46, 0.25); }
+.cfg-banner-warn  {
+  color: var(--wa);
+  background: var(--wbg);
+  border: 1px solid rgba(255, 178, 46, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .cfg-banner-error { color: var(--re); background: var(--rbg); border: 1px solid rgba(255, 112, 112, 0.25); }
 
 .cfg-sections {
@@ -416,6 +425,66 @@
   font-weight: 600;
 }
 .cfg-discard-btn.confirming:hover { background: var(--re); }
+
+.restart-trigger-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--t2);
+  background: none;
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.restart-trigger-btn:hover:not(:disabled) { color: var(--re); border-color: rgba(255, 112, 112, 0.5); }
+.restart-trigger-btn:disabled { opacity: 0.6; cursor: default; }
+
+.restart-confirm-popover {
+  position: fixed;
+  width: 240px;
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+.restart-confirm-popover p {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--t1);
+  margin-bottom: 10px;
+}
+
+.restart-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.restart-confirm-cancel {
+  font-size: 11.5px;
+  color: var(--t4);
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.restart-confirm-cancel:hover { color: var(--t1); }
+
+.restart-confirm-yes {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--bp);
+  background: var(--re);
+  border: 1px solid var(--re);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
 
 /* ── Logs tab ── */
 

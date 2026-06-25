@@ -141,7 +141,8 @@ function ConfigTab() {
     <div className="cfg-tab">
       {restartKeys.length > 0 && (
         <div className="cfg-banner cfg-banner-warn">
-          Restart required to apply: {restartKeys.join(", ")}
+          <span>Restart required to apply: {restartKeys.join(", ")}</span>
+          <RestartButton label="Restart Now" onRestarted={() => setRestartKeys([])} />
         </div>
       )}
       {saveError && (
@@ -264,6 +265,89 @@ function HoverReveal({ text, className, mono, children }: { text: string; classN
         document.body,
       )}
     </span>
+  )
+}
+
+interface RestartButtonProps {
+  label: string
+  onRestarted?: () => void
+}
+
+// Click-triggered confirm popover, not the inline two-step "Confirm?"
+// button used for Discard — restarting interrupts the live server for
+// every connected client, not just an in-memory edit in this tab, so it
+// gets a more deliberate confirm step with explicit warning text.
+function RestartButton({ label, onRestarted }: RestartButtonProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [restarting, setRestarting] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  const openConfirm = () => {
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPos({ top: rect.bottom + 8, left: rect.left })
+    setConfirmOpen(true)
+  }
+
+  useEffect(() => {
+    if (!confirmOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      // The popover is portaled to document.body, so it's not a DOM
+      // descendant of btnRef — without also excluding it here, clicking
+      // Cancel/Restart inside it would itself count as an "outside" click
+      // and close the popover before its own onClick ever fires.
+      if (btnRef.current?.contains(target) || popoverRef.current?.contains(target)) return
+      setConfirmOpen(false)
+    }
+    const id = window.setTimeout(() => document.addEventListener("click", onDocClick, true), 0)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener("click", onDocClick, true)
+    }
+  }, [confirmOpen])
+
+  const doRestart = async () => {
+    setConfirmOpen(false)
+    setRestarting(true)
+    try {
+      await fetch("/api/restart", { method: "POST" })
+    } catch {
+      // The connection dropping here is expected once the process exits.
+    }
+
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 1000))
+      try {
+        if ((await fetch("/api/config")).ok) break
+      } catch {
+        // Still down — keep polling until the deadline.
+      }
+    }
+    setRestarting(false)
+    onRestarted?.()
+  }
+
+  return (
+    <>
+      <button ref={btnRef} className="restart-trigger-btn" onClick={openConfirm} disabled={restarting}>
+        <IconPower size={13} className={restarting ? "spinning" : ""} />
+        {restarting ? "Restarting…" : label}
+      </button>
+      {confirmOpen && pos && createPortal(
+        <div className="restart-confirm-popover" ref={popoverRef} style={{ top: pos.top, left: pos.left }}>
+          <p>This restarts the backend service. Connected clients (including this one) will briefly disconnect while it comes back up.</p>
+          <div className="restart-confirm-actions">
+            <button className="restart-confirm-cancel" onClick={() => setConfirmOpen(false)}>Cancel</button>
+            <button className="restart-confirm-yes" onClick={doRestart}>Restart</button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -542,6 +626,10 @@ function AboutTab() {
       <div className="about-row">
         <span className="about-label">Version</span>
         <span className="about-value about-mono">dev</span>
+      </div>
+      <div className="about-row">
+        <span className="about-label">Backend</span>
+        <RestartButton label="Restart Backend" />
       </div>
     </div>
   )

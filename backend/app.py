@@ -1,6 +1,9 @@
 import atexit
 import json
 import logging
+import os
+import sys
+import threading
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -275,6 +278,38 @@ def patch_config():
         return jsonify({"error": str(e)}), 400
     cfg.save(_CONFIG_PATH)
     return jsonify({"restart_required": restart_required})
+
+
+def _restart_process():
+    logger.info("restarting process via os.execv")
+    try:
+        collector.stop()
+    except Exception:
+        logger.exception("error stopping collector during restart")
+    try:
+        job_registry.shutdown()
+    except Exception:
+        logger.exception("error shutting down job registry during restart")
+    # os.execv inherits all open file descriptors, including the socket
+    # Werkzeug bound to listen on — left open, the re-exec'd process fails
+    # to rebind the same port ("Address already in use"). Closing everything
+    # past stdin/stdout/stderr first avoids that.
+    try:
+        max_fd = os.sysconf("SC_OPEN_MAX")
+    except (ValueError, OSError):
+        max_fd = 4096
+    os.closerange(3, max_fd)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+@app.route("/api/restart", methods=["POST"])
+def restart_server():
+    logger.info("restart requested via API")
+    # Delayed so this response has time to flush back to the client before
+    # the process image is replaced — running execv inline here would
+    # likely cut the connection instead of returning a clean response.
+    threading.Timer(0.3, _restart_process).start()
+    return jsonify({"status": "restarting"})
 
 
 @app.route("/api/logs")
