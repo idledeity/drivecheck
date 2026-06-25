@@ -342,7 +342,24 @@
 
 .cfg-prop-control {
   grid-area: control;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+
+.cfg-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--t4);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.cfg-reset-btn:hover { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
 
 .cfg-prop-control select,
 .cfg-prop-control input[type="number"],
@@ -785,7 +802,7 @@
   .cfg-prop-control select,
   .cfg-prop-control input[type="number"],
   .cfg-prop-control input[type="text"] {
-    width: 100%;
+    flex: 1;
     min-width: 0;
   }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import "./SettingsOverlay.css"
 
@@ -376,6 +376,15 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
         )}
       </label>
       <div className="cfg-prop-control">
+        {/* Only on a clean row: while dirty, the existing pending value is
+            already visible in the control, and reverting that is what the
+            footer's Discard button is for — showing this too would raise
+            "revert to what?" between the pending edit and the default. */}
+        {!dirty && value !== prop.default && (
+          <button className="cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
+            <IconRotate2 size={14} />
+          </button>
+        )}
         {prop.type === "enum" && (
           <select className="cfg-ctl-enum" value={String(value)} onChange={e => onChange(e.target.value)}>
             {prop.choices!.map(c => <option key={c} value={c}>{c}</option>)}

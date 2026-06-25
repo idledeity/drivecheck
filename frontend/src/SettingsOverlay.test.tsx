@@ -257,6 +257,35 @@ describe('ConfigTab', () => {
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
     expect(screen.getByText('Requires Restart')).toBeInTheDocument()
   })
+
+  it('shows a reset-to-default button only when the saved value differs from default, and hides it while dirty', async () => {
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 9000, default: 4343 })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    expect(document.querySelector('.cfg-reset-btn')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '1234' } })
+    expect(document.querySelector('.cfg-reset-btn')).not.toBeInTheDocument()
+  })
+
+  it('hides the reset-to-default button once the value already matches the default', async () => {
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343, default: 4343 })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    expect(document.querySelector('.cfg-reset-btn')).not.toBeInTheDocument()
+  })
+
+  it('clicking reset-to-default stages the default value as a pending change', async () => {
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 9000, default: 4343 })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    await userEvent.click(document.querySelector('.cfg-reset-btn')!)
+    expect(screen.getByRole('spinbutton')).toHaveValue(4343)
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
 })
 
 describe('HoverReveal tooltips', () => {
