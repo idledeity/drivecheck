@@ -16,6 +16,9 @@ data/
 # Config — has credentials
 config.local.yaml
 
+# Scratch space for Claude-generated previews/mockups — never committed
+tmp/
+
 # OS
 .DS_Store
 Thumbs.db
