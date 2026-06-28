@@ -236,6 +236,19 @@ describe('ConfigTab', () => {
     expect(screen.getByRole('textbox')).toHaveValue('127.0.0.1')
   })
 
+  it('renders a list control as a textarea, one item per line', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'list',
+      value: ['a.b.c', 'd.e.f'], default: ['a.b.c', 'd.e.f'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+    expect(screen.getByRole('textbox')).toHaveValue('a.b.c\nd.e.f')
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a.b.c\nd.e.f\ng.h.i' } })
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
   it('ignores non-numeric input on a numeric control', async () => {
     router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343 })]
     render(<SettingsOverlay onClose={vi.fn()} />)

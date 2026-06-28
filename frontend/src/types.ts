@@ -2,7 +2,7 @@ export type Settings = {
   footer_signals: Record<string, string[]>
 }
 
-export type ConfigPropType = "int" | "float" | "str" | "bool" | "enum"
+export type ConfigPropType = "int" | "float" | "str" | "bool" | "enum" | "list"
 
 export type ConfigProp = {
   key: string

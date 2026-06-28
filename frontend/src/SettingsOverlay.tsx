@@ -447,6 +447,14 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
             onChange={e => onChange(e.target.value)}
           />
         )}
+        {prop.type === "list" && (
+          <textarea
+            className="cfg-ctl-list"
+            rows={Math.max(2, (value as string[]).length)}
+            value={(value as string[]).join("\n")}
+            onChange={e => onChange(e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+          />
+        )}
       </div>
       <span className="cfg-prop-description">{prop.description}</span>
     </div>

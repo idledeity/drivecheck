@@ -326,7 +326,8 @@
 
 .cfg-prop-control select,
 .cfg-prop-control input[type="number"],
-.cfg-prop-control input[type="text"] {
+.cfg-prop-control input[type="text"],
+.cfg-prop-control textarea {
   font-size: 12.5px;
   color: var(--t1);
   background: var(--bi);
@@ -338,21 +339,62 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+/* One path per line — long dotted module paths, so it needs more room and
+   a monospace face than the plain single-line text control. Compound
+   selector (not a plain .cfg-ctl-list rule) so min-width actually beats the
+   shared `.cfg-prop-control textarea` rule above on specificity — a lone
+   class loses that tie since the shared selector also carries the
+   "textarea" tag. */
+textarea.cfg-ctl-list {
+  min-width: 280px;
+  font-family: ui-monospace, Consolas, monospace;
+  resize: vertical;
+}
+
 /* Permanent type-tinted border, echoing the nav icon colors */
 .cfg-ctl-enum { border-color: rgba(24, 196, 238, 0.45); }
 .cfg-ctl-num  { border-color: rgba(255, 178, 46, 0.45); }
 .cfg-ctl-str  { border-color: rgba(168, 85, 247, 0.45); }
+textarea.cfg-ctl-list { border-color: rgba(20, 192, 80, 0.45); }
 
 .cfg-ctl-enum:focus { border-color: var(--cy); box-shadow: 0 0 0 2px rgba(24, 196, 238, 0.15); }
 .cfg-ctl-num:focus  { border-color: var(--wa); box-shadow: 0 0 0 2px rgba(255, 178, 46, 0.15); }
 .cfg-ctl-str:focus  { border-color: var(--sel); box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.15); }
+textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgba(20, 192, 80, 0.15); }
 
 .cfg-prop-control input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
 }
-.cfg-ctl-bool { accent-color: var(--gn); }
+
+/* Custom-drawn rather than accent-color — accent-color fills the whole box
+   with the accent on check (with the mark itself drawn by the browser in a
+   fixed contrasting color), leaving no way to keep the box dark and tint
+   just the checkmark. appearance:none drops the native box so the ::after
+   checkmark can be colored independently of the (always-dark) background. */
+.cfg-ctl-bool {
+  appearance: none;
+  margin: 0;
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 3px;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.cfg-ctl-bool:checked { border-color: var(--cy); }
+.cfg-ctl-bool:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 3px;
+  height: 9px;
+  border: solid var(--cy);
+  border-width: 0 2px 2px 0;
+  transform: rotate(35deg);
+}
+.cfg-ctl-bool:focus-visible { box-shadow: 0 0 0 2px rgba(24, 196, 238, 0.15); }
 
 .cfg-footer {
   display: flex;
@@ -755,7 +797,8 @@
 
   .cfg-prop-control select,
   .cfg-prop-control input[type="number"],
-  .cfg-prop-control input[type="text"] {
+  .cfg-prop-control input[type="text"],
+  .cfg-prop-control textarea {
     flex: 1;
     min-width: 0;
   }
