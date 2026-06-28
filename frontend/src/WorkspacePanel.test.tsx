@@ -28,7 +28,7 @@ describe('WorkspacePanel', () => {
   it('collapses the body when the toggle is clicked', async () => {
     renderPanel()
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '' })) // the chevron toggle has no accessible name
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse workspace panel' }))
     expect(screen.queryByRole('heading', { name: 'Overview' })).not.toBeInTheDocument()
   })
 

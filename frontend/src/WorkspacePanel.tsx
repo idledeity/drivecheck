@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { IconChevronUp, IconChevronDown } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
+import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
 import HistoryTab from "./HistoryTab"
 import QueueTab from "./QueueTab"
@@ -31,9 +31,13 @@ export default function WorkspacePanel({ drives, selected, jobs, onCancelJob, on
   return (
     <div className="ws-panel">
       <div className="ws-toggle-row">
-        <button className="ws-toggle" onClick={() => setExpanded(e => !e)}>
-          {expanded ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />}
-        </button>
+        <CollapseToggle
+          collapsed={!expanded}
+          onToggle={() => setExpanded(e => !e)}
+          orientation="vertical"
+          expandLabel="Expand workspace panel"
+          collapseLabel="Collapse workspace panel"
+        />
       </div>
       {expanded && (
         <>

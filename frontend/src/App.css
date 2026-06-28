@@ -71,6 +71,72 @@
   text-align: left;
 }
 
+/* Shared icon-only utility button (Settings + WorkspacePanel): muted cyan at
+   rest, brighter cyan with a matching tint on hover/focus. Disabled buttons
+   keep the muted resting color and just lose the hover reaction, so
+   disabled vs. enabled reads via opacity/cursor rather than a hue change.
+   Callers add their own class alongside this one for layout specifics
+   (width, border, placement within a flex parent, etc). */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--cy);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.icon-btn:hover:not(:disabled), .icon-btn:focus:not(:disabled) {
+  color: var(--cy2);
+  background: rgba(0, 238, 255, 0.12);
+}
+.icon-btn:disabled { cursor: default; opacity: 0.5; }
+
+/* Shared labeled "tinted" action button (Settings Save/Discard/Restart):
+   same shape and muted-at-rest/bright-on-interaction mechanics everywhere,
+   just a different accent color per use. Pair this class with a .tint-*
+   modifier (below) that supplies the six color custom properties — kept as
+   literal values rather than computed (e.g. color-mix) so each variant's
+   exact resting/hover shades stay pinned to what's already shipped. */
+.tinted-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tint-text);
+  background: var(--tint-bg);
+  border: 1px solid var(--tint-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.tinted-btn:hover:not(:disabled), .tinted-btn:focus:not(:disabled) {
+  color: var(--tint-text-hover);
+  background: var(--tint-bg-hover);
+  border-color: var(--tint-border-hover);
+}
+.tinted-btn:disabled { opacity: 0.5; cursor: default; }
+
+.tint-cy {
+  --tint-text: var(--cy);
+  --tint-bg: rgba(24, 196, 238, 0.1);
+  --tint-border: rgba(24, 196, 238, 0.3);
+  --tint-text-hover: var(--cy2);
+  --tint-bg-hover: rgba(0, 238, 255, 0.16);
+  --tint-border-hover: rgba(0, 238, 255, 0.5);
+}
+
+.tint-re {
+  --tint-text: rgba(255, 112, 112, 0.7);
+  --tint-bg: rgba(255, 112, 112, 0.1);
+  --tint-border: rgba(255, 112, 112, 0.3);
+  --tint-text-hover: var(--re);
+  --tint-bg-hover: rgba(255, 112, 112, 0.18);
+  --tint-border-hover: rgba(255, 112, 112, 0.5);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

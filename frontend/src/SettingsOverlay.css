@@ -43,17 +43,7 @@
 
 .so-close {
   margin-left: auto;
-  display: flex;
-  align-items: center;
-  background: none;
-  border: none;
-  color: var(--t4);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.1s, background 0.1s;
 }
-.so-close:hover { color: var(--t1); background: rgba(255, 255, 255, 0.08); }
 
 /* ── Body: nav + content ── */
 
@@ -119,22 +109,15 @@
 .so-nav-btn.active { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
 
 /* Pushed to the bottom of the sidebar via margin-top:auto on .so-nav's flex
-   column, separate from the tab buttons above it. */
+   column, separate from the tab buttons above it. Visual chrome (icon-only
+   chip background, hover/focus tint) comes from CollapseToggle's own
+   .icon-btn/.collapse-toggle-btn classes — this is layout placement only. */
 .so-nav-collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: flex-end;
+  width: 28px;
   margin-top: auto;
   flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--t4);
-  cursor: pointer;
-  padding: 5px;
-  border-radius: 6px;
-  transition: color 0.1s, background 0.1s;
 }
-.so-nav-collapse-btn:hover { color: var(--t1); background: rgba(255, 255, 255, 0.05); }
 
 .so-nav-icon-config { color: var(--cy); opacity: 0.65; flex-shrink: 0; }
 .so-nav-icon-logs   { color: var(--wa); opacity: 0.65; flex-shrink: 0; }
@@ -159,7 +142,7 @@
   background: none;
   border: none;
   padding: 3px 6px;
-  color: var(--t4);
+  color: var(--cy);
   font-size: 10.5px;
   cursor: pointer;
   border-radius: 4px;
@@ -172,7 +155,7 @@
    icon too via inheritance by default; .active overrides that at rest, but
    :hover punches back through it below so a hovered active button still
    brightens. */
-.so-toolbar-btn:hover:not(:disabled) { color: var(--cy2); background: rgba(0, 238, 255, 0.12); }
+.so-toolbar-btn:hover:not(:disabled), .so-toolbar-btn:focus:not(:disabled) { color: var(--cy2); background: rgba(0, 238, 255, 0.12); }
 .so-toolbar-btn:disabled { cursor: default; opacity: 0.5; }
 
 /* "On" state for a toolbar button used as a toggle (Filter, Line numbers,
@@ -348,18 +331,8 @@
 }
 
 .cfg-reset-btn {
-  display: inline-flex;
-  align-items: center;
   flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--t4);
-  cursor: pointer;
-  padding: 5px;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
 }
-.cfg-reset-btn:hover { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
 
 .cfg-prop-control select,
 .cfg-prop-control input[type="number"],
@@ -401,19 +374,11 @@
   flex-shrink: 0;
 }
 
+/* Slightly wider than the shared .tinted-btn default — its "Save (N
+   changes)" label runs longer than Discard/Restart's fixed text. */
 .cfg-save-btn {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--cy);
-  background: rgba(24, 196, 238, 0.1);
-  border: 1px solid rgba(24, 196, 238, 0.3);
-  border-radius: 6px;
   padding: 6px 14px;
-  cursor: pointer;
-  transition: background 0.15s;
 }
-.cfg-save-btn:hover:not(:disabled) { background: rgba(24, 196, 238, 0.18); }
-.cfg-save-btn:disabled { opacity: 0.5; cursor: default; }
 
 .cfg-restart-note {
   display: flex;
@@ -423,41 +388,23 @@
   color: var(--re);
 }
 
-.cfg-discard-btn {
-  font-size: 12px;
-  color: var(--t2);
-  background: none;
-  border: 1px solid var(--bd2);
-  border-radius: 6px;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s, background 0.1s;
-}
-.cfg-discard-btn:hover { color: var(--re); border-color: rgba(255, 112, 112, 0.5); }
-
+/* "Armed" confirm state, not part of the shared .tinted-btn rest/hover
+   language — solid fill, not a tint, since this is one click from
+   committing to the discard. */
 .cfg-discard-btn.confirming {
   color: var(--bp);
   background: var(--re);
   border-color: var(--re);
-  font-weight: 600;
 }
 .cfg-discard-btn.confirming:hover { background: var(--re); }
 
+/* Icon + label layout, the one structural difference from Save/Discard's
+   plain text — colors/hover/disabled all come from .tinted-btn.tint-re. */
 .restart-trigger-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: var(--t2);
-  background: none;
-  border: 1px solid var(--bd2);
-  border-radius: 6px;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
 }
-.restart-trigger-btn:hover:not(:disabled) { color: var(--re); border-color: rgba(255, 112, 112, 0.5); }
-.restart-trigger-btn:disabled { opacity: 0.6; cursor: default; }
 
 .restart-confirm-popover {
   position: fixed;
@@ -597,22 +544,12 @@
   color: var(--t5);
 }
 
-/* Icon-only always (no responsive .control-text) — small like .logs-count,
-   but a brighter resting color than it: same shade as .logs-count would
-   read as disabled/inert rather than as a button waiting to be clicked. */
+/* Icon-only always (no responsive .control-text) — visual treatment comes
+   from the shared .icon-btn class; just tightens the padding a touch since
+   this sits in a dense toolbar row. */
 .logs-refresh-btn {
-  display: flex;
-  align-items: center;
-  background: none;
-  border: none;
   padding: 2px;
-  color: var(--t4);
-  cursor: pointer;
-  border-radius: 3px;
-  transition: color 0.15s, background 0.15s;
 }
-.logs-refresh-btn:hover:not(:disabled) { color: var(--cy); background: rgba(24, 196, 238, 0.1); }
-.logs-refresh-btn:disabled { cursor: default; opacity: 0.5; }
 
 .logs-field {
   display: flex;

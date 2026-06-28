@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconChevronLeft, IconChevronRight, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
+import CollapseToggle from "./CollapseToggle"
 import "./SettingsOverlay.css"
 
 type SettingsTab = "config" | "logs" | "about"
@@ -32,7 +33,7 @@ export default function SettingsOverlay({ onClose }: Props) {
       <div className="so-panel">
         <div className="so-titlebar">
           <span className="so-title">Settings</span>
-          <button className="so-close" onClick={onClose}><IconX size={14} /></button>
+          <button className="icon-btn so-close" onClick={onClose}><IconX size={14} /></button>
         </div>
         <div className="so-body">
           <nav className={`so-nav${navCollapsed ? " collapsed" : ""}`}>
@@ -47,13 +48,14 @@ export default function SettingsOverlay({ onClose }: Props) {
                 {!navCollapsed && <span>{t.label}</span>}
               </button>
             ))}
-            <button
+            <CollapseToggle
+              collapsed={navCollapsed}
+              onToggle={() => setNavCollapsed(c => !c)}
+              orientation="horizontal"
+              expandLabel="Expand categories"
+              collapseLabel="Collapse categories"
               className="so-nav-collapse-btn"
-              onClick={() => setNavCollapsed(c => !c)}
-              title={navCollapsed ? "Expand categories" : "Collapse categories"}
-            >
-              {navCollapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
-            </button>
+            />
           </nav>
           <div className="so-content">
             {tab === "config" && <ConfigTab />}
@@ -166,7 +168,7 @@ function ConfigTab() {
       </div>
       <div className="cfg-footer">
         <button
-          className="cfg-save-btn"
+          className="tinted-btn tint-cy cfg-save-btn"
           onClick={handleSave}
           disabled={pendingCount === 0 || saving}
         >
@@ -178,7 +180,7 @@ function ConfigTab() {
         </button>
         {pendingCount > 0 && (
           <button
-            className={`cfg-discard-btn${confirmingDiscard ? " confirming" : ""}`}
+            className={`tinted-btn tint-re cfg-discard-btn${confirmingDiscard ? " confirming" : ""}`}
             onClick={() => {
               if (confirmingDiscard) {
                 setPending({})
@@ -333,7 +335,7 @@ function RestartButton({ label, onRestarted }: RestartButtonProps) {
 
   return (
     <>
-      <button ref={btnRef} className="restart-trigger-btn" onClick={openConfirm} disabled={restarting}>
+      <button ref={btnRef} className="tinted-btn tint-re restart-trigger-btn" onClick={openConfirm} disabled={restarting}>
         <IconPower size={13} className={restarting ? "spinning" : ""} />
         {restarting ? "Restarting…" : label}
       </button>
@@ -381,7 +383,7 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
             footer's Discard button is for — showing this too would raise
             "revert to what?" between the pending edit and the default. */}
         {!dirty && value !== prop.default && (
-          <button className="cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
+          <button className="icon-btn cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
             <IconRotate2 size={14} />
           </button>
         )}
@@ -598,7 +600,7 @@ function LogsTab() {
           {records.length > 0 && (
             <span className="logs-count">{records.length} entries</span>
           )}
-          <button className="logs-refresh-btn" onClick={load} disabled={loading} title="Refresh logs">
+          <button className="icon-btn logs-refresh-btn" onClick={load} disabled={loading} title="Refresh logs">
             <IconRefresh size={12} className={loading ? "spinning" : ""} />
           </button>
         </div>

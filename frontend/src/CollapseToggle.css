@@ -1,0 +1,6 @@
+/* Faint resting background so the toggle reads as a button even before
+   hover — a compound selector beats .icon-btn's `background: none` on
+   specificity rather than relying on stylesheet import order. */
+.icon-btn.collapse-toggle-btn {
+  background: rgba(255, 255, 255, 0.04);
+}

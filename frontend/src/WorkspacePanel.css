@@ -14,18 +14,6 @@
   padding: 0;
 }
 
-.ws-toggle {
-  display: flex;
-  align-items: center;
-  background: none;
-  border: 1px solid #6e7490;
-  color: rgba(24,196,238,0.55);
-  cursor: pointer;
-  padding: 0 8px;
-  border-radius: 4px;
-}
-
-
 /* ── Header ── */
 .ws-header {
   display: flex;
