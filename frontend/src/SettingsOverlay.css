@@ -194,16 +194,6 @@
   margin-bottom: 14px;
   flex-shrink: 0;
 }
-.cfg-banner-warn  {
-  color: var(--wa);
-  background: var(--wbg);
-  border: 1px solid rgba(255, 178, 46, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 .cfg-banner-error { color: var(--re); background: var(--rbg); border: 1px solid rgba(255, 112, 112, 0.25); }
 
 .cfg-sections {
@@ -380,14 +370,6 @@
   padding: 6px 14px;
 }
 
-.cfg-restart-note {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--re);
-}
-
 /* "Armed" confirm state, not part of the shared .tinted-btn rest/hover
    language — solid fill, not a tint, since this is one click from
    committing to the discard. */
@@ -448,6 +430,41 @@
   border-radius: 4px;
   padding: 4px 10px;
   cursor: pointer;
+}
+
+/* Auto-shown after a save that needs a restart — same centered-scrim
+   pattern as .so-scrim/.so-panel, just for a small confirm card instead of
+   the full Settings overlay. */
+.restart-prompt-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.restart-prompt-card {
+  width: 400px;
+  background: var(--bt);
+  border: 1px solid var(--bd2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.restart-prompt-card p {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--t2);
+  margin: 0 0 8px;
+}
+.restart-prompt-detail {
+  color: var(--t5);
+  font-size: 11.5px;
+}
+.restart-prompt-card .restart-confirm-actions {
+  margin-top: 10px;
 }
 
 /* ── Logs tab ── */

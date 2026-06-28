@@ -86,9 +86,6 @@ function ConfigTab() {
 
   const sections = [...new Set(configProps.map(p => p.section))]
   const pendingCount = Object.keys(pending).length
-  const pendingNeedsRestart = Object.keys(pending).some(
-    key => configProps.find(p => p.key === key)?.restart_required,
-  )
 
   // Reverts the "Confirm?" state automatically if the user doesn't follow
   // through with a second click, and also if pending changes are cleared
@@ -142,10 +139,7 @@ function ConfigTab() {
   return (
     <div className="cfg-tab">
       {restartKeys.length > 0 && (
-        <div className="cfg-banner cfg-banner-warn">
-          <span>Restart required to apply: {restartKeys.join(", ")}</span>
-          <RestartButton label="Restart Now" onRestarted={() => setRestartKeys([])} />
-        </div>
+        <RestartPromptModal keys={restartKeys} onRestarted={() => setRestartKeys([])} onDismiss={() => setRestartKeys([])} />
       )}
       {saveError && (
         <div className="cfg-banner cfg-banner-error">{saveError}</div>
@@ -191,12 +185,6 @@ function ConfigTab() {
           >
             {confirmingDiscard ? "Confirm?" : "Discard"}
           </button>
-        )}
-        {pendingNeedsRestart && (
-          <span className="cfg-restart-note">
-            <IconPower size={12} />
-            Restart required after save
-          </span>
         )}
       </div>
     </div>
@@ -270,6 +258,35 @@ function HoverReveal({ text, className, mono, children }: { text: string; classN
   )
 }
 
+// Shared by RestartButton and RestartPromptModal: POSTs /api/restart, then
+// polls /api/config until the backend answers again (or 30s elapses).
+function useBackendRestart(onRestarted?: () => void) {
+  const [restarting, setRestarting] = useState(false)
+
+  const doRestart = async () => {
+    setRestarting(true)
+    try {
+      await fetch("/api/restart", { method: "POST" })
+    } catch {
+      // The connection dropping here is expected once the process exits.
+    }
+
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 1000))
+      try {
+        if ((await fetch("/api/config")).ok) break
+      } catch {
+        // Still down — keep polling until the deadline.
+      }
+    }
+    setRestarting(false)
+    onRestarted?.()
+  }
+
+  return { restarting, doRestart }
+}
+
 interface RestartButtonProps {
   label: string
   onRestarted?: () => void
@@ -281,7 +298,7 @@ interface RestartButtonProps {
 // gets a more deliberate confirm step with explicit warning text.
 function RestartButton({ label, onRestarted }: RestartButtonProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [restarting, setRestarting] = useState(false)
+  const { restarting, doRestart } = useBackendRestart(onRestarted)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
@@ -311,28 +328,6 @@ function RestartButton({ label, onRestarted }: RestartButtonProps) {
     }
   }, [confirmOpen])
 
-  const doRestart = async () => {
-    setConfirmOpen(false)
-    setRestarting(true)
-    try {
-      await fetch("/api/restart", { method: "POST" })
-    } catch {
-      // The connection dropping here is expected once the process exits.
-    }
-
-    const deadline = Date.now() + 30_000
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 1000))
-      try {
-        if ((await fetch("/api/config")).ok) break
-      } catch {
-        // Still down — keep polling until the deadline.
-      }
-    }
-    setRestarting(false)
-    onRestarted?.()
-  }
-
   return (
     <>
       <button ref={btnRef} className="tinted-btn tint-re restart-trigger-btn" onClick={openConfirm} disabled={restarting}>
@@ -344,12 +339,42 @@ function RestartButton({ label, onRestarted }: RestartButtonProps) {
           <p>This restarts the backend service. Connected clients (including this one) will briefly disconnect while it comes back up.</p>
           <div className="restart-confirm-actions">
             <button className="restart-confirm-cancel" onClick={() => setConfirmOpen(false)}>Cancel</button>
-            <button className="restart-confirm-yes" onClick={doRestart}>Restart</button>
+            <button className="restart-confirm-yes" onClick={() => { setConfirmOpen(false); doRestart() }}>Restart</button>
           </div>
         </div>,
         document.body,
       )}
     </>
+  )
+}
+
+interface RestartPromptModalProps {
+  keys: string[]
+  onRestarted: () => void
+  onDismiss: () => void
+}
+
+// Shown automatically right after a save whose changes need a backend
+// restart to take effect — unlike RestartButton's popover (anchored to the
+// button that opened it), this has no anchor to position against, so it's
+// a centered scrim modal instead.
+function RestartPromptModal({ keys, onRestarted, onDismiss }: RestartPromptModalProps) {
+  const { restarting, doRestart } = useBackendRestart(onRestarted)
+  return createPortal(
+    <div className="restart-prompt-scrim" onClick={e => e.target === e.currentTarget && !restarting && onDismiss()}>
+      <div className="restart-prompt-card">
+        <p>Restart required to apply: {keys.join(", ")}</p>
+        <p className="restart-prompt-detail">This restarts the backend service. Connected clients (including this one) will briefly disconnect while it comes back up.</p>
+        <div className="restart-confirm-actions">
+          <button className="text-link-btn" onClick={onDismiss} disabled={restarting}>Later</button>
+          <button className="tinted-btn tint-re restart-trigger-btn" onClick={doRestart} disabled={restarting}>
+            <IconPower size={12} className={restarting ? "spinning" : ""} />
+            {restarting ? "Restarting…" : "Restart Now"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

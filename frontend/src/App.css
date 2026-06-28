@@ -137,6 +137,22 @@
   --tint-border-hover: rgba(255, 112, 112, 0.5);
 }
 
+/* Plain-text secondary action — neutral grey at rest so it doesn't compete
+   with a "real" tinted button next to it, brightening to cyan on
+   hover/focus as the only sign it's interactive. No chip background/border
+   at all, even on hover. */
+.text-link-btn {
+  font-size: 12px;
+  color: var(--t4);
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.text-link-btn:hover:not(:disabled), .text-link-btn:focus:not(:disabled) { color: var(--cy2); }
+.text-link-btn:disabled { opacity: 0.5; cursor: default; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
