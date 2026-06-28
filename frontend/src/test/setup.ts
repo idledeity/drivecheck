@@ -15,6 +15,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 // (no `globals: true` in vite.config.ts) — so it's wired up explicitly here.
 afterEach(() => {
   cleanup()
+  sessionStorage.clear()
 })
 
 // jsdom doesn't implement scrollIntoView at all (it does no layout).

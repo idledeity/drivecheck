@@ -12,11 +12,18 @@ export default function App() {
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Persisted to sessionStorage so a refresh while Settings is open doesn't
+  // silently drop back to the main view.
+  const [settingsOpen, setSettingsOpen] = useState(() => sessionStorage.getItem("drivecheck.settingsOpen") === "1")
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(setSettings).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (settingsOpen) sessionStorage.setItem("drivecheck.settingsOpen", "1")
+    else sessionStorage.removeItem("drivecheck.settingsOpen")
+  }, [settingsOpen])
 
   const loadDrives = () =>
     fetch("/api/drives")

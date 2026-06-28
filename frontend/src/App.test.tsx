@@ -200,9 +200,17 @@ describe('App', () => {
 
     await userEvent.click(screen.getByTitle('Settings'))
     expect(screen.getByTestId('settings-overlay')).toBeInTheDocument()
+    expect(sessionStorage.getItem('drivecheck.settingsOpen')).toBe('1')
 
     await userEvent.click(screen.getByText('close-settings'))
     expect(screen.queryByTestId('settings-overlay')).not.toBeInTheDocument()
+    expect(sessionStorage.getItem('drivecheck.settingsOpen')).toBeNull()
+  })
+
+  it('reopens the settings overlay on mount if it was left open (e.g. a refresh)', async () => {
+    sessionStorage.setItem('drivecheck.settingsOpen', '1')
+    render(<App />)
+    expect(screen.getByTestId('settings-overlay')).toBeInTheDocument()
   })
 
   it('cancels a job from the Queue tab', async () => {
