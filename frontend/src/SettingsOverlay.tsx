@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
@@ -21,19 +21,30 @@ interface Props {
 export default function SettingsOverlay({ onClose }: Props) {
   const [tab, setTab] = useState<SettingsTab>("config")
   const [navCollapsed, setNavCollapsed] = useState(false)
+  const [configDirty, setConfigDirty] = useState(false)
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+
+  // Routes every close trigger (X button, Escape, scrim click) through one
+  // place — if Config has unsaved edits, ask first instead of letting any
+  // of them silently discard the pending changes ConfigTab is now keeping
+  // alive across tab switches.
+  const requestClose = useCallback(() => {
+    if (configDirty) setCloseConfirmOpen(true)
+    else onClose()
+  }, [configDirty, onClose])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose() }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [onClose])
+  }, [requestClose])
 
   return (
-    <div className="so-scrim" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="so-scrim" onClick={e => e.target === e.currentTarget && requestClose()}>
       <div className="so-panel">
         <div className="so-titlebar">
           <span className="so-title">Settings</span>
-          <button className="icon-btn so-close" onClick={onClose}><IconX size={14} /></button>
+          <button className="icon-btn so-close" onClick={requestClose}><IconX size={14} /></button>
         </div>
         <div className="so-body">
           <nav className={`so-nav${navCollapsed ? " collapsed" : ""}`}>
@@ -58,12 +69,26 @@ export default function SettingsOverlay({ onClose }: Props) {
             />
           </nav>
           <div className="so-content">
-            {tab === "config" && <ConfigTab />}
+            {/* Always mounted, just hidden — unlike Logs/About, Config has
+                in-progress edits (`pending`) that switching tabs shouldn't
+                silently discard the way unmounting it would. */}
+            <div className={`so-tab-panel${tab === "config" ? "" : " so-tab-hidden"}`}>
+              <ConfigTab onDirtyChange={setConfigDirty} />
+            </div>
             {tab === "logs"   && <LogsTab />}
             {tab === "about"  && <AboutTab />}
           </div>
         </div>
       </div>
+      {closeConfirmOpen && (
+        <ConfirmModal
+          message="Discard unsaved config changes?"
+          detail="Closing Settings now will discard any edits that haven't been saved."
+          confirmLabel="Discard & Close"
+          onConfirm={() => { setCloseConfirmOpen(false); onClose() }}
+          onCancel={() => setCloseConfirmOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -72,7 +97,11 @@ export default function SettingsOverlay({ onClose }: Props) {
 // Config tab
 // ---------------------------------------------------------------------------
 
-function ConfigTab() {
+interface ConfigTabProps {
+  onDirtyChange: (dirty: boolean) => void
+}
+
+function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const [configProps, setConfigProps] = useState<ConfigProp[]>([])
   const [pending, setPending] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
@@ -86,6 +115,10 @@ function ConfigTab() {
 
   const sections = [...new Set(configProps.map(p => p.section))]
   const pendingCount = Object.keys(pending).length
+
+  // Lets SettingsOverlay guard its own close paths (X, Escape, scrim click)
+  // without owning `pending` itself — ConfigTab stays the source of truth.
+  useEffect(() => { onDirtyChange(pendingCount > 0) }, [pendingCount, onDirtyChange])
 
   // Reverts the "Confirm?" state automatically if the user doesn't follow
   // through with a second click, and also if pending changes are cleared
@@ -361,16 +394,44 @@ interface RestartPromptModalProps {
 function RestartPromptModal({ keys, onRestarted, onDismiss }: RestartPromptModalProps) {
   const { restarting, doRestart } = useBackendRestart(onRestarted)
   return createPortal(
-    <div className="restart-prompt-scrim" onClick={e => e.target === e.currentTarget && !restarting && onDismiss()}>
-      <div className="restart-prompt-card">
+    <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && !restarting && onDismiss()}>
+      <div className="confirm-card">
         <p>Restart required to apply: {keys.join(", ")}</p>
-        <p className="restart-prompt-detail">This restarts the backend service. Connected clients (including this one) will briefly disconnect while it comes back up.</p>
+        <p className="confirm-detail">This restarts the backend service. Connected clients (including this one) will briefly disconnect while it comes back up.</p>
         <div className="restart-confirm-actions">
           <button className="text-link-btn" onClick={onDismiss} disabled={restarting}>Later</button>
           <button className="tinted-btn tint-re restart-trigger-btn" onClick={doRestart} disabled={restarting}>
             <IconPower size={12} className={restarting ? "spinning" : ""} />
             {restarting ? "Restarting…" : "Restart Now"}
           </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+interface ConfirmModalProps {
+  message: string
+  detail?: string
+  confirmLabel: string
+  cancelLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+// Generic Cancel/Confirm scrim modal — same shape as RestartPromptModal
+// above, minus the restart-specific loading state, for confirmations that
+// resolve instantly (e.g. discarding unsaved changes).
+function ConfirmModal({ message, detail, confirmLabel, cancelLabel = "Cancel", onConfirm, onCancel }: ConfirmModalProps) {
+  return createPortal(
+    <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && onCancel()}>
+      <div className="confirm-card">
+        <p>{message}</p>
+        {detail && <p className="confirm-detail">{detail}</p>}
+        <div className="restart-confirm-actions">
+          <button className="text-link-btn" onClick={onCancel}>{cancelLabel}</button>
+          <button className="tinted-btn tint-re" onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>,

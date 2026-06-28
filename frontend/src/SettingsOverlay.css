@@ -133,6 +133,19 @@
   flex-direction: column;
 }
 
+/* Wraps ConfigTab so it can stay mounted (and keep its pending edits) while
+   hidden behind another tab — same flex-fill sizing .cfg-tab relied on as
+   a direct .so-content child, just on this wrapper instead. */
+.so-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.so-tab-panel.so-tab-hidden {
+  display: none;
+}
+
 /* Shared toolbar button (mirrors gc-btn style) */
 
 .so-toolbar-btn {
@@ -474,10 +487,10 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   cursor: pointer;
 }
 
-/* Auto-shown after a save that needs a restart — same centered-scrim
-   pattern as .so-scrim/.so-panel, just for a small confirm card instead of
-   the full Settings overlay. */
-.restart-prompt-scrim {
+/* Generic Cancel/Confirm scrim modal (restart prompt, unsaved-changes
+   prompt, ...) — same centered-scrim pattern as .so-scrim/.so-panel, just
+   for a small confirm card instead of the full Settings overlay. */
+.confirm-scrim {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -487,7 +500,7 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   justify-content: center;
 }
 
-.restart-prompt-card {
+.confirm-card {
   width: 400px;
   background: var(--bt);
   border: 1px solid var(--bd2);
@@ -495,17 +508,17 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   padding: 16px 18px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-.restart-prompt-card p {
+.confirm-card p {
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--t2);
   margin: 0 0 8px;
 }
-.restart-prompt-detail {
+.confirm-detail {
   color: var(--t5);
   font-size: 11.5px;
 }
-.restart-prompt-card .restart-confirm-actions {
+.confirm-card .restart-confirm-actions {
   margin-top: 10px;
 }
 

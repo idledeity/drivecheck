@@ -101,6 +101,34 @@ describe('SettingsOverlay shell', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('confirms before closing with unsaved Config changes, and Cancel keeps them', async () => {
+    const onClose = vi.fn()
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343 })]
+    render(<SettingsOverlay onClose={onClose} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
+    await userEvent.click(screen.getByRole('button', { name: '' }))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText('Discard unsaved config changes?')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('spinbutton')).toHaveValue(9000)
+  })
+
+  it('closes and discards unsaved Config changes when confirmed', async () => {
+    const onClose = vi.fn()
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343 })]
+    render(<SettingsOverlay onClose={onClose} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
+    await userEvent.click(screen.getByRole('button', { name: '' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Discard & Close' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('collapses the nav, hiding tab labels', async () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     expect(screen.getByText('Config')).toBeInTheDocument()
@@ -137,6 +165,21 @@ describe('ConfigTab', () => {
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeEnabled()
     expect(document.querySelector('.cfg-prop-row')).toHaveClass('dirty')
+  })
+
+  it('keeps a pending Config edit after switching tabs and back', async () => {
+    router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343 })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'About' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Config' }))
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(9000)
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeEnabled()
   })
 
   it('un-marks dirty when the value is changed back to the original', async () => {
