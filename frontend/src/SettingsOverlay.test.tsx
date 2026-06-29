@@ -40,12 +40,17 @@ function makeFetchRouter() {
     saveResponse: { restart_required: [] as string[] } as { restart_required?: string[]; error?: string },
     saveStatus: 200,
     rescanResponse: null as ConfigProp[] | null,
+    templateResponse: null as ConfigProp[] | { error: string } | null,
+    templateStatus: 200,
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.configProps))
     if (url === '/api/config' && method === 'PATCH') return Promise.resolve(fetchJsonResponse(state.saveResponse, state.saveStatus))
     if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(state.rescanResponse ?? state.configProps))
+    if (url === '/api/probes/template' && method === 'POST') {
+      return Promise.resolve(fetchJsonResponse(state.templateResponse ?? state.configProps, state.templateStatus))
+    }
     if (url.startsWith('/api/logs')) return Promise.resolve(fetchJsonResponse(state.logs))
     return Promise.resolve(fetchJsonResponse({}))
   })
@@ -314,7 +319,7 @@ describe('ConfigTab', () => {
     // (what actually gets stored) stay full dotted paths even though the
     // visible option text is shortened.
     const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__'])
+    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__', '__template__'])
     expect(screen.getByText('mount_status (native)')).toBeInTheDocument()
     expect(screen.getByTitle('drives.collector.probes.vitals.mount_status')).toBeInTheDocument()
   })
@@ -429,6 +434,65 @@ describe('ConfigTab', () => {
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/rescan', expect.objectContaining({ method: 'POST' })))
     await waitFor(() => expect(Array.from((screen.getByRole('combobox') as HTMLSelectElement).options).map(o => o.value))
       .toContain('new.found.probe'))
+  })
+
+  it('creates a new probe from a template, adds it to the list, and refreshes choices', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    router.state.templateResponse = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.my_probe'],
+    })]
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
+    await userEvent.type(screen.getByPlaceholderText('probe_name'), 'my_probe')
+    await userEvent.click(screen.getByTitle('Create'))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/template', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ category: 'vitals', name: 'my_probe' }),
+    })))
+    expect(screen.getByText('my_probe (custom)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('shows the server error and adds nothing when creating from a template fails', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    router.state.templateResponse = { error: 'name must be a valid Python identifier' }
+    router.state.templateStatus = 400
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
+    await userEvent.type(screen.getByPlaceholderText('probe_name'), 'bad name')
+    await userEvent.click(screen.getByTitle('Create'))
+
+    await waitFor(() => expect(screen.getByText('name must be a valid Python identifier')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  it('cancels the template mini-form without creating anything', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
+    await userEvent.type(screen.getByPlaceholderText('probe_name'), 'my_probe')
+    await userEvent.click(screen.getByTitle('Cancel'))
+
+    expect(screen.queryByPlaceholderText('probe_name')).not.toBeInTheDocument()
+    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/template', expect.anything())
+    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
   it('ignores non-numeric input on a numeric control', async () => {

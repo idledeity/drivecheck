@@ -36,6 +36,7 @@ import importlib
 import inspect
 import logging
 import pkgutil
+import re
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -69,6 +70,16 @@ def _custom_root() -> Path:
     same relative-or-absolute resolution as paths.data_dir() itself, just
     rooted at the data dir rather than the project root."""
     return (paths.data_dir() / cfg.get("collector.custom_probes_dir")).resolve()
+
+
+def probe_key(category: str) -> str:
+    return f"collector.{category}_probes"
+
+
+def _ensure_on_sys_path(custom_root: Path) -> None:
+    root_str = str(custom_root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
 
 
 def _is_probe_module(module: ModuleType, expected_arity: int) -> bool:
@@ -127,9 +138,7 @@ def _ensure_custom_category_dir(custom_root: Path, category: str) -> Path:
 
 def _scan_custom(custom_root: Path, category: str) -> list[str]:
     category_dir = _ensure_custom_category_dir(custom_root, category)
-    root_str = str(custom_root)
-    if root_str not in sys.path:
-        sys.path.insert(0, root_str)
+    _ensure_on_sys_path(custom_root)
 
     found = []
     for module_info in sorted(pkgutil.iter_modules([str(category_dir)]), key=lambda m: m.name):
@@ -165,8 +174,121 @@ def discover() -> None:
     for category in CATEGORY_ARITY:
         native = _scan_native(category)
         custom = _scan_custom(custom_root, category)
-        cfg.set_choices(f"collector.{category}_probes", native + custom)
+        cfg.set_choices(probe_key(category), native + custom)
         logger.info(
             "probe discovery: %s -> %d native, %d custom: %s",
             category, len(native), len(custom), ", ".join(native + custom) or "none",
         )
+
+
+class ProbeWriteError(Exception):
+    """A user-facing validation failure from write_probe_file — the message
+    is safe to return to the client as-is."""
+
+
+_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def custom_probe_path(category: str, name: str) -> Path:
+    return _ensure_custom_category_dir(_custom_root(), category) / f"{name}.py"
+
+
+def write_probe_file(category: str, name: str, content: bytes) -> None:
+    """Write `content` as custom_probes/<category>/<name>.py, then import it
+    and verify it actually matches `category`'s run() shape before keeping
+    it. Deletes the file (and clears any sys.modules entry, so a later
+    write reusing the same name can't accidentally resolve to this failed
+    attempt's cached import) and raises ProbeWriteError if validation fails
+    — so a bad upload/template never lingers as a broken choice.
+
+    Used by both the upload and template endpoints — they only differ in
+    where `content` comes from (a posted file vs. a generated template).
+
+    Note: importing necessarily executes the file's top-level code before
+    any of this validation runs. That's the same trust model every other
+    custom probe already gets at discovery time, not a new exposure — but
+    worth being explicit that this writes and runs arbitrary code the
+    caller provides, with no sandboxing.
+    """
+    if category not in CATEGORY_ARITY:
+        raise ProbeWriteError(f"unknown probe category: {category!r}")
+    if not _NAME_RE.fullmatch(name):
+        raise ProbeWriteError("name must be a valid Python identifier (letters, digits, underscore)")
+    dest = custom_probe_path(category, name)
+    if dest.exists():
+        raise ProbeWriteError(f"{name}.py already exists in custom_probes/{category}/")
+
+    _ensure_on_sys_path(_custom_root())
+    dest.write_bytes(content)
+    dotted = f"{category}.{name}"
+    try:
+        module = importlib.import_module(dotted)
+        ok = matches_category(module, category)
+        reason = None if ok else f"run() signature doesn't match {category} probes"
+    except Exception as e:
+        ok, reason = False, f"failed to import: {e}"
+    if not ok:
+        sys.modules.pop(dotted, None)
+        dest.unlink(missing_ok=True)
+        raise ProbeWriteError(reason)
+
+
+# One stub per category, written verbatim (just {name}-formatted) by the
+# template endpoint — correctly-shaped from the start (matches its
+# category's run() arity) so a probe created from a template is always a
+# safe no-op to add to the live chain immediately, before it's been filled in.
+PROBE_TEMPLATES: dict[str, str] = {
+    "scan": '''"""
+custom_probes.scan.{name} — custom scan probe.
+
+Runs as part of collector.scan_probes to discover attached drives.
+"""
+
+from drives.drive_models import DriveDescriptor
+
+
+def run() -> list[DriveDescriptor]:
+    # TODO: implement — return one DriveDescriptor per drive this probe finds.
+    return []
+''',
+    "traits": '''"""
+custom_probes.traits.{name} — custom traits probe.
+
+Runs as part of collector.traits_probes for each discovered drive.
+"""
+
+from drives.drive_models import DriveDescriptor, DriveTraits
+
+
+def run(descriptor: DriveDescriptor) -> DriveTraits:
+    # TODO: implement — only non-None fields here override earlier probes
+    # in the chain (see _merge_traits in drive_collector.py).
+    return DriveTraits()
+''',
+    "telemetry": '''"""
+custom_probes.telemetry.{name} — custom telemetry probe.
+
+Runs as part of collector.telemetry_probes on each telemetry poll.
+"""
+
+from drives.drive_models import DriveContext, DriveSnapshot
+
+
+def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
+    # TODO: implement — enrich and return the snapshot.
+    return snapshot
+''',
+    "vitals": '''"""
+custom_probes.vitals.{name} — custom vitals probe.
+
+Runs as part of collector.vitals_probes on each vitals poll.
+"""
+
+from drives.drive_models import DriveState, DriveVitals
+
+
+def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
+    # TODO: implement — enrich and return vitals.
+    return vitals
+''',
+}

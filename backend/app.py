@@ -276,6 +276,23 @@ def rescan_probes():
     return jsonify(cfg.props())
 
 
+@app.route("/api/probes/template", methods=["POST"])
+def template_probe():
+    """Write a correctly-shaped stub probe file for `category`, named
+    `name`, into the custom probes directory — gives a new custom probe
+    the right run() signature from the start, instead of discovering a
+    mismatch only after it's been written by hand."""
+    data = request.get_json(force=True) or {}
+    category, name = data.get("category", ""), data.get("name", "")
+    template = probe_registry.PROBE_TEMPLATES.get(category, "")
+    try:
+        probe_registry.write_probe_file(category, name, template.format(name=name).encode())
+    except probe_registry.ProbeWriteError as e:
+        return jsonify({"error": str(e)}), 400
+    probe_registry.discover()
+    return jsonify(cfg.props())
+
+
 @app.route("/api/config", methods=["PATCH"])
 def patch_config():
     updates = request.get_json(force=True) or {}

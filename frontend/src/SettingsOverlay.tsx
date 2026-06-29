@@ -217,6 +217,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
                 value={getValue(prop)}
                 dirty={prop.key in pending}
                 onChange={v => handleChange(prop, v)}
+                onChoicesRefresh={setConfigProps}
               />
             ))}
           </div>
@@ -473,9 +474,10 @@ interface PropRowProps {
   value: unknown
   dirty: boolean
   onChange: (value: unknown) => void
+  onChoicesRefresh: (props: ConfigProp[]) => void
 }
 
-function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
+function PropRow({ prop, value, dirty, onChange, onChoicesRefresh }: PropRowProps) {
   return (
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}${prop.type === "module_list" ? " cfg-prop-row-tall" : ""}`}>
       <label className="cfg-prop-label">
@@ -551,6 +553,7 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
             choices={prop.choices}
             onChange={onChange}
             category={prop.key.replace(/^collector\./, "").replace(/_probes$/, "")}
+            onChoicesRefresh={onChoicesRefresh}
           />
         )}
       </div>
@@ -559,15 +562,17 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
   )
 }
 
-// Sentinel for the "Add" dropdown's free-text option — never a real probe
-// path, so it can't collide with a discovered choice.
+// Sentinels for the "Add" dropdown's non-choice options — never real probe
+// paths, so they can't collide with a discovered choice.
 const ADD_CUSTOM_OPTION = "__custom__"
+const ADD_TEMPLATE_OPTION = "__template__"
 
 interface ModuleListControlProps {
   value: string[]
   choices: string[] | null
   onChange: (value: string[]) => void
   category: string
+  onChoicesRefresh: (props: ConfigProp[]) => void
 }
 
 // Full dotted paths (e.g. "drives.collector.probes.vitals.smartctl_vitals")
@@ -591,18 +596,53 @@ function shortProbeLabel(path: string, category: string): string {
 // these lists are short enough that it's not worth pulling one in), add
 // either from the discovered `choices` or a free-text fallback for probes
 // living outside the native/custom-dir catalog, remove per item.
-function ModuleListControl({ value, choices, onChange, category }: ModuleListControlProps) {
+function ModuleListControl({ value, choices, onChange, category, onChoicesRefresh }: ModuleListControlProps) {
   const [pendingChoice, setPendingChoice] = useState("")
   const [customText, setCustomText] = useState("")
+  const [templateName, setTemplateName] = useState("")
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [creatingFromTemplate, setCreatingFromTemplate] = useState(false)
 
   const availableChoices = (choices ?? []).filter(c => !value.includes(c))
+
+  const cancelAdd = () => {
+    setPendingChoice("")
+    setCustomText("")
+    setTemplateName("")
+    setTemplateError(null)
+  }
+
+  const createFromTemplate = async () => {
+    const name = templateName.trim()
+    if (!name) return
+    setCreatingFromTemplate(true)
+    setTemplateError(null)
+    try {
+      const res = await fetch("/api/probes/template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, name }),
+      })
+      const data = await res.json() as ConfigProp[] | { error: string }
+      if (!res.ok) {
+        setTemplateError("error" in data ? data.error : "Failed to create probe")
+        return
+      }
+      onChoicesRefresh(data as ConfigProp[])
+      onChange([...value, `${category}.${name}`])
+      cancelAdd()
+    } catch {
+      setTemplateError("Network error")
+    } finally {
+      setCreatingFromTemplate(false)
+    }
+  }
 
   const addItem = (path: string) => {
     const trimmed = path.trim()
     if (!trimmed || value.includes(trimmed)) return
     onChange([...value, trimmed])
-    setPendingChoice("")
-    setCustomText("")
+    cancelAdd()
   }
 
   const removeItem = (index: number) => onChange(value.filter((_, i) => i !== index))
@@ -642,7 +682,7 @@ function ModuleListControl({ value, choices, onChange, category }: ModuleListCon
           onChange={e => {
             const choice = e.target.value
             setPendingChoice(choice)
-            if (choice && choice !== ADD_CUSTOM_OPTION) addItem(choice)
+            if (choice && choice !== ADD_CUSTOM_OPTION && choice !== ADD_TEMPLATE_OPTION) addItem(choice)
           }}
         >
           {/* hidden: shows as the select's resting label when closed, but
@@ -652,6 +692,7 @@ function ModuleListControl({ value, choices, onChange, category }: ModuleListCon
             <option key={c} value={c} title={c}>{shortProbeLabel(c, category)}</option>
           ))}
           <option value={ADD_CUSTOM_OPTION}>Custom path…</option>
+          <option value={ADD_TEMPLATE_OPTION}>New probe…</option>
         </select>
         {pendingChoice === ADD_CUSTOM_OPTION && (
           <>
@@ -664,22 +705,42 @@ function ModuleListControl({ value, choices, onChange, category }: ModuleListCon
               onChange={e => setCustomText(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") addItem(customText)
-                if (e.key === "Escape") { setPendingChoice(""); setCustomText("") }
+                if (e.key === "Escape") cancelAdd()
               }}
             />
             <button className="icon-btn ml-add-custom-btn" onClick={() => addItem(customText)} title="Add">
               <IconPlus size={14} />
             </button>
-            <button
-              className="icon-btn ml-cancel-custom-btn"
-              onClick={() => { setPendingChoice(""); setCustomText("") }}
-              title="Cancel"
-            >
+            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} title="Cancel">
+              <IconX size={14} />
+            </button>
+          </>
+        )}
+        {pendingChoice === ADD_TEMPLATE_OPTION && (
+          <>
+            <input
+              className="ml-custom-input"
+              type="text"
+              placeholder="probe_name"
+              value={templateName}
+              autoFocus
+              disabled={creatingFromTemplate}
+              onChange={e => setTemplateName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") createFromTemplate()
+                if (e.key === "Escape") cancelAdd()
+              }}
+            />
+            <button className="icon-btn ml-add-custom-btn" onClick={createFromTemplate} disabled={creatingFromTemplate} title="Create">
+              <IconPlus size={14} />
+            </button>
+            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} disabled={creatingFromTemplate} title="Cancel">
               <IconX size={14} />
             </button>
           </>
         )}
       </div>
+      {templateError && <span className="ml-add-error">{templateError}</span>}
     </div>
   )
 }

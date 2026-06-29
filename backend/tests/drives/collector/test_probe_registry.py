@@ -100,3 +100,59 @@ def test_discover_respects_custom_probes_dir_override(tmp_path, isolated_data_di
     assert "traits.elsewhere_probe" in cfg._props["collector.traits_probes"].choices
     # And the default location (under the data dir) is untouched.
     assert not (isolated_data_dir / "custom_probes").exists()
+
+
+class TestWriteProbeFile:
+    def test_writes_an_importable_file_and_it_becomes_discoverable(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "my_new_probe", b"def run(vitals, state):\n    return vitals\n")
+        dest = isolated_data_dir / "custom_probes" / "vitals" / "my_new_probe.py"
+        assert dest.exists()
+
+        probe_registry.discover()
+        assert "vitals.my_new_probe" in cfg._props["collector.vitals_probes"].choices
+
+    def test_rejects_an_unknown_category(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeWriteError, match="unknown probe category"):
+            probe_registry.write_probe_file("not_a_category", "x", b"")
+        assert not (isolated_data_dir / "custom_probes").exists()
+
+    def test_rejects_an_invalid_name(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeWriteError, match="valid Python identifier"):
+            probe_registry.write_probe_file("vitals", "../escape", b"")
+
+    def test_rejects_a_name_that_already_exists(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "dup", b"def run(vitals, state):\n    return vitals\n")
+        with pytest.raises(probe_registry.ProbeWriteError, match="already exists"):
+            probe_registry.write_probe_file("vitals", "dup", b"def run(vitals, state):\n    return vitals\n")
+
+    def test_cleans_up_a_file_that_fails_to_import(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeWriteError, match="failed to import"):
+            probe_registry.write_probe_file("vitals", "broken", b"this is not valid python(((\n")
+        assert not (isolated_data_dir / "custom_probes" / "vitals" / "broken.py").exists()
+
+    def test_cleans_up_a_file_with_the_wrong_arity(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeWriteError, match="doesn't match vitals probes"):
+            probe_registry.write_probe_file("vitals", "wrong_shape", b"def run(only_one_arg):\n    pass\n")
+        assert not (isolated_data_dir / "custom_probes" / "vitals" / "wrong_shape.py").exists()
+
+    def test_a_failed_write_does_not_poison_a_later_successful_one_with_the_same_name(self, isolated_data_dir):
+        """A stale sys.modules entry from the failed attempt must not cause
+        a later write reusing the same name to resolve to old, deleted
+        content instead of re-importing the new file from disk."""
+        with pytest.raises(probe_registry.ProbeWriteError):
+            probe_registry.write_probe_file("vitals", "reused_name", b"def run(only_one_arg):\n    pass\n")
+
+        probe_registry.write_probe_file("vitals", "reused_name", b"def run(vitals, state):\n    return vitals\n")
+        probe_registry.discover()
+        assert "vitals.reused_name" in cfg._props["collector.vitals_probes"].choices
+
+
+class TestProbeTemplates:
+    @pytest.mark.parametrize("category", ["scan", "traits", "telemetry", "vitals"])
+    def test_each_template_is_a_valid_probe_for_its_own_category(self, category, isolated_data_dir):
+        template = probe_registry.PROBE_TEMPLATES[category]
+        content = template.format(name="from_template").encode()
+        probe_registry.write_probe_file(category, "from_template", content)  # must not raise
+
+        probe_registry.discover()
+        assert f"{category}.from_template" in cfg._props[probe_registry.probe_key(category)].choices

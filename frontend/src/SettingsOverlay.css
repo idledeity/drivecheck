@@ -472,6 +472,13 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   font-family: ui-monospace, Consolas, monospace;
 }
 
+.ml-add-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--re);
+}
+
 .cfg-prop-control input[type="checkbox"] {
   width: 16px;
   height: 16px;
