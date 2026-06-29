@@ -472,6 +472,13 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   font-family: ui-monospace, Consolas, monospace;
 }
 
+.ml-upload-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--t2);
+}
+
 .ml-add-error {
   display: block;
   margin-top: 4px;

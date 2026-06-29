@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown, IconUpload } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import "./SettingsOverlay.css"
@@ -566,6 +566,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh }: PropRowProp
 // paths, so they can't collide with a discovered choice.
 const ADD_CUSTOM_OPTION = "__custom__"
 const ADD_TEMPLATE_OPTION = "__template__"
+const ADD_UPLOAD_OPTION = "__upload__"
 
 interface ModuleListControlProps {
   value: string[]
@@ -602,6 +603,9 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
   const [templateName, setTemplateName] = useState("")
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [creatingFromTemplate, setCreatingFromTemplate] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const availableChoices = (choices ?? []).filter(c => !value.includes(c))
 
@@ -610,6 +614,8 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
     setCustomText("")
     setTemplateName("")
     setTemplateError(null)
+    setUploadFile(null)
+    setUploadError(null)
   }
 
   const createFromTemplate = async () => {
@@ -635,6 +641,35 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
       setTemplateError("Network error")
     } finally {
       setCreatingFromTemplate(false)
+    }
+  }
+
+  const uploadProbe = async () => {
+    if (!uploadFile) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const body = new FormData()
+      body.append("category", category)
+      body.append("file", uploadFile)
+      const res = await fetch("/api/probes/upload", { method: "POST", body })
+      const data = await res.json() as ConfigProp[] | { error: string }
+      if (!res.ok) {
+        setUploadError("error" in data ? data.error : "Failed to upload probe")
+        return
+      }
+      onChoicesRefresh(data as ConfigProp[])
+      // Mirrors the backend's own stem derivation (secure_filename then drop
+      // the .py suffix) for the common case of an already-clean filename —
+      // if the server actually saved it under a different name, the upload
+      // would have failed validation instead of succeeding here.
+      const stem = uploadFile.name.replace(/\.py$/i, "")
+      onChange([...value, `${category}.${stem}`])
+      cancelAdd()
+    } catch {
+      setUploadError("Network error")
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -682,7 +717,7 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
           onChange={e => {
             const choice = e.target.value
             setPendingChoice(choice)
-            if (choice && choice !== ADD_CUSTOM_OPTION && choice !== ADD_TEMPLATE_OPTION) addItem(choice)
+            if (choice && choice !== ADD_CUSTOM_OPTION && choice !== ADD_TEMPLATE_OPTION && choice !== ADD_UPLOAD_OPTION) addItem(choice)
           }}
         >
           {/* hidden: shows as the select's resting label when closed, but
@@ -693,6 +728,7 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
           ))}
           <option value={ADD_CUSTOM_OPTION}>Custom path…</option>
           <option value={ADD_TEMPLATE_OPTION}>New probe…</option>
+          <option value={ADD_UPLOAD_OPTION}>Upload file…</option>
         </select>
         {pendingChoice === ADD_CUSTOM_OPTION && (
           <>
@@ -739,8 +775,26 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
             </button>
           </>
         )}
+        {pendingChoice === ADD_UPLOAD_OPTION && (
+          <>
+            <input
+              className="ml-upload-input"
+              type="file"
+              accept=".py"
+              disabled={uploading}
+              onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+            />
+            <button className="icon-btn ml-add-custom-btn" onClick={uploadProbe} disabled={uploading || !uploadFile} title="Upload">
+              <IconUpload size={14} />
+            </button>
+            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} disabled={uploading} title="Cancel">
+              <IconX size={14} />
+            </button>
+          </>
+        )}
       </div>
       {templateError && <span className="ml-add-error">{templateError}</span>}
+      {uploadError && <span className="ml-add-error">{uploadError}</span>}
     </div>
   )
 }

@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
+from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
@@ -54,6 +55,10 @@ collector = Collector.from_config()
 job_registry = JobRegistry.from_config(get_context=collector.get_drive_context)
 
 app = Flask(__name__)
+# Generous for a single probe file plus multipart overhead — no other
+# endpoint needs a request body anywhere near this size. Flask returns 413
+# automatically for anything larger, before the body is even fully read.
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
 
 def _job_to_dict(job):
@@ -287,6 +292,25 @@ def template_probe():
     template = probe_registry.PROBE_TEMPLATES.get(category, "")
     try:
         probe_registry.write_probe_file(category, name, template.format(name=name).encode())
+    except probe_registry.ProbeWriteError as e:
+        return jsonify({"error": str(e)}), 400
+    probe_registry.discover()
+    return jsonify(cfg.props())
+
+
+@app.route("/api/probes/upload", methods=["POST"])
+def upload_probe():
+    """Save a posted .py file as a new custom probe for `category` — same
+    write-then-validate-then-clean-up-on-failure path as the template
+    endpoint, just with the file's content coming from the upload instead
+    of a generated stub."""
+    category = request.form.get("category", "")
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"error": "no file provided"}), 400
+    stem = Path(secure_filename(file.filename)).stem
+    try:
+        probe_registry.write_probe_file(category, stem, file.read())
     except probe_registry.ProbeWriteError as e:
         return jsonify({"error": str(e)}), 400
     probe_registry.discover()

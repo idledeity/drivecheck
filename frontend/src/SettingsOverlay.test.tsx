@@ -42,6 +42,8 @@ function makeFetchRouter() {
     rescanResponse: null as ConfigProp[] | null,
     templateResponse: null as ConfigProp[] | { error: string } | null,
     templateStatus: 200,
+    uploadResponse: null as ConfigProp[] | { error: string } | null,
+    uploadStatus: 200,
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
@@ -50,6 +52,9 @@ function makeFetchRouter() {
     if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(state.rescanResponse ?? state.configProps))
     if (url === '/api/probes/template' && method === 'POST') {
       return Promise.resolve(fetchJsonResponse(state.templateResponse ?? state.configProps, state.templateStatus))
+    }
+    if (url === '/api/probes/upload' && method === 'POST') {
+      return Promise.resolve(fetchJsonResponse(state.uploadResponse ?? state.configProps, state.uploadStatus))
     }
     if (url.startsWith('/api/logs')) return Promise.resolve(fetchJsonResponse(state.logs))
     return Promise.resolve(fetchJsonResponse({}))
@@ -319,7 +324,7 @@ describe('ConfigTab', () => {
     // (what actually gets stored) stay full dotted paths even though the
     // visible option text is shortened.
     const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__', '__template__'])
+    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__', '__template__', '__upload__'])
     expect(screen.getByText('mount_status (native)')).toBeInTheDocument()
     expect(screen.getByTitle('drives.collector.probes.vitals.mount_status')).toBeInTheDocument()
   })
@@ -492,6 +497,74 @@ describe('ConfigTab', () => {
 
     expect(screen.queryByPlaceholderText('probe_name')).not.toBeInTheDocument()
     expect(router.fn).not.toHaveBeenCalledWith('/api/probes/template', expect.anything())
+    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  it('uploads a probe file, adds it to the list, and refreshes choices', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    router.state.uploadResponse = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.uploaded_probe'],
+    })]
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
+    expect(screen.getByTitle('Upload')).toBeDisabled()
+
+    const file = new File(['def run(vitals, state):\n    return vitals\n'], 'uploaded_probe.py', { type: 'text/x-python' })
+    const fileInput = document.querySelector('.ml-upload-input') as HTMLInputElement
+    await userEvent.upload(fileInput, file)
+    expect(screen.getByTitle('Upload')).toBeEnabled()
+    await userEvent.click(screen.getByTitle('Upload'))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/upload', expect.objectContaining({ method: 'POST' })))
+    const [, init] = router.fn.mock.calls.find(c => c[0] === '/api/probes/upload')!
+    expect(init!.body).toBeInstanceOf(FormData)
+    expect((init!.body as FormData).get('category')).toBe('vitals')
+    expect((init!.body as FormData).get('file')).toBe(file)
+
+    expect(screen.getByText('uploaded_probe (custom)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('shows the server error and adds nothing when uploading fails', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    router.state.uploadResponse = { error: "run() signature doesn't match vitals probes" }
+    router.state.uploadStatus = 400
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
+    const file = new File(['def run(only_one_arg):\n    pass\n'], 'bad_probe.py', { type: 'text/x-python' })
+    await userEvent.upload(document.querySelector('.ml-upload-input') as HTMLInputElement, file)
+    await userEvent.click(screen.getByTitle('Upload'))
+
+    await waitFor(() => expect(screen.getByText("run() signature doesn't match vitals probes")).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  it('cancels the upload mini-form without uploading anything', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
+    const file = new File(['def run(vitals, state):\n    return vitals\n'], 'uploaded_probe.py', { type: 'text/x-python' })
+    await userEvent.upload(document.querySelector('.ml-upload-input') as HTMLInputElement, file)
+    await userEvent.click(screen.getByTitle('Cancel'))
+
+    expect(document.querySelector('.ml-upload-input')).not.toBeInTheDocument()
+    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/upload', expect.anything())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
