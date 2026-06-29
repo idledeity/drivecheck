@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import "./SettingsOverlay.css"
@@ -108,10 +108,26 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const [restartKeys, setRestartKeys] = useState<string[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+  const [rescanning, setRescanning] = useState(false)
 
   useEffect(() => {
     fetch("/api/config").then(r => r.json()).then(setConfigProps).catch(() => {})
   }, [])
+
+  // One rescan refreshes every module_list prop's suggested choices at
+  // once (it walks all four probe categories), so a single button covers
+  // all of them rather than one per row.
+  const handleRescanProbes = async () => {
+    setRescanning(true)
+    try {
+      const res = await fetch("/api/probes/rescan", { method: "POST" })
+      if (res.ok) setConfigProps(await res.json())
+    } catch {
+      // Best-effort — the existing choices just stay stale until retried.
+    } finally {
+      setRescanning(false)
+    }
+  }
 
   const sections = [...new Set(configProps.map(p => p.section))]
   const pendingCount = Object.keys(pending).length
@@ -180,7 +196,20 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
       <div className="cfg-sections">
         {sections.map(section => (
           <div key={section} className="cfg-section">
-            <h3 className="cfg-section-title">{section}</h3>
+            <h3 className="cfg-section-title">
+              {section}
+              {section === "Collector" && (
+                <button
+                  className="icon-btn cfg-rescan-btn"
+                  onClick={handleRescanProbes}
+                  disabled={rescanning}
+                  title="Rescan native + custom probe directories for newly added probes"
+                >
+                  <IconRefresh size={11} className={rescanning ? "spinning" : ""} />
+                  Rescan probes
+                </button>
+              )}
+            </h3>
             {configProps.filter(p => p.section === section).map(prop => (
               <PropRow
                 key={prop.key}
@@ -448,7 +477,7 @@ interface PropRowProps {
 
 function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
   return (
-    <div className={`cfg-prop-row${dirty ? " dirty" : ""}`}>
+    <div className={`cfg-prop-row${dirty ? " dirty" : ""}${prop.type === "module_list" ? " cfg-prop-row-tall" : ""}`}>
       <label className="cfg-prop-label">
         <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
         {prop.restart_required && (
@@ -516,8 +545,117 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
             onChange={e => onChange(e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
           />
         )}
+        {prop.type === "module_list" && (
+          <ModuleListControl value={value as string[]} choices={prop.choices} onChange={onChange} />
+        )}
       </div>
       <span className="cfg-prop-description">{prop.description}</span>
+    </div>
+  )
+}
+
+// Sentinel for the "Add" dropdown's free-text option — never a real probe
+// path, so it can't collide with a discovered choice.
+const ADD_CUSTOM_OPTION = "__custom__"
+
+interface ModuleListControlProps {
+  value: string[]
+  choices: string[] | null
+  onChange: (value: string[]) => void
+}
+
+// Array editor for module_list props (the probe chains): reorder via
+// up/down rather than drag-and-drop (no DnD library in this codebase, and
+// these lists are short enough that it's not worth pulling one in), add
+// either from the discovered `choices` or a free-text fallback for probes
+// living outside the native/custom-dir catalog, remove per item.
+function ModuleListControl({ value, choices, onChange }: ModuleListControlProps) {
+  const [pendingChoice, setPendingChoice] = useState("")
+  const [customText, setCustomText] = useState("")
+
+  const availableChoices = (choices ?? []).filter(c => !value.includes(c))
+
+  const addItem = (path: string) => {
+    const trimmed = path.trim()
+    if (!trimmed || value.includes(trimmed)) return
+    onChange([...value, trimmed])
+    setPendingChoice("")
+    setCustomText("")
+  }
+
+  const removeItem = (index: number) => onChange(value.filter((_, i) => i !== index))
+
+  const moveItem = (index: number, delta: number) => {
+    const target = index + delta
+    if (target < 0 || target >= value.length) return
+    const next = [...value]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  return (
+    <div className="cfg-ctl-module-list">
+      <ul className="ml-items">
+        {value.map((path, i) => (
+          <li key={path} className="ml-item">
+            <span className="ml-item-path">{path}</span>
+            <div className="ml-item-actions">
+              <button className="icon-btn ml-move-btn" disabled={i === 0} onClick={() => moveItem(i, -1)} title="Move up">
+                <IconChevronUp size={12} />
+              </button>
+              <button className="icon-btn ml-move-btn" disabled={i === value.length - 1} onClick={() => moveItem(i, 1)} title="Move down">
+                <IconChevronDown size={12} />
+              </button>
+              <button className="icon-btn ml-remove-btn" onClick={() => removeItem(i)} title="Remove">
+                <IconX size={12} />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="ml-add-row">
+        <select
+          className="ml-add-select"
+          value={pendingChoice}
+          onChange={e => {
+            const choice = e.target.value
+            setPendingChoice(choice)
+            if (choice && choice !== ADD_CUSTOM_OPTION) addItem(choice)
+          }}
+        >
+          {/* hidden: shows as the select's resting label when closed, but
+              isn't itself a choice — doesn't appear in the opened list. */}
+          <option value="" hidden>+ Add probe</option>
+          {availableChoices.map(c => <option key={c} value={c}>{c}</option>)}
+          <option value={ADD_CUSTOM_OPTION}>Custom path…</option>
+        </select>
+        {pendingChoice === ADD_CUSTOM_OPTION && (
+          <>
+            <input
+              className="ml-custom-input"
+              type="text"
+              placeholder="dotted.module.path"
+              value={customText}
+              autoFocus
+              onChange={e => setCustomText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") addItem(customText)
+                if (e.key === "Escape") { setPendingChoice(""); setCustomText("") }
+              }}
+            />
+            <button className="icon-btn ml-add-custom-btn" onClick={() => addItem(customText)} title="Add">
+              <IconPlus size={14} />
+            </button>
+            <button
+              className="icon-btn ml-cancel-custom-btn"
+              onClick={() => { setPendingChoice(""); setCustomText("") }}
+              title="Cancel"
+            >
+              <IconX size={14} />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

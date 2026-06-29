@@ -29,7 +29,7 @@ collector:
     - drives.collector.probes.vitals.smartctl_vitals
     - drives.collector.probes.vitals.sysfs_io
     - drives.collector.probes.vitals.mount_status
-
+  custom_probes_dir: custom_probes
 jobs:
   # Cap on simultaneously-running jobs across all drives. Per-drive exclusivity
   # already limits this to one job per drive, so any value >= the number of

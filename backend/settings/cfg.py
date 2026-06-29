@@ -36,7 +36,7 @@ See also: GET /api/config, PATCH /api/config in app.py.
 """
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -60,14 +60,17 @@ _yaml.indent(mapping=2, sequence=4, offset=2)  # matches config.yaml's existing 
 class ConfigProp:
     key: str
     default: object
-    type: str              # "int" | "float" | "str" | "bool" | "enum" | "list"
+    type: str              # "int" | "float" | "str" | "bool" | "enum" | "list" | "module_list"
     label: str
     section: str
     description: str           # short, always shown below the control
     tooltip: str | None = None # longer explanation, shown on hover only
     min: float | None = None
     max: float | None = None
-    choices: list[str] | None = None   # required when type == "enum"
+    choices: list[str] | None = None   # required when type == "enum"; for
+                                        # "module_list" it's a suggestion list
+                                        # (e.g. discovered probes), not enforced —
+                                        # see set_choices() / _validate() below
     restart_required: bool = True
     on_changed: Callable | None = field(default=None, repr=False)
 
@@ -259,6 +262,24 @@ def set_many(updates: dict[str, object]) -> list[str]:
     return restart_keys
 
 
+def set_choices(key: str, choices: list[str]) -> None:
+    """Update a registered prop's `choices` list (e.g. after probe_registry's
+    discover() rescans available modules). No-op if key isn't registered, so
+    callers don't need to special-case registration order.
+
+    Unlike set()/set_many(), this doesn't touch _values or fire on_changed —
+    `choices` is UI metadata, not a value the user is setting. Rebinds the
+    _props[key] entry to a new ConfigProp (via dataclasses.replace) rather
+    than mutating the existing one in place — tests that isolate _props via
+    `dict(cfg._props)` only get a fresh *container*, not fresh copies of the
+    ConfigProp objects inside it, so an in-place mutation here would still
+    leak into whatever the original dict's entry points at.
+    """
+    prop = _props.get(key)
+    if prop is not None:
+        _props[key] = replace(prop, choices=choices)
+
+
 # ---------------------------------------------------------------------------
 # API serialisation
 # ---------------------------------------------------------------------------
@@ -303,6 +324,11 @@ def _coerce(value: object, prop: ConfigProp) -> object:
     if value is None:
         return None
     t = prop.type
+    # Checked before the try below, not inside it: value being a bare string
+    # (not wrapped in a list) would otherwise iterate character-by-character
+    # rather than raise, since strings are themselves iterable.
+    if t in ("list", "module_list") and not isinstance(value, list):
+        raise ValueError(f"{prop.key}: expected a list, got {type(value).__name__}")
     try:
         if t == "int":
             return int(value)
@@ -314,7 +340,7 @@ def _coerce(value: object, prop: ConfigProp) -> object:
             return bool(value)
         if t in ("str", "enum"):
             return str(value)
-        if t == "list":
+        if t in ("list", "module_list"):
             return [str(item) for item in value]
     except (ValueError, TypeError) as e:
         raise ValueError(f"{prop.key}: cannot coerce {value!r} to {t}: {e}") from e
@@ -324,9 +350,11 @@ def _coerce(value: object, prop: ConfigProp) -> object:
 def _validate(value: object, prop: ConfigProp) -> None:
     if value is None:
         return
-    if prop.type == "list":
+    if prop.type in ("list", "module_list"):
         if not isinstance(value, list):
             raise ValueError(f"{prop.key}: must be a list, got {value!r}")
+        # choices is a suggestion list here, not an enum-style restriction —
+        # unlike below, membership isn't enforced (see set_choices()).
         return
     if prop.min is not None and value < prop.min:
         raise ValueError(f"{prop.key}: {value} is below minimum {prop.min}")

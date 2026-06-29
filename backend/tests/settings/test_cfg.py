@@ -195,5 +195,36 @@ def test_validate_choices():
     )
     cfg.set("test.enum", "b")
     assert cfg.get("test.enum") == "b"
+
+
+def test_module_list_coerces_to_list_of_strings():
+    cfg.register("test.modules", default=[], type="module_list", label="Modules", section="Test", description="x")
+    cfg.set("test.modules", ["a.b", "c.d"])
+    assert cfg.get("test.modules") == ["a.b", "c.d"]
+
+
+def test_module_list_rejects_non_list():
+    cfg.register("test.modules", default=[], type="module_list", label="Modules", section="Test", description="x")
     with pytest.raises(ValueError):
-        cfg.set("test.enum", "c")
+        cfg.set("test.modules", "a.b")
+
+
+def test_module_list_choices_are_not_enforced():
+    """Unlike enum, a module_list value doesn't have to be one of `choices` —
+    choices there are just suggestions (e.g. discovered probes)."""
+    cfg.register(
+        "test.modules", default=[], type="module_list", label="Modules", section="Test",
+        description="x", choices=["a.b"],
+    )
+    cfg.set("test.modules", ["not.in.choices"])
+    assert cfg.get("test.modules") == ["not.in.choices"]
+
+
+def test_set_choices_updates_a_registered_prop():
+    _register_test_key()
+    cfg.set_choices("test.key", ["x", "y"])
+    assert cfg._props["test.key"].choices == ["x", "y"]
+
+
+def test_set_choices_is_a_noop_for_unregistered_key():
+    cfg.set_choices("nonexistent.key", ["x"])  # must not raise

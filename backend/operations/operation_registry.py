@@ -61,3 +61,8 @@ def discover() -> None:
 
     OPERATIONS.clear()
     OPERATIONS.update(found)
+
+    logger.info(
+        "%d operation(s) loaded: %s",
+        len(OPERATIONS), ", ".join(OPERATIONS.keys()) or "none",
+    )

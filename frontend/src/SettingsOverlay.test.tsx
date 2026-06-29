@@ -39,11 +39,13 @@ function makeFetchRouter() {
     logs: [] as LogRecord[] | { error: string },
     saveResponse: { restart_required: [] as string[] } as { restart_required?: string[]; error?: string },
     saveStatus: 200,
+    rescanResponse: null as ConfigProp[] | null,
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.configProps))
     if (url === '/api/config' && method === 'PATCH') return Promise.resolve(fetchJsonResponse(state.saveResponse, state.saveStatus))
+    if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(state.rescanResponse ?? state.configProps))
     if (url.startsWith('/api/logs')) return Promise.resolve(fetchJsonResponse(state.logs))
     return Promise.resolve(fetchJsonResponse({}))
   })
@@ -290,6 +292,118 @@ describe('ConfigTab', () => {
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a.b.c\nd.e.f\ng.h.i' } })
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('renders a module_list control as a reorderable item list with an add dropdown', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['drives.collector.probes.vitals.hwmon_temp', 'drives.collector.probes.vitals.sysfs_io'],
+      default: ['drives.collector.probes.vitals.hwmon_temp', 'drives.collector.probes.vitals.sysfs_io'],
+      choices: ['drives.collector.probes.vitals.hwmon_temp', 'drives.collector.probes.vitals.sysfs_io', 'drives.collector.probes.vitals.mount_status'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    expect(screen.getByText('drives.collector.probes.vitals.hwmon_temp')).toBeInTheDocument()
+    expect(screen.getByText('drives.collector.probes.vitals.sysfs_io')).toBeInTheDocument()
+    // Already-listed items aren't offered again in the add dropdown.
+    const select = screen.getByRole('combobox') as HTMLSelectElement
+    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__'])
+  })
+
+  it('removes a module_list item and stages the change', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['a.b', 'c.d'], default: ['a.b', 'c.d'], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('a.b')).toBeInTheDocument())
+
+    await userEvent.click(screen.getAllByTitle('Remove')[0])
+    expect(screen.queryByText('a.b')).not.toBeInTheDocument()
+    expect(screen.getByText('c.d')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('reorders module_list items with the move-down button', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['a.b', 'c.d'], default: ['a.b', 'c.d'], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('a.b')).toBeInTheDocument())
+
+    const items = () => Array.from(document.querySelectorAll('.ml-item-path')).map(el => el.textContent)
+    expect(items()).toEqual(['a.b', 'c.d'])
+
+    await userEvent.click(document.querySelector('.ml-item .ml-move-btn[title="Move down"]')!)
+    expect(items()).toEqual(['c.d', 'a.b'])
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('adds a module_list item from the choices dropdown', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['a.b'], default: ['a.b'], choices: ['a.b', 'e.f'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('a.b')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), 'e.f')
+    expect(screen.getByText('e.f')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('adds a module_list item via the custom-path fallback', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__custom__')
+    await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
+    await userEvent.click(screen.getByTitle('Add'))
+
+    expect(screen.getByText('my.custom.probe')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('cancels the custom-path fallback without adding anything', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByRole('combobox'), '__custom__')
+    await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
+    await userEvent.click(screen.getByTitle('Cancel'))
+
+    expect(screen.queryByPlaceholderText('dotted.module.path')).not.toBeInTheDocument()
+    expect(screen.queryByText('my.custom.probe')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  it('rescans probe directories and refreshes choices when the rescan button is clicked', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', section: 'Collector', type: 'module_list',
+      value: ['a.b'], default: ['a.b'], choices: ['a.b'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    router.state.rescanResponse = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', section: 'Collector', type: 'module_list',
+      value: ['a.b'], default: ['a.b'], choices: ['a.b', 'new.found.probe'],
+    })]
+    await userEvent.click(screen.getByTitle('Rescan native + custom probe directories for newly added probes'))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/rescan', expect.objectContaining({ method: 'POST' })))
+    await waitFor(() => expect(Array.from((screen.getByRole('combobox') as HTMLSelectElement).options).map(o => o.value))
+      .toContain('new.found.probe'))
   })
 
   it('ignores non-numeric input on a numeric control', async () => {

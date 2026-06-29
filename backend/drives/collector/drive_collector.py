@@ -43,6 +43,7 @@ from analysis.descriptor_rank import score_descriptor
 from drives.tools.timeout import ProbeTimeout
 from drives.drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from drives.collector.probes.vitals.block_device import run as resolve_block_device
+from drives.collector import probe_registry
 
 logger = logging.getLogger(__name__)
 
@@ -99,17 +100,17 @@ cfg.register("collector.poll_intervals.traits",
     min=1, max=2592000, restart_required=True,
 )
 cfg.register("collector.scan_probes",
-    default=["drives.collector.probes.scan.smartctl_scan"], type="list", label="Scan probes",
+    default=["drives.collector.probes.scan.smartctl_scan"], type="module_list", label="Scan probes",
     section="Collector", description="Dotted-path probe modules run to discover attached drives.",
     restart_required=True,
 )
 cfg.register("collector.traits_probes",
-    default=["drives.collector.probes.traits.smartctl_traits"], type="list", label="Traits probes",
+    default=["drives.collector.probes.traits.smartctl_traits"], type="module_list", label="Traits probes",
     section="Collector", description="Dotted-path probe modules run to populate drive traits.",
     restart_required=True,
 )
 cfg.register("collector.telemetry_probes",
-    default=["drives.collector.probes.telemetry.smartctl_telemetry"], type="list", label="Telemetry probes",
+    default=["drives.collector.probes.telemetry.smartctl_telemetry"], type="module_list", label="Telemetry probes",
     section="Collector", description="Dotted-path probe modules run each telemetry poll, chained in order.",
     restart_required=True,
 )
@@ -119,16 +120,37 @@ cfg.register("collector.vitals_probes",
         "drives.collector.probes.vitals.smartctl_vitals",
         "drives.collector.probes.vitals.sysfs_io",
         "drives.collector.probes.vitals.mount_status",
-    ], type="list", label="Vitals probes",
+    ], type="module_list", label="Vitals probes",
     section="Collector", description="Dotted-path probe modules run each vitals poll, chained in order.",
     restart_required=True,
 )
 
 
-def _load_probes(dotted_paths: list[str]) -> list[ModuleType]:
-    """Import and return each dotted-path probe module, in order."""
-    modules = [importlib.import_module(path) for path in dotted_paths]
-    logger.debug("loaded probe module(s): %s", ", ".join(dotted_paths) or "none")
+def _load_probes(dotted_paths: list[str], category: str) -> list[ModuleType]:
+    """Import each dotted-path probe module for `category`, skipping (with a
+    logged error) any that fail to import or whose run() signature doesn't
+    match what this category's chain actually calls it with.
+
+    A bad entry here — typo, a probe path from the wrong category, a custom
+    probe file that's since been deleted — would otherwise either crash
+    Collector.from_config() at startup (an unhandled ImportError, since this
+    runs before the app even starts serving) or, for a signature mismatch
+    that imports fine, fail silently-but-repeatedly every tick once probe.run()
+    is actually called. Catching it here means one bad entry just doesn't
+    run, instead of either of those.
+    """
+    modules = []
+    for path in dotted_paths:
+        try:
+            module = importlib.import_module(path)
+        except Exception as e:
+            logger.error("skipping %s probe %r: failed to import: %s", category, path, e)
+            continue
+        if not probe_registry.matches_category(module, category):
+            logger.error("skipping %s probe %r: run() signature doesn't match %s probes", category, path, category)
+            continue
+        modules.append(module)
+    logger.debug("loaded %s probe module(s): %s", category, ", ".join(m.__name__ for m in modules) or "none")
     return modules
 
 
@@ -164,10 +186,10 @@ class Collector:
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
-        self._scan_probes = _load_probes(scan_probes)
-        self._traits_probes = _load_probes(traits_probes)
-        self._telemetry_probes = _load_probes(telemetry_probes)
-        self._vitals_probes = _load_probes(vitals_probes)
+        self._scan_probes = _load_probes(scan_probes, "scan")
+        self._traits_probes = _load_probes(traits_probes, "traits")
+        self._telemetry_probes = _load_probes(telemetry_probes, "telemetry")
+        self._vitals_probes = _load_probes(vitals_probes, "vitals")
         self._keep_history_days = keep_history_days
         self._probe_timeout = probe_timeout
         self._drive_states: dict[str, DriveState] = {}

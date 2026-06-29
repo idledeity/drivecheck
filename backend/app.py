@@ -13,6 +13,7 @@ from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
 from drives.collector.drive_collector import Collector
+from drives.collector import probe_registry
 from operations.operation_registry import OPERATIONS, discover as discover_operations
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
@@ -47,10 +48,7 @@ logger.info("drivecheck starting...")
 cfg.load(_CONFIG_PATH)
 cfg.apply_live()
 discover_operations()
-logger.info(
-    "%d operation(s) loaded: %s",
-    len(OPERATIONS), ", ".join(OPERATIONS.keys()) or "none",
-)
+probe_registry.discover()
 
 collector = Collector.from_config()
 job_registry = JobRegistry.from_config(get_context=collector.get_drive_context)
@@ -266,6 +264,15 @@ def cancel_job(job_id):
 
 @app.route("/api/config", methods=["GET"])
 def get_config():
+    return jsonify(cfg.props())
+
+
+@app.route("/api/probes/rescan", methods=["POST"])
+def rescan_probes():
+    """Re-walk the native + custom probe directories and refresh the
+    module_list props' suggested choices — no restart needed, since this
+    only updates UI metadata, not any running collector state."""
+    probe_registry.discover()
     return jsonify(cfg.props())
 
 

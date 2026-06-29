@@ -218,6 +218,9 @@
 }
 
 .cfg-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -226,6 +229,21 @@
   margin-bottom: 5px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--bd);
+}
+
+/* Refreshes every module_list prop's choices at once (native + custom probe
+   dirs), so it lives on the one section that currently has any — not a
+   per-row control. Un-uppercased/un-tracked, unlike the title text it
+   sits next to, since it's a label for an action, not a heading. */
+.cfg-rescan-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 2px 6px;
 }
 
 /* Named areas, not a plain 2-column grid: this lets the description sit
@@ -247,6 +265,13 @@
   transition: background 0.1s;
 }
 .cfg-prop-row.dirty { background: rgba(24, 196, 238, 0.05); }
+
+/* module_list's control can run several rows tall (one per chained probe
+   plus the add row) — centering label/desc against that the way every
+   other (single-line) control allows would leave them floating awkwardly
+   mid-height, so this pins them to the top instead. */
+.cfg-prop-row-tall { align-items: start; }
+.cfg-prop-row-tall .cfg-prop-label { padding-top: 3px; }
 
 .cfg-prop-label {
   grid-area: label;
@@ -374,6 +399,78 @@ textarea.cfg-ctl-list { border-color: rgba(20, 192, 80, 0.45); }
 .cfg-ctl-num:focus  { border-color: var(--wa); box-shadow: 0 0 0 2px rgba(255, 178, 46, 0.15); }
 .cfg-ctl-str:focus  { border-color: var(--sel); box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.15); }
 textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgba(20, 192, 80, 0.15); }
+
+/* Array editor for module_list (the probe chains) — same green family as
+   .cfg-ctl-list since they're sibling "list of strings" types, just a
+   bordered card instead of a single control, since this holds a whole
+   item list plus its own add row rather than one input. */
+.cfg-ctl-module-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  background: var(--bi);
+  border: 1px solid rgba(20, 192, 80, 0.45);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.ml-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ml-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+.ml-item:hover { background: rgba(255, 255, 255, 0.04); }
+
+.ml-item-path {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--t1);
+  word-break: break-all;
+}
+
+.ml-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.ml-move-btn, .ml-remove-btn {
+  padding: 2px;
+}
+
+.ml-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--bd);
+}
+.ml-add-select {
+  flex: 1;
+  min-width: 0 !important;
+  font-size: 11px !important;
+}
+.ml-custom-input {
+  flex: 1;
+  min-width: 0 !important;
+  font-size: 11px !important;
+  font-family: ui-monospace, Consolas, monospace;
+}
 
 .cfg-prop-control input[type="checkbox"] {
   width: 16px;
