@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown, IconUpload } from "@tabler/icons-react"
-import type { ConfigProp, LogRecord } from "./types"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown, IconUpload, IconAlertTriangle } from "@tabler/icons-react"
+import type { ConfigProp, LogRecord, ProbeWarning } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import "./SettingsOverlay.css"
 
@@ -109,9 +109,15 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
   const [rescanning, setRescanning] = useState(false)
+  const [probeWarnings, setProbeWarnings] = useState<Record<string, ProbeWarning[]>>({})
 
   useEffect(() => {
     fetch("/api/config").then(r => r.json()).then(setConfigProps).catch(() => {})
+    // Reflects what loaded at the collector's last restart, not necessarily
+    // the current (possibly unsaved or unrestarted) prop values — PropRow
+    // filters each row's warnings against its own live value to avoid
+    // showing a warning for an entry the user already removed.
+    fetch("/api/probes/status").then(r => r.json()).then(setProbeWarnings).catch(() => {})
   }, [])
 
   // One rescan refreshes every module_list prop's suggested choices at
@@ -218,6 +224,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
                 dirty={prop.key in pending}
                 onChange={v => handleChange(prop, v)}
                 onChoicesRefresh={setConfigProps}
+                warnings={probeWarnings[prop.key] ?? []}
               />
             ))}
           </div>
@@ -475,9 +482,14 @@ interface PropRowProps {
   dirty: boolean
   onChange: (value: unknown) => void
   onChoicesRefresh: (props: ConfigProp[]) => void
+  warnings: ProbeWarning[]
 }
 
-function PropRow({ prop, value, dirty, onChange, onChoicesRefresh }: PropRowProps) {
+function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: PropRowProps) {
+  // Only entries still present in the row's current value are shown —
+  // warnings reflect the last collector restart, so a path the user already
+  // removed (or hasn't restarted into yet) shouldn't linger as a warning.
+  const liveWarnings = Array.isArray(value) ? warnings.filter(w => value.includes(w.path)) : []
   return (
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}${prop.type === "module_list" ? " cfg-prop-row-tall" : ""}`}>
       <label className="cfg-prop-label">
@@ -491,6 +503,11 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh }: PropRowProp
         {prop.tooltip && (
           <HoverReveal text={prop.tooltip}>
             <IconInfoCircle size={12} className="cfg-tooltip-icon" />
+          </HoverReveal>
+        )}
+        {liveWarnings.length > 0 && (
+          <HoverReveal text={liveWarnings.map(w => `${w.path}: ${w.reason}`).join("; ")}>
+            <IconAlertTriangle size={11} className="cfg-warning-icon" />
           </HoverReveal>
         )}
       </label>

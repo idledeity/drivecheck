@@ -281,6 +281,14 @@ def rescan_probes():
     return jsonify(cfg.props())
 
 
+@app.route("/api/probes/status", methods=["GET"])
+def probe_status():
+    """Warnings for probe entries that failed to load at the last collector
+    startup — restart_required, so this only reflects the configuration as
+    of the last restart, not any unsaved or unrestarted edits."""
+    return jsonify(collector.probe_warnings)
+
+
 @app.route("/api/probes/template", methods=["POST"])
 def template_probe():
     """Write a correctly-shaped stub probe file for `category`, named

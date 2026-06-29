@@ -33,7 +33,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, fields, replace
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime
 from types import ModuleType
 
@@ -126,10 +126,17 @@ cfg.register("collector.vitals_probes",
 )
 
 
-def _load_probes(dotted_paths: list[str], category: str) -> list[ModuleType]:
+@dataclass
+class _ProbeLoadResult:
+    modules: list[ModuleType]
+    warnings: list[dict[str, str]]
+
+
+def _load_probes(dotted_paths: list[str], category: str) -> _ProbeLoadResult:
     """Import each dotted-path probe module for `category`, skipping (with a
-    logged error) any that fail to import or whose run() signature doesn't
-    match what this category's chain actually calls it with.
+    logged error and a recorded warning) any that fail to import or whose
+    run() signature doesn't match what this category's chain actually calls
+    it with.
 
     A bad entry here — typo, a probe path from the wrong category, a custom
     probe file that's since been deleted — would otherwise either crash
@@ -140,18 +147,23 @@ def _load_probes(dotted_paths: list[str], category: str) -> list[ModuleType]:
     run, instead of either of those.
     """
     modules = []
+    warnings = []
     for path in dotted_paths:
         try:
             module = importlib.import_module(path)
         except Exception as e:
-            logger.error("skipping %s probe %r: failed to import: %s", category, path, e)
+            reason = f"failed to import: {e}"
+            logger.error("skipping %s probe %r: %s", category, path, reason)
+            warnings.append({"path": path, "reason": reason})
             continue
         if not probe_registry.matches_category(module, category):
-            logger.error("skipping %s probe %r: run() signature doesn't match %s probes", category, path, category)
+            reason = f"run() signature doesn't match {category} probes"
+            logger.error("skipping %s probe %r: %s", category, path, reason)
+            warnings.append({"path": path, "reason": reason})
             continue
         modules.append(module)
     logger.debug("loaded %s probe module(s): %s", category, ", ".join(m.__name__ for m in modules) or "none")
-    return modules
+    return _ProbeLoadResult(modules=modules, warnings=warnings)
 
 
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
@@ -186,10 +198,25 @@ class Collector:
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
-        self._scan_probes = _load_probes(scan_probes, "scan")
-        self._traits_probes = _load_probes(traits_probes, "traits")
-        self._telemetry_probes = _load_probes(telemetry_probes, "telemetry")
-        self._vitals_probes = _load_probes(vitals_probes, "vitals")
+        scan_result = _load_probes(scan_probes, "scan")
+        traits_result = _load_probes(traits_probes, "traits")
+        telemetry_result = _load_probes(telemetry_probes, "telemetry")
+        vitals_result = _load_probes(vitals_probes, "vitals")
+        self._scan_probes = scan_result.modules
+        self._traits_probes = traits_result.modules
+        self._telemetry_probes = telemetry_result.modules
+        self._vitals_probes = vitals_result.modules
+        # Keyed by the same cfg key the module_list prop itself uses, so the
+        # frontend can match a warning back to the row it came from.
+        self.probe_warnings: dict[str, list[dict[str, str]]] = {
+            probe_registry.probe_key(category): result.warnings
+            for category, result in (
+                ("scan", scan_result),
+                ("traits", traits_result),
+                ("telemetry", telemetry_result),
+                ("vitals", vitals_result),
+            )
+        }
         self._keep_history_days = keep_history_days
         self._probe_timeout = probe_timeout
         self._drive_states: dict[str, DriveState] = {}

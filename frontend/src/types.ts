@@ -19,6 +19,11 @@ export type ConfigProp = {
   restart_required: boolean
 }
 
+export type ProbeWarning = {
+  path: string
+  reason: string
+}
+
 export type LogRecord = {
   timestamp: string
   level: string

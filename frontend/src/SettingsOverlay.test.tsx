@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsOverlay from './SettingsOverlay'
 import { fetchJsonResponse } from './test/fixtures'
-import type { ConfigProp, LogRecord } from './types'
+import type { ConfigProp, LogRecord, ProbeWarning } from './types'
 
 function makeConfigProp(overrides: Partial<ConfigProp> = {}): ConfigProp {
   return {
@@ -44,11 +44,13 @@ function makeFetchRouter() {
     templateStatus: 200,
     uploadResponse: null as ConfigProp[] | { error: string } | null,
     uploadStatus: 200,
+    statusResponse: {} as Record<string, ProbeWarning[]>,
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.configProps))
     if (url === '/api/config' && method === 'PATCH') return Promise.resolve(fetchJsonResponse(state.saveResponse, state.saveStatus))
+    if (url === '/api/probes/status' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.statusResponse))
     if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(state.rescanResponse ?? state.configProps))
     if (url === '/api/probes/template' && method === 'POST') {
       return Promise.resolve(fetchJsonResponse(state.templateResponse ?? state.configProps, state.templateStatus))
@@ -617,6 +619,36 @@ describe('ConfigTab', () => {
     await userEvent.click(document.querySelector('.cfg-reset-btn')!)
     expect(screen.getByRole('spinbutton')).toHaveValue(4343)
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
+  })
+
+  it('shows a warning icon for a probe load failure still present in the row', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['vitals.broken_probe'], default: [], choices: ['vitals.broken_probe'],
+    })]
+    router.state.statusResponse = {
+      'collector.vitals_probes': [{ path: 'vitals.broken_probe', reason: "run() signature doesn't match vitals probes" }],
+    }
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    const icon = document.querySelector('.cfg-warning-icon')!.closest('.cfg-tooltip-anchor')!
+    fireEvent.pointerEnter(icon, { pointerType: 'mouse' })
+    expect(screen.getByText("vitals.broken_probe: run() signature doesn't match vitals probes")).toBeInTheDocument()
+  })
+
+  it('hides the warning icon once the offending probe is removed from the row', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['vitals.kept_probe'], default: [], choices: ['vitals.kept_probe'],
+    })]
+    router.state.statusResponse = {
+      'collector.vitals_probes': [{ path: 'vitals.broken_probe', reason: 'failed to import' }],
+    }
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    expect(document.querySelector('.cfg-warning-icon')).not.toBeInTheDocument()
   })
 })
 
