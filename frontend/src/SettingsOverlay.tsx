@@ -546,7 +546,12 @@ function PropRow({ prop, value, dirty, onChange }: PropRowProps) {
           />
         )}
         {prop.type === "module_list" && (
-          <ModuleListControl value={value as string[]} choices={prop.choices} onChange={onChange} />
+          <ModuleListControl
+            value={value as string[]}
+            choices={prop.choices}
+            onChange={onChange}
+            category={prop.key.replace(/^collector\./, "").replace(/_probes$/, "")}
+          />
         )}
       </div>
       <span className="cfg-prop-description">{prop.description}</span>
@@ -562,6 +567,23 @@ interface ModuleListControlProps {
   value: string[]
   choices: string[] | null
   onChange: (value: string[]) => void
+  category: string
+}
+
+// Full dotted paths (e.g. "drives.collector.probes.vitals.smartctl_vitals")
+// are too long for this control to stay usable, especially on mobile — the
+// row's own label already says which category this is ("Vitals probes"),
+// so that segment is redundant here. Shows just the module name plus a
+// native/custom tag; falls back to the full path untagged for anything
+// that doesn't match either category-scoped shape (e.g. a hand-typed path
+// from a different category, or one with no recognizable convention at
+// all) so nothing is ever hidden, just not always shortened.
+function shortProbeLabel(path: string, category: string): string {
+  const nativePrefix = `drives.collector.probes.${category}.`
+  if (path.startsWith(nativePrefix)) return `${path.slice(nativePrefix.length)} (native)`
+  const customPrefix = `${category}.`
+  if (path.startsWith(customPrefix)) return `${path.slice(customPrefix.length)} (custom)`
+  return path
 }
 
 // Array editor for module_list props (the probe chains): reorder via
@@ -569,7 +591,7 @@ interface ModuleListControlProps {
 // these lists are short enough that it's not worth pulling one in), add
 // either from the discovered `choices` or a free-text fallback for probes
 // living outside the native/custom-dir catalog, remove per item.
-function ModuleListControl({ value, choices, onChange }: ModuleListControlProps) {
+function ModuleListControl({ value, choices, onChange, category }: ModuleListControlProps) {
   const [pendingChoice, setPendingChoice] = useState("")
   const [customText, setCustomText] = useState("")
 
@@ -598,7 +620,7 @@ function ModuleListControl({ value, choices, onChange }: ModuleListControlProps)
       <ul className="ml-items">
         {value.map((path, i) => (
           <li key={path} className="ml-item">
-            <span className="ml-item-path">{path}</span>
+            <HoverReveal text={path} className="ml-item-path" mono>{shortProbeLabel(path, category)}</HoverReveal>
             <div className="ml-item-actions">
               <button className="icon-btn ml-move-btn" disabled={i === 0} onClick={() => moveItem(i, -1)} title="Move up">
                 <IconChevronUp size={12} />
@@ -626,7 +648,9 @@ function ModuleListControl({ value, choices, onChange }: ModuleListControlProps)
           {/* hidden: shows as the select's resting label when closed, but
               isn't itself a choice — doesn't appear in the opened list. */}
           <option value="" hidden>+ Add probe</option>
-          {availableChoices.map(c => <option key={c} value={c}>{c}</option>)}
+          {availableChoices.map(c => (
+            <option key={c} value={c} title={c}>{shortProbeLabel(c, category)}</option>
+          ))}
           <option value={ADD_CUSTOM_OPTION}>Custom path…</option>
         </select>
         {pendingChoice === ADD_CUSTOM_OPTION && (

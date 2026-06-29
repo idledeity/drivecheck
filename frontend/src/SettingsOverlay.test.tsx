@@ -304,11 +304,36 @@ describe('ConfigTab', () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
-    expect(screen.getByText('drives.collector.probes.vitals.hwmon_temp')).toBeInTheDocument()
-    expect(screen.getByText('drives.collector.probes.vitals.sysfs_io')).toBeInTheDocument()
-    // Already-listed items aren't offered again in the add dropdown.
+    // Shown shortened — just the module name plus a native/custom tag, not
+    // the full dotted path (too long for mobile). The full path is still
+    // reachable via HoverReveal (tested elsewhere for that mechanism) for
+    // list items, and via a plain title attribute for dropdown options.
+    expect(screen.getByText('hwmon_temp (native)')).toBeInTheDocument()
+    expect(screen.getByText('sysfs_io (native)')).toBeInTheDocument()
+    // Already-listed items aren't offered again in the add dropdown. Values
+    // (what actually gets stored) stay full dotted paths even though the
+    // visible option text is shortened.
     const select = screen.getByRole('combobox') as HTMLSelectElement
     expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__'])
+    expect(screen.getByText('mount_status (native)')).toBeInTheDocument()
+    expect(screen.getByTitle('drives.collector.probes.vitals.mount_status')).toBeInTheDocument()
+  })
+
+  it('tags a discovered custom probe as "(custom)" and leaves an unrecognized path untagged', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['vitals.example_custom_vitals', 'totally.unrelated.path'],
+      default: ['vitals.example_custom_vitals', 'totally.unrelated.path'],
+      choices: [],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    expect(screen.getByText('example_custom_vitals (custom)')).toBeInTheDocument()
+    // Doesn't match this category's native or custom path shape (e.g. a
+    // hand-typed path with no recognizable convention) — shown in full
+    // rather than guessing at a tag.
+    expect(screen.getByText('totally.unrelated.path')).toBeInTheDocument()
   })
 
   it('removes a module_list item and stages the change', async () => {
