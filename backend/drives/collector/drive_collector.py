@@ -33,9 +33,8 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import asdict, fields, replace
 from datetime import datetime
-from types import ModuleType
 
 from settings import cfg
 from database import db
@@ -126,46 +125,6 @@ cfg.register("collector.vitals_probes",
 )
 
 
-@dataclass
-class _ProbeLoadResult:
-    modules: list[ModuleType]
-    warnings: list[dict[str, str]]
-
-
-def _load_probes(dotted_paths: list[str], category: str) -> _ProbeLoadResult:
-    """Import each dotted-path probe module for `category`, skipping (with a
-    logged error and a recorded warning) any that fail to import or whose
-    run() signature doesn't match what this category's chain actually calls
-    it with.
-
-    A bad entry here — typo, a probe path from the wrong category, a custom
-    probe file that's since been deleted — would otherwise either crash
-    Collector.from_config() at startup (an unhandled ImportError, since this
-    runs before the app even starts serving) or, for a signature mismatch
-    that imports fine, fail silently-but-repeatedly every tick once probe.run()
-    is actually called. Catching it here means one bad entry just doesn't
-    run, instead of either of those.
-    """
-    modules = []
-    warnings = []
-    for path in dotted_paths:
-        try:
-            module = importlib.import_module(path)
-        except Exception as e:
-            reason = f"failed to import: {e}"
-            logger.error("skipping %s probe %r: %s", category, path, reason)
-            warnings.append({"path": path, "reason": reason})
-            continue
-        if not probe_registry.matches_category(module, category):
-            reason = f"run() signature doesn't match {category} probes"
-            logger.error("skipping %s probe %r: %s", category, path, reason)
-            warnings.append({"path": path, "reason": reason})
-            continue
-        modules.append(module)
-    logger.debug("loaded %s probe module(s): %s", category, ", ".join(m.__name__ for m in modules) or "none")
-    return _ProbeLoadResult(modules=modules, warnings=warnings)
-
-
 def _assign_guid(traits: DriveTraits, descriptor: DriveDescriptor) -> str:
     """Return a stable GUID for a drive, keyed on serial number if available."""
     key = traits.serial or descriptor.device_name
@@ -198,24 +157,19 @@ class Collector:
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
-        scan_result = _load_probes(scan_probes, "scan")
-        traits_result = _load_probes(traits_probes, "traits")
-        telemetry_result = _load_probes(telemetry_probes, "telemetry")
-        vitals_result = _load_probes(vitals_probes, "vitals")
-        self._scan_probes = scan_result.modules
-        self._traits_probes = traits_result.modules
-        self._telemetry_probes = telemetry_result.modules
-        self._vitals_probes = vitals_result.modules
+        scan = probe_registry.load_probes(scan_probes, "scan")
+        traits = probe_registry.load_probes(traits_probes, "traits")
+        telemetry = probe_registry.load_probes(telemetry_probes, "telemetry")
+        vitals = probe_registry.load_probes(vitals_probes, "vitals")
+        self._scan_probes = scan.modules
+        self._traits_probes = traits.modules
+        self._telemetry_probes = telemetry.modules
+        self._vitals_probes = vitals.modules
         # Keyed by the same cfg key the module_list prop itself uses, so the
         # frontend can match a warning back to the row it came from.
         self.probe_warnings: dict[str, list[dict[str, str]]] = {
-            probe_registry.probe_key(category): result.warnings
-            for category, result in (
-                ("scan", scan_result),
-                ("traits", traits_result),
-                ("telemetry", telemetry_result),
-                ("vitals", vitals_result),
-            )
+            probe_registry.probe_key(loaded.category): loaded.warnings
+            for loaded in (scan, traits, telemetry, vitals)
         }
         self._keep_history_days = keep_history_days
         self._probe_timeout = probe_timeout

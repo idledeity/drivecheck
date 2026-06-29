@@ -38,6 +38,7 @@ import logging
 import pkgutil
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -99,6 +100,49 @@ def matches_category(module: ModuleType, category: str) -> bool:
     it's configured in (e.g. a telemetry probe's path pasted into
     vitals_probes) gets caught before it ever runs, not after it throws."""
     return _is_probe_module(module, CATEGORY_ARITY[category])
+
+
+@dataclass
+class LoadedProbes:
+    category: str
+    modules: list[ModuleType]
+    warnings: list[dict[str, str]]
+
+
+def load_probes(dotted_paths: list[str], category: str) -> LoadedProbes:
+    """Import and validate the configured probe modules for one category.
+
+    A path that fails to import, or imports but doesn't match the
+    category's run() shape (typo, a probe path from the wrong category, a
+    custom probe file that's since been deleted), is logged and recorded
+    in the result's .warnings rather than included in .modules —
+    drive_collector.py only ever sees probes that are actually safe to call.
+
+    Without this, a bad entry would otherwise either crash
+    Collector.from_config() at startup (an unhandled ImportError, since this
+    runs before the app even starts serving) or, for a signature mismatch
+    that imports fine, fail silently-but-repeatedly every tick once
+    probe.run() is actually called.
+    """
+    modules: list[ModuleType] = []
+    warnings: list[dict[str, str]] = []
+
+    def skip(path: str, reason: str) -> None:
+        logger.error("skipping %s probe %r: %s", category, path, reason)
+        warnings.append({"path": path, "reason": reason})
+
+    for path in dotted_paths:
+        try:
+            module = importlib.import_module(path)
+        except Exception as e:
+            skip(path, f"failed to import: {e}")
+            continue
+        if not matches_category(module, category):
+            skip(path, f"run() signature doesn't match {category} probes")
+            continue
+        modules.append(module)
+    logger.debug("loaded %s probe module(s): %s", category, ", ".join(m.__name__ for m in modules) or "none")
+    return LoadedProbes(category=category, modules=modules, warnings=warnings)
 
 
 def _scan_native(category: str) -> list[str]:
