@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import type { ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconPlus, IconChevronUp, IconChevronDown, IconUpload, IconAlertTriangle } from "@tabler/icons-react"
+import { IconX, IconRefresh, IconPower, IconRotate2, IconInfoCircle, IconAdjustments, IconFileText, IconListNumbers, IconTextWrap, IconFilter, IconChevronUp, IconChevronDown, IconAlertTriangle, IconSettings } from "@tabler/icons-react"
 import type { ConfigProp, LogRecord, ProbeWarning } from "./types"
 import CollapseToggle from "./CollapseToggle"
+import ManageProbesDialog from "./ManageProbesDialog"
 import "./SettingsOverlay.css"
 
 type SettingsTab = "config" | "logs" | "about"
@@ -579,12 +580,6 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
   )
 }
 
-// Sentinels for the "Add" dropdown's non-choice options — never real probe
-// paths, so they can't collide with a discovered choice.
-const ADD_CUSTOM_OPTION = "__custom__"
-const ADD_TEMPLATE_OPTION = "__template__"
-const ADD_UPLOAD_OPTION = "__upload__"
-
 interface ModuleListControlProps {
   value: string[]
   choices: string[] | null
@@ -615,86 +610,14 @@ function shortProbeLabel(path: string, category: string): string {
 // either from the discovered `choices` or a free-text fallback for probes
 // living outside the native/custom-dir catalog, remove per item.
 function ModuleListControl({ value, choices, onChange, category, onChoicesRefresh }: ModuleListControlProps) {
-  const [pendingChoice, setPendingChoice] = useState("")
-  const [customText, setCustomText] = useState("")
-  const [templateName, setTemplateName] = useState("")
-  const [templateError, setTemplateError] = useState<string | null>(null)
-  const [creatingFromTemplate, setCreatingFromTemplate] = useState(false)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
 
   const availableChoices = (choices ?? []).filter(c => !value.includes(c))
-
-  const cancelAdd = () => {
-    setPendingChoice("")
-    setCustomText("")
-    setTemplateName("")
-    setTemplateError(null)
-    setUploadFile(null)
-    setUploadError(null)
-  }
-
-  const createFromTemplate = async () => {
-    const name = templateName.trim()
-    if (!name) return
-    setCreatingFromTemplate(true)
-    setTemplateError(null)
-    try {
-      const res = await fetch("/api/probes/template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, name }),
-      })
-      const data = await res.json() as ConfigProp[] | { error: string }
-      if (!res.ok) {
-        setTemplateError("error" in data ? data.error : "Failed to create probe")
-        return
-      }
-      onChoicesRefresh(data as ConfigProp[])
-      onChange([...value, `${category}.${name}`])
-      cancelAdd()
-    } catch {
-      setTemplateError("Network error")
-    } finally {
-      setCreatingFromTemplate(false)
-    }
-  }
-
-  const uploadProbe = async () => {
-    if (!uploadFile) return
-    setUploading(true)
-    setUploadError(null)
-    try {
-      const body = new FormData()
-      body.append("category", category)
-      body.append("file", uploadFile)
-      const res = await fetch("/api/probes/upload", { method: "POST", body })
-      const data = await res.json() as ConfigProp[] | { error: string }
-      if (!res.ok) {
-        setUploadError("error" in data ? data.error : "Failed to upload probe")
-        return
-      }
-      onChoicesRefresh(data as ConfigProp[])
-      // Mirrors the backend's own stem derivation (secure_filename then drop
-      // the .py suffix) for the common case of an already-clean filename —
-      // if the server actually saved it under a different name, the upload
-      // would have failed validation instead of succeeding here.
-      const stem = uploadFile.name.replace(/\.py$/i, "")
-      onChange([...value, `${category}.${stem}`])
-      cancelAdd()
-    } catch {
-      setUploadError("Network error")
-    } finally {
-      setUploading(false)
-    }
-  }
 
   const addItem = (path: string) => {
     const trimmed = path.trim()
     if (!trimmed || value.includes(trimmed)) return
     onChange([...value, trimmed])
-    cancelAdd()
   }
 
   const removeItem = (index: number) => onChange(value.filter((_, i) => i !== index))
@@ -730,12 +653,8 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
       <div className="ml-add-row">
         <select
           className="ml-add-select"
-          value={pendingChoice}
-          onChange={e => {
-            const choice = e.target.value
-            setPendingChoice(choice)
-            if (choice && choice !== ADD_CUSTOM_OPTION && choice !== ADD_TEMPLATE_OPTION && choice !== ADD_UPLOAD_OPTION) addItem(choice)
-          }}
+          value=""
+          onChange={e => { if (e.target.value) addItem(e.target.value) }}
         >
           {/* hidden: shows as the select's resting label when closed, but
               isn't itself a choice — doesn't appear in the opened list. */}
@@ -743,75 +662,20 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
           {availableChoices.map(c => (
             <option key={c} value={c} title={c}>{shortProbeLabel(c, category)}</option>
           ))}
-          <option value={ADD_CUSTOM_OPTION}>Custom path…</option>
-          <option value={ADD_TEMPLATE_OPTION}>New probe…</option>
-          <option value={ADD_UPLOAD_OPTION}>Upload file…</option>
         </select>
-        {pendingChoice === ADD_CUSTOM_OPTION && (
-          <>
-            <input
-              className="ml-custom-input"
-              type="text"
-              placeholder="dotted.module.path"
-              value={customText}
-              autoFocus
-              onChange={e => setCustomText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") addItem(customText)
-                if (e.key === "Escape") cancelAdd()
-              }}
-            />
-            <button className="icon-btn ml-add-custom-btn" onClick={() => addItem(customText)} title="Add">
-              <IconPlus size={14} />
-            </button>
-            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} title="Cancel">
-              <IconX size={14} />
-            </button>
-          </>
-        )}
-        {pendingChoice === ADD_TEMPLATE_OPTION && (
-          <>
-            <input
-              className="ml-custom-input"
-              type="text"
-              placeholder="probe_name"
-              value={templateName}
-              autoFocus
-              disabled={creatingFromTemplate}
-              onChange={e => setTemplateName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") createFromTemplate()
-                if (e.key === "Escape") cancelAdd()
-              }}
-            />
-            <button className="icon-btn ml-add-custom-btn" onClick={createFromTemplate} disabled={creatingFromTemplate} title="Create">
-              <IconPlus size={14} />
-            </button>
-            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} disabled={creatingFromTemplate} title="Cancel">
-              <IconX size={14} />
-            </button>
-          </>
-        )}
-        {pendingChoice === ADD_UPLOAD_OPTION && (
-          <>
-            <input
-              className="ml-upload-input"
-              type="file"
-              accept=".py"
-              disabled={uploading}
-              onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
-            />
-            <button className="icon-btn ml-add-custom-btn" onClick={uploadProbe} disabled={uploading || !uploadFile} title="Upload">
-              <IconUpload size={14} />
-            </button>
-            <button className="icon-btn ml-cancel-custom-btn" onClick={cancelAdd} disabled={uploading} title="Cancel">
-              <IconX size={14} />
-            </button>
-          </>
-        )}
+        <button className="icon-btn ml-manage-btn" onClick={() => setManageOpen(true)} title="Manage probes…">
+          <IconSettings size={14} />
+        </button>
       </div>
-      {templateError && <span className="ml-add-error">{templateError}</span>}
-      {uploadError && <span className="ml-add-error">{uploadError}</span>}
+      {manageOpen && (
+        <ManageProbesDialog
+          category={category}
+          value={value}
+          onAdd={addItem}
+          onChoicesRefresh={onChoicesRefresh}
+          onClose={() => setManageOpen(false)}
+        />
+      )}
     </div>
   )
 }

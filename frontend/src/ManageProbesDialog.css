@@ -1,0 +1,92 @@
+/* Same .confirm-scrim backdrop as SettingsOverlay.css's smaller confirm
+   cards, but a much roomier card since it holds several add-probe panels
+   (and, once a probe is selected, a source view/edit panel) rather than a
+   single confirm message. */
+.manage-probes-card {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--bt);
+  border: 1px solid var(--bd2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.mp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mp-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t1);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.mp-section h4 {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 8px;
+}
+
+.mp-add-panel {
+  margin-bottom: 12px;
+}
+.mp-add-panel:last-child {
+  margin-bottom: 0;
+}
+
+.mp-add-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--t3);
+  margin-bottom: 4px;
+}
+
+.mp-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mp-add-row .tinted-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mp-add-success {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--gn);
+}
+
+.ml-custom-input {
+  flex: 1;
+  min-width: 0 !important;
+  font-size: 11px !important;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.ml-upload-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--t2);
+}
+
+.ml-add-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--re);
+}

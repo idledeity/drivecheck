@@ -324,11 +324,14 @@ describe('ConfigTab', () => {
     expect(screen.getByText('sysfs_io (native)')).toBeInTheDocument()
     // Already-listed items aren't offered again in the add dropdown. Values
     // (what actually gets stored) stay full dotted paths even though the
-    // visible option text is shortened.
+    // visible option text is shortened. The dropdown only ever lists real
+    // choices now — "add a probe" flows live behind the Manage probes…
+    // button instead of as sentinel options crowding the same select.
     const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status', '__custom__', '__template__', '__upload__'])
+    expect(Array.from(select.options).map(o => o.value)).toEqual(['', 'drives.collector.probes.vitals.mount_status'])
     expect(screen.getByText('mount_status (native)')).toBeInTheDocument()
     expect(screen.getByTitle('drives.collector.probes.vitals.mount_status')).toBeInTheDocument()
+    expect(screen.getByTitle('Manage probes…')).toBeInTheDocument()
   })
 
   it('tags a discovered custom probe as "(custom)" and leaves an unrecognized path untagged', async () => {
@@ -391,7 +394,7 @@ describe('ConfigTab', () => {
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
-  it('adds a module_list item via the custom-path fallback', async () => {
+  it('adds a module_list item via the custom-path panel in the Manage probes dialog', async () => {
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -399,15 +402,15 @@ describe('ConfigTab', () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__custom__')
+    await userEvent.click(screen.getByTitle('Manage probes…'))
     await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
-    await userEvent.click(screen.getByTitle('Add'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     expect(screen.getByText('my.custom.probe')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
-  it('cancels the custom-path fallback without adding anything', async () => {
+  it('closing the Manage probes dialog without submitting adds nothing', async () => {
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -415,12 +418,14 @@ describe('ConfigTab', () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__custom__')
+    await userEvent.click(screen.getByTitle('Manage probes…'))
     await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
-    await userEvent.click(screen.getByTitle('Cancel'))
+    await userEvent.click(screen.getByTitle('Close'))
 
     expect(screen.queryByPlaceholderText('dotted.module.path')).not.toBeInTheDocument()
     expect(screen.queryByText('my.custom.probe')).not.toBeInTheDocument()
+    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/template', expect.anything())
+    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/upload', expect.anything())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
@@ -455,15 +460,20 @@ describe('ConfigTab', () => {
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: ['vitals.my_probe'],
     })]
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
+    await userEvent.click(screen.getByTitle('Manage probes…'))
     await userEvent.type(screen.getByPlaceholderText('probe_name'), 'my_probe')
-    await userEvent.click(screen.getByTitle('Create'))
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/template', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ category: 'vitals', name: 'my_probe' }),
     })))
+    // Both the row's value list and the dialog's own inline feedback reflect
+    // the new probe — addressing the "no real feedback after creating a
+    // file" pain point that motivated moving this out of the cramped inline
+    // mini-form in the first place.
     expect(screen.getByText('my_probe (custom)')).toBeInTheDocument()
+    expect(screen.getByText('Created vitals.my_probe')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
@@ -477,28 +487,11 @@ describe('ConfigTab', () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
+    await userEvent.click(screen.getByTitle('Manage probes…'))
     await userEvent.type(screen.getByPlaceholderText('probe_name'), 'bad name')
-    await userEvent.click(screen.getByTitle('Create'))
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(screen.getByText('name must be a valid Python identifier')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
-  })
-
-  it('cancels the template mini-form without creating anything', async () => {
-    router.state.configProps = [makeConfigProp({
-      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
-      value: [], default: [], choices: [],
-    })]
-    render(<SettingsOverlay onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
-
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__template__')
-    await userEvent.type(screen.getByPlaceholderText('probe_name'), 'my_probe')
-    await userEvent.click(screen.getByTitle('Cancel'))
-
-    expect(screen.queryByPlaceholderText('probe_name')).not.toBeInTheDocument()
-    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/template', expect.anything())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
@@ -514,14 +507,14 @@ describe('ConfigTab', () => {
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: ['vitals.uploaded_probe'],
     })]
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
-    expect(screen.getByTitle('Upload')).toBeDisabled()
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled()
 
     const file = new File(['def run(vitals, state):\n    return vitals\n'], 'uploaded_probe.py', { type: 'text/x-python' })
     const fileInput = document.querySelector('.ml-upload-input') as HTMLInputElement
     await userEvent.upload(fileInput, file)
-    expect(screen.getByTitle('Upload')).toBeEnabled()
-    await userEvent.click(screen.getByTitle('Upload'))
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Upload' }))
 
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/upload', expect.objectContaining({ method: 'POST' })))
     const [, init] = router.fn.mock.calls.find(c => c[0] === '/api/probes/upload')!
@@ -530,6 +523,7 @@ describe('ConfigTab', () => {
     expect((init!.body as FormData).get('file')).toBe(file)
 
     expect(screen.getByText('uploaded_probe (custom)')).toBeInTheDocument()
+    expect(screen.getByText('Uploaded vitals.uploaded_probe')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
@@ -543,30 +537,12 @@ describe('ConfigTab', () => {
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
+    await userEvent.click(screen.getByTitle('Manage probes…'))
     const file = new File(['def run(only_one_arg):\n    pass\n'], 'bad_probe.py', { type: 'text/x-python' })
     await userEvent.upload(document.querySelector('.ml-upload-input') as HTMLInputElement, file)
-    await userEvent.click(screen.getByTitle('Upload'))
+    await userEvent.click(screen.getByRole('button', { name: 'Upload' }))
 
     await waitFor(() => expect(screen.getByText("run() signature doesn't match vitals probes")).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
-  })
-
-  it('cancels the upload mini-form without uploading anything', async () => {
-    router.state.configProps = [makeConfigProp({
-      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
-      value: [], default: [], choices: [],
-    })]
-    render(<SettingsOverlay onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
-
-    await userEvent.selectOptions(screen.getByRole('combobox'), '__upload__')
-    const file = new File(['def run(vitals, state):\n    return vitals\n'], 'uploaded_probe.py', { type: 'text/x-python' })
-    await userEvent.upload(document.querySelector('.ml-upload-input') as HTMLInputElement, file)
-    await userEvent.click(screen.getByTitle('Cancel'))
-
-    expect(document.querySelector('.ml-upload-input')).not.toBeInTheDocument()
-    expect(router.fn).not.toHaveBeenCalledWith('/api/probes/upload', expect.anything())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 

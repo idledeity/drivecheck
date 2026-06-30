@@ -472,27 +472,6 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   min-width: 0 !important;
   font-size: 11px !important;
 }
-.ml-custom-input {
-  flex: 1;
-  min-width: 0 !important;
-  font-size: 11px !important;
-  font-family: ui-monospace, Consolas, monospace;
-}
-
-.ml-upload-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--t2);
-}
-
-.ml-add-error {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--re);
-}
-
 .cfg-prop-control input[type="checkbox"] {
   width: 16px;
   height: 16px;
@@ -638,6 +617,10 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
 }
 .confirm-card .restart-confirm-actions {
   margin-top: 10px;
+}
+
+.ml-manage-btn {
+  flex-shrink: 0;
 }
 
 /* ── Logs tab ── */
