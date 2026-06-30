@@ -607,8 +607,8 @@ function shortProbeLabel(path: string, category: string): string {
 // Array editor for module_list props (the probe chains): reorder via
 // up/down rather than drag-and-drop (no DnD library in this codebase, and
 // these lists are short enough that it's not worth pulling one in), add
-// either from the discovered `choices` or a free-text fallback for probes
-// living outside the native/custom-dir catalog, remove per item.
+// from the discovered `choices` or via the Manage probes dialog, remove
+// per item.
 function ModuleListControl({ value, choices, onChange, category, onChoicesRefresh }: ModuleListControlProps) {
   const [manageOpen, setManageOpen] = useState(false)
 
@@ -670,7 +670,6 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
       {manageOpen && (
         <ManageProbesDialog
           category={category}
-          value={value}
           onAdd={addItem}
           onChoicesRefresh={onChoicesRefresh}
           onClose={() => setManageOpen(false)}

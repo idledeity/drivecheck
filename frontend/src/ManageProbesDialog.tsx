@@ -6,23 +6,19 @@ import "./ManageProbesDialog.css"
 
 interface ManageProbesDialogProps {
   category: string
-  value: string[]
   onAdd: (path: string) => void
   onChoicesRefresh: (props: ConfigProp[]) => void
   onClose: () => void
 }
 
 // Dedicated dialog for everything beyond picking an already-discovered
-// choice from a category's <select>: a free-text custom path, scaffolding a
-// stub from a template, or uploading a file each get their own panel here
-// instead of fighting for space in the row itself. Modeled on the
-// ConfirmModal/RestartPromptModal scrim-card pattern in SettingsOverlay.tsx,
-// just with more content — stays open after a successful add so the result
-// is visible instead of immediately vanishing.
-export default function ManageProbesDialog({ category, value, onAdd, onChoicesRefresh, onClose }: ManageProbesDialogProps) {
-  const [customText, setCustomText] = useState("")
-  const [customError, setCustomError] = useState<string | null>(null)
-
+// choice from a category's <select>: scaffolding a stub from a template or
+// uploading a file each get their own panel here instead of fighting for
+// space in the row itself. Modeled on the ConfirmModal/RestartPromptModal
+// scrim-card pattern in SettingsOverlay.tsx, just with more content — stays
+// open after a successful add so the result is visible instead of
+// immediately vanishing.
+export default function ManageProbesDialog({ category, onAdd, onChoicesRefresh, onClose }: ManageProbesDialogProps) {
   const [templateName, setTemplateName] = useState("")
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [templateSuccess, setTemplateSuccess] = useState<string | null>(null)
@@ -32,18 +28,6 @@ export default function ManageProbesDialog({ category, value, onAdd, onChoicesRe
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-
-  const addCustomPath = () => {
-    const trimmed = customText.trim()
-    if (!trimmed) return
-    if (value.includes(trimmed)) {
-      setCustomError("Already in this list")
-      return
-    }
-    setCustomError(null)
-    onAdd(trimmed)
-    setCustomText("")
-  }
 
   const createFromTemplate = async () => {
     const name = templateName.trim()
@@ -116,23 +100,6 @@ export default function ManageProbesDialog({ category, value, onAdd, onChoicesRe
         <div className="mp-body">
           <section className="mp-section">
             <h4>Add a probe</h4>
-            <div className="mp-add-panel">
-              <label className="mp-add-label">Custom path</label>
-              <div className="mp-add-row">
-                <input
-                  className="ml-custom-input"
-                  type="text"
-                  placeholder="dotted.module.path"
-                  value={customText}
-                  onChange={e => { setCustomText(e.target.value); setCustomError(null) }}
-                  onKeyDown={e => { if (e.key === "Enter") addCustomPath() }}
-                />
-                <button className="tinted-btn tint-cy" onClick={addCustomPath} disabled={!customText.trim()}>
-                  <IconPlus size={13} /> Add
-                </button>
-              </div>
-              {customError && <span className="ml-add-error">{customError}</span>}
-            </div>
             <div className="mp-add-panel">
               <label className="mp-add-label">New probe from template</label>
               <div className="mp-add-row">

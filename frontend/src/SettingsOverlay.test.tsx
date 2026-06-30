@@ -394,22 +394,6 @@ describe('ConfigTab', () => {
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
-  it('adds a module_list item via the custom-path panel in the Manage probes dialog', async () => {
-    router.state.configProps = [makeConfigProp({
-      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
-      value: [], default: [], choices: [],
-    })]
-    render(<SettingsOverlay onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
-
-    await userEvent.click(screen.getByTitle('Manage probes…'))
-    await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-
-    expect(screen.getByText('my.custom.probe')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
-  })
-
   it('closing the Manage probes dialog without submitting adds nothing', async () => {
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
@@ -419,11 +403,10 @@ describe('ConfigTab', () => {
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
     await userEvent.click(screen.getByTitle('Manage probes…'))
-    await userEvent.type(screen.getByPlaceholderText('dotted.module.path'), 'my.custom.probe')
+    await userEvent.type(screen.getByPlaceholderText('probe_name'), 'my_probe')
     await userEvent.click(screen.getByTitle('Close'))
 
-    expect(screen.queryByPlaceholderText('dotted.module.path')).not.toBeInTheDocument()
-    expect(screen.queryByText('my.custom.probe')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('probe_name')).not.toBeInTheDocument()
     expect(router.fn).not.toHaveBeenCalledWith('/api/probes/template', expect.anything())
     expect(router.fn).not.toHaveBeenCalledWith('/api/probes/upload', expect.anything())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
