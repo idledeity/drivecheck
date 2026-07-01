@@ -151,7 +151,6 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
     const id = window.setTimeout(() => setConfirmingDiscard(false), 3000)
     return () => window.clearTimeout(id)
   }, [confirmingDiscard])
-  useEffect(() => { if (pendingCount === 0) setConfirmingDiscard(false) }, [pendingCount])
 
   const getValue = (prop: ConfigProp): unknown =>
     prop.key in pending ? pending[prop.key] : prop.value
@@ -185,6 +184,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
       setRestartKeys(data.restart_required ?? [])
       setConfigProps(prev => prev.map(p => p.key in pending ? { ...p, value: pending[p.key] } : p))
       setPending({})
+      setConfirmingDiscard(false)
     } catch {
       setSaveError("Network error")
     } finally {
@@ -249,6 +249,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
             onClick={() => {
               if (confirmingDiscard) {
                 setPending({})
+                setConfirmingDiscard(false)
               } else {
                 setConfirmingDiscard(true)
               }
@@ -731,9 +732,7 @@ function LogsTab() {
   // make logs look like they've silently gone missing.
   const filterActive = minLevel !== "all"
 
-  const load = () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(() => {
     fetch(`/api/logs?n=${entryLimit}&level=${minLevel}`)
       .then(r => r.json())
       .then(data => {
@@ -745,14 +744,14 @@ function LogsTab() {
       })
       .catch(() => setError("Network error"))
       .finally(() => setLoading(false))
-  }
+  }, [entryLimit, minLevel])
 
   // Both are server-side params now — severity used to be filtered
   // client-side, but that only ever hid rows within the already-fetched
   // window, so a rare level (e.g. errors) could show "2 of 500" instead of
   // the last `entryLimit` matching entries. The backend has the full log
   // history available to search, the frontend doesn't.
-  useEffect(() => { load() }, [entryLimit, minLevel])
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "instant" })
@@ -812,7 +811,7 @@ function LogsTab() {
             <select
               className="logs-select"
               value={minLevel}
-              onChange={e => setMinLevel(e.target.value as MinLevel)}
+              onChange={e => { setLoading(true); setError(null); setMinLevel(e.target.value as MinLevel) }}
               title="Minimum severity to show"
             >
               {MIN_LEVEL_OPTIONS.map(lvl => (
@@ -825,7 +824,7 @@ function LogsTab() {
             <select
               className="logs-select"
               value={entryLimit}
-              onChange={e => setEntryLimit(Number(e.target.value))}
+              onChange={e => { setLoading(true); setError(null); setEntryLimit(Number(e.target.value)) }}
               title="Entries to fetch"
             >
               {LOG_ENTRY_LIMITS.map(n => <option key={n} value={n}>{n}</option>)}
@@ -854,7 +853,7 @@ function LogsTab() {
           {records.length > 0 && (
             <span className="logs-count">{records.length} entries</span>
           )}
-          <button className="icon-btn logs-refresh-btn" onClick={load} disabled={loading} title="Refresh logs">
+          <button className="icon-btn logs-refresh-btn" onClick={() => { setLoading(true); setError(null); load() }} disabled={loading} title="Refresh logs">
             <IconRefresh size={12} className={loading ? "spinning" : ""} />
           </button>
         </div>
