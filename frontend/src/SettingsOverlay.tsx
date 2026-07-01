@@ -494,35 +494,33 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
   const liveWarnings = Array.isArray(value) ? warnings.filter(w => value.includes(w.path)) : []
   return (
     <div className={`cfg-prop-row${dirty ? " dirty" : ""}${prop.type === "module_list" ? " cfg-prop-row-tall" : ""}`}>
-      <label className="cfg-prop-label">
-        <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
-        {prop.restart_required && (
-          <HoverReveal text="Requires an app restart to take effect">
-            <IconPower size={11} className="cfg-restart-icon" />
-          </HoverReveal>
-        )}
-        {prop.restart_required && dirty && <span className="cfg-restart-badge">Requires Restart</span>}
-        {prop.tooltip && (
-          <HoverReveal text={prop.tooltip}>
-            <IconInfoCircle size={12} className="cfg-tooltip-icon" />
-          </HoverReveal>
-        )}
-        {liveWarnings.length > 0 && (
-          <HoverReveal text={liveWarnings.map(w => `${w.path}: ${w.reason}`).join("; ")}>
-            <IconAlertTriangle size={11} className="cfg-warning-icon" />
-          </HoverReveal>
-        )}
-      </label>
+      <div className="cfg-prop-left">
+        <label className="cfg-prop-label">
+          <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
+          {prop.restart_required && dirty && <span className="cfg-restart-badge">Requires Restart</span>}
+          {prop.tooltip && (
+            <HoverReveal text={prop.tooltip}>
+              <IconInfoCircle size={12} className="cfg-tooltip-icon" />
+            </HoverReveal>
+          )}
+          {liveWarnings.length > 0 && (
+            <HoverReveal text={liveWarnings.map(w => `${w.path}: ${w.reason}`).join("; ")}>
+              <IconAlertTriangle size={11} className="cfg-warning-icon" />
+            </HoverReveal>
+          )}
+          {/* Only on a clean row: while dirty, the existing pending value is
+              already visible in the control, and reverting that is what the
+              footer's Discard button is for — showing this too would raise
+              "revert to what?" between the pending edit and the default. */}
+          {!dirty && value !== prop.default && (
+            <button className="icon-btn cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
+              <IconRotate2 size={14} />
+            </button>
+          )}
+        </label>
+        <span className="cfg-prop-description">{prop.description}</span>
+      </div>
       <div className="cfg-prop-control">
-        {/* Only on a clean row: while dirty, the existing pending value is
-            already visible in the control, and reverting that is what the
-            footer's Discard button is for — showing this too would raise
-            "revert to what?" between the pending edit and the default. */}
-        {!dirty && value !== prop.default && (
-          <button className="icon-btn cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
-            <IconRotate2 size={14} />
-          </button>
-        )}
         {prop.type === "enum" && (
           <select className="cfg-ctl-enum" value={String(value)} onChange={e => onChange(e.target.value)}>
             {prop.choices!.map(c => <option key={c} value={c}>{c}</option>)}
@@ -576,7 +574,6 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
           />
         )}
       </div>
-      <span className="cfg-prop-description">{prop.description}</span>
     </div>
   )
 }

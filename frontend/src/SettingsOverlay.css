@@ -254,9 +254,7 @@
 .cfg-prop-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "label   control"
-    "desc    control";
+  grid-template-areas: "left control";
   align-items: center;
   gap: 4px 20px;
   padding: 4px 6px;
@@ -266,15 +264,21 @@
 }
 .cfg-prop-row.dirty { background: rgba(24, 196, 238, 0.05); }
 
+.cfg-prop-left {
+  grid-area: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 /* module_list's control can run several rows tall (one per chained probe
-   plus the add row) — centering label/desc against that the way every
-   other (single-line) control allows would leave them floating awkwardly
-   mid-height, so this pins them to the top instead. */
+   plus the add row) — anchor label+description to the top rather than
+   centering them against the full control height. */
 .cfg-prop-row-tall { align-items: start; }
-.cfg-prop-row-tall .cfg-prop-label { padding-top: 3px; }
+.cfg-prop-row-tall .cfg-prop-left { padding-top: 3px; }
 
 .cfg-prop-label {
-  grid-area: label;
   font-size: 12.5px;
   line-height: 1.2;
   color: var(--t2);
@@ -325,13 +329,6 @@
 .cfg-tooltip-bubble-below { transform: translate(-50%, 0); }
 .cfg-tooltip-bubble-mono  { font-family: ui-monospace, Consolas, monospace; }
 
-.cfg-restart-icon {
-  color: var(--cy);
-  opacity: 0.55;
-  cursor: help;
-}
-.cfg-tooltip-anchor:hover .cfg-restart-icon { opacity: 1; color: var(--cy2); }
-
 .cfg-warning-icon {
   color: var(--re);
   opacity: 0.7;
@@ -352,7 +349,6 @@
 }
 
 .cfg-prop-description {
-  grid-area: desc;
   font-size: 9.5px;
   line-height: 1.3;
   color: var(--t5);
@@ -899,9 +895,8 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   .cfg-prop-row {
     grid-template-columns: 1fr;
     grid-template-areas:
-      "label"
-      "control"
-      "desc";
+      "left"
+      "control";
     gap: 6px;
   }
 

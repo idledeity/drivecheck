@@ -696,15 +696,12 @@ describe('ConfigTab', () => {
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
-  it('shows a restart hint at rest, and a stronger badge once the row is dirty', async () => {
+  it('shows no restart badge at rest, and a badge once the row is dirty', async () => {
     router.state.configProps = [makeConfigProp({ key: 'server.port', value: 4343, restart_required: true })]
     render(<SettingsOverlay onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Port')).toBeInTheDocument())
 
     expect(screen.queryByText('Requires Restart')).not.toBeInTheDocument()
-    const icon = document.querySelector('.cfg-restart-icon')!.closest('.cfg-tooltip-anchor')!
-    fireEvent.pointerEnter(icon, { pointerType: 'mouse' })
-    expect(screen.getByText('Requires an app restart to take effect')).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9000' } })
     expect(screen.getByText('Requires Restart')).toBeInTheDocument()
