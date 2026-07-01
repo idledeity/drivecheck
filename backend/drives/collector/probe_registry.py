@@ -230,6 +230,13 @@ class ProbeWriteError(Exception):
     is safe to return to the client as-is."""
 
 
+class ProbeLookupError(Exception):
+    """A user-facing failure to resolve `dotted_path` to a real probe file —
+    unknown category, native probe (not deletable/overwritable), or a custom
+    probe that doesn't exist. As with ProbeWriteError, the message is safe
+    to return to the client as-is."""
+
+
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
@@ -237,16 +244,84 @@ def custom_probe_path(category: str, name: str) -> Path:
     return _ensure_custom_category_dir(_custom_root(), category) / f"{name}.py"
 
 
-def write_probe_file(category: str, name: str, content: bytes) -> None:
+def is_native_probe_path(category: str, dotted_path: str) -> bool:
+    """Same prefix check the Settings UI's shortProbeLabel() uses client-side
+    to tell native and custom probes apart."""
+    return dotted_path.startswith(f"{_NATIVE_PACKAGE}.{category}.")
+
+
+def custom_probe_name(category: str, dotted_path: str) -> str | None:
+    """The bare file stem for a custom probe path ("vitals.foo" -> "foo"),
+    or None if `dotted_path` isn't shaped like one of this category's custom
+    probes."""
+    prefix = f"{category}."
+    if not dotted_path.startswith(prefix):
+        return None
+    return dotted_path[len(prefix):]
+
+
+def native_probe_path(category: str, name: str) -> Path:
+    package = importlib.import_module(f"{_NATIVE_PACKAGE}.{category}")
+    return Path(package.__path__[0]) / f"{name}.py"
+
+
+def read_probe_source(category: str, dotted_path: str) -> tuple[str, bool]:
+    """The source text for `dotted_path`, plus whether it's editable (custom)
+    or read-only (native). Raises ProbeLookupError for an unknown category, a
+    path that's neither shape for `category`, or a custom path whose file has
+    since been deleted from disk."""
+    if category not in CATEGORY_ARITY:
+        raise ProbeLookupError(f"unknown probe category: {category!r}")
+    if is_native_probe_path(category, dotted_path):
+        name = dotted_path[len(f"{_NATIVE_PACKAGE}.{category}."):]
+        path = native_probe_path(category, name)
+    else:
+        name = custom_probe_name(category, dotted_path)
+        if name is None:
+            raise ProbeLookupError(f"{dotted_path!r} is not a {category} probe")
+        path = custom_probe_path(category, name)
+    if not path.exists():
+        raise ProbeLookupError(f"{dotted_path!r} no longer exists")
+    return path.read_text(), not is_native_probe_path(category, dotted_path)
+
+
+def delete_probe_file(category: str, dotted_path: str) -> None:
+    """Delete a custom probe's file and clear its sys.modules entry. Raises
+    ProbeLookupError for an unknown category, a native path (not deletable),
+    or a custom path that doesn't resolve to an existing file."""
+    if category not in CATEGORY_ARITY:
+        raise ProbeLookupError(f"unknown probe category: {category!r}")
+    if is_native_probe_path(category, dotted_path):
+        raise ProbeLookupError("native probes can't be deleted")
+    name = custom_probe_name(category, dotted_path)
+    if name is None:
+        raise ProbeLookupError(f"{dotted_path!r} is not a {category} probe")
+    path = custom_probe_path(category, name)
+    if not path.exists():
+        raise ProbeLookupError(f"{dotted_path!r} no longer exists")
+    path.unlink()
+    sys.modules.pop(dotted_path, None)
+
+
+def write_probe_file(category: str, name: str, content: bytes, *, overwrite: bool = False) -> None:
     """Write `content` as custom_probes/<category>/<name>.py, then import it
     and verify it actually matches `category`'s run() shape before keeping
-    it. Deletes the file (and clears any sys.modules entry, so a later
-    write reusing the same name can't accidentally resolve to this failed
-    attempt's cached import) and raises ProbeWriteError if validation fails
-    — so a bad upload/template never lingers as a broken choice.
+    it.
 
-    Used by both the upload and template endpoints — they only differ in
-    where `content` comes from (a posted file vs. a generated template).
+    overwrite=False (create, the default): raises ProbeWriteError if a file
+    by this name already exists. On validation failure, deletes the file
+    (and clears any sys.modules entry, so a later write reusing the same
+    name can't accidentally resolve to this failed attempt's cached import)
+    — a bad upload/template never lingers as a broken choice.
+
+    overwrite=True (edit): raises ProbeLookupError if no file by this name
+    exists yet — edits never create. On validation failure, restores the
+    file's previous content instead of deleting it, so a bad edit leaves the
+    probe exactly as it was rather than destroying it.
+
+    Used by the upload, template, and source-edit endpoints — they only
+    differ in where `content` comes from and whether the destination must
+    already exist.
 
     Note: importing necessarily executes the file's top-level code before
     any of this validation runs. That's the same trust model every other
@@ -259,21 +334,31 @@ def write_probe_file(category: str, name: str, content: bytes) -> None:
     if not _NAME_RE.fullmatch(name):
         raise ProbeWriteError("name must be a valid Python identifier (letters, digits, underscore)")
     dest = custom_probe_path(category, name)
-    if dest.exists():
+    previous: bytes | None = None
+    if overwrite:
+        if not dest.exists():
+            raise ProbeLookupError(f"{name!r} no longer exists")
+        previous = dest.read_bytes()
+    elif dest.exists():
         raise ProbeWriteError(f"{name}.py already exists in custom_probes/{category}/")
 
     _ensure_on_sys_path(_custom_root())
     dest.write_bytes(content)
     dotted = f"{category}.{name}"
     try:
-        module = importlib.import_module(dotted)
+        module = importlib.reload(sys.modules[dotted]) if dotted in sys.modules else importlib.import_module(dotted)
         ok = matches_category(module, category)
         reason = None if ok else f"run() signature doesn't match {category} probes"
     except Exception as e:
         ok, reason = False, f"failed to import: {e}"
     if not ok:
-        sys.modules.pop(dotted, None)
-        dest.unlink(missing_ok=True)
+        if previous is not None:
+            dest.write_bytes(previous)
+            sys.modules.pop(dotted, None)
+            importlib.import_module(dotted)
+        else:
+            sys.modules.pop(dotted, None)
+            dest.unlink(missing_ok=True)
         raise ProbeWriteError(reason)
 
 

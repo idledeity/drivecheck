@@ -36,6 +36,11 @@
   letter-spacing: 0.04em;
   margin: 0 0 8px;
 }
+.mp-section + .mp-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bd2);
+}
 
 .mp-add-panel {
   margin-bottom: 12px;
@@ -89,4 +94,105 @@
   margin-top: 4px;
   font-size: 11px;
   color: var(--re);
+}
+
+.mp-probe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mp-probe-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+.mp-probe-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.mp-probe-path {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mp-probe-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.mp-probe-empty {
+  font-size: 11.5px;
+  color: var(--t4);
+  padding: 4px;
+}
+
+.mp-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mp-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.mp-detail-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+  font-family: ui-monospace, Consolas, monospace;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mp-detail-loading {
+  font-size: 11.5px;
+  color: var(--t4);
+}
+
+.mp-source-textarea {
+  width: 100%;
+  height: 320px;
+  resize: vertical;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--t1);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.mp-source-textarea:read-only {
+  color: var(--t3);
+}
+
+.mp-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mp-detail-actions .tinted-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

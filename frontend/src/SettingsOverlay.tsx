@@ -670,7 +670,10 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
       {manageOpen && (
         <ManageProbesDialog
           category={category}
+          value={value}
+          choices={choices}
           onAdd={addItem}
+          onChange={onChange}
           onChoicesRefresh={onChoicesRefresh}
           onClose={() => setManageOpen(false)}
         />

@@ -325,6 +325,58 @@ def upload_probe():
     return jsonify(cfg.props())
 
 
+@app.route("/api/probes/source", methods=["GET"])
+def get_probe_source():
+    category, path = request.args.get("category", ""), request.args.get("path", "")
+    try:
+        content, editable = probe_registry.read_probe_source(category, path)
+    except probe_registry.ProbeLookupError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"content": content, "editable": editable})
+
+
+@app.route("/api/probes/source", methods=["PUT"])
+def put_probe_source():
+    """Overwrite a custom probe's source in place — same name and category,
+    only the content changes. Native probes and not-yet-existing paths are
+    rejected, both as a 400, since neither is a valid edit target."""
+    data = request.get_json(force=True) or {}
+    category, path, content = data.get("category", ""), data.get("path", ""), data.get("content", "")
+    name = probe_registry.custom_probe_name(category, path)
+    if name is None:
+        return jsonify({"error": f"{path!r} is not an editable {category} probe"}), 400
+    try:
+        probe_registry.write_probe_file(category, name, content.encode(), overwrite=True)
+    except (probe_registry.ProbeLookupError, probe_registry.ProbeWriteError) as e:
+        return jsonify({"error": str(e)}), 400
+    probe_registry.discover()
+    return jsonify(cfg.props())
+
+
+@app.route("/api/probes/source", methods=["DELETE"])
+def delete_probe_source():
+    category, path = request.args.get("category", ""), request.args.get("path", "")
+    try:
+        probe_registry.delete_probe_file(category, path)
+    except probe_registry.ProbeLookupError as e:
+        return jsonify({"error": str(e)}), 400
+    probe_registry.discover()
+    return jsonify(cfg.props())
+
+
+@app.route("/api/probes/download", methods=["GET"])
+def download_probe_source():
+    category, path = request.args.get("category", ""), request.args.get("path", "")
+    try:
+        content, _editable = probe_registry.read_probe_source(category, path)
+    except probe_registry.ProbeLookupError as e:
+        return jsonify({"error": str(e)}), 404
+    name = path.rsplit(".", 1)[-1]
+    return Response(content, mimetype="text/x-python", headers={
+        "Content-Disposition": f'attachment; filename="{name}.py"',
+    })
+
+
 @app.route("/api/config", methods=["PATCH"])
 def patch_config():
     updates = request.get_json(force=True) or {}

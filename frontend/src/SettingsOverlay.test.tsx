@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { getDefaultNormalizer } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsOverlay from './SettingsOverlay'
@@ -33,6 +34,12 @@ function makeLogRecord(overrides: Partial<LogRecord> = {}): LogRecord {
   }
 }
 
+// getByDisplayValue/findByDisplayValue normalize whitespace in the node's
+// value by default (collapsing newlines), but never normalize the matcher
+// string passed in — so multiline probe source needs this to compare the
+// raw value as-is instead of silently never matching.
+const rawValueNormalizer = getDefaultNormalizer({ trim: false, collapseWhitespace: false })
+
 function makeFetchRouter() {
   const state = {
     configProps: [] as ConfigProp[],
@@ -45,6 +52,12 @@ function makeFetchRouter() {
     uploadResponse: null as ConfigProp[] | { error: string } | null,
     uploadStatus: 200,
     statusResponse: {} as Record<string, ProbeWarning[]>,
+    sourceResponse: null as { content: string; editable: boolean } | { error: string } | null,
+    sourceStatus: 200,
+    putSourceResponse: null as ConfigProp[] | { error: string } | null,
+    putSourceStatus: 200,
+    deleteSourceResponse: null as ConfigProp[] | { error: string } | null,
+    deleteSourceStatus: 200,
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
@@ -57,6 +70,15 @@ function makeFetchRouter() {
     }
     if (url === '/api/probes/upload' && method === 'POST') {
       return Promise.resolve(fetchJsonResponse(state.uploadResponse ?? state.configProps, state.uploadStatus))
+    }
+    if (url.startsWith('/api/probes/source') && method === 'GET') {
+      return Promise.resolve(fetchJsonResponse(state.sourceResponse ?? { content: '', editable: false }, state.sourceStatus))
+    }
+    if (url === '/api/probes/source' && method === 'PUT') {
+      return Promise.resolve(fetchJsonResponse(state.putSourceResponse ?? state.configProps, state.putSourceStatus))
+    }
+    if (url.startsWith('/api/probes/source') && method === 'DELETE') {
+      return Promise.resolve(fetchJsonResponse(state.deleteSourceResponse ?? state.configProps, state.deleteSourceStatus))
     }
     if (url.startsWith('/api/logs')) return Promise.resolve(fetchJsonResponse(state.logs))
     return Promise.resolve(fetchJsonResponse({}))
@@ -451,11 +473,12 @@ describe('ConfigTab', () => {
       method: 'POST',
       body: JSON.stringify({ category: 'vitals', name: 'my_probe' }),
     })))
-    // Both the row's value list and the dialog's own inline feedback reflect
-    // the new probe — addressing the "no real feedback after creating a
-    // file" pain point that motivated moving this out of the cramped inline
+    // The new probe now shows up in three places at once: the row's value
+    // list, the dialog's own "All probes" list, and its inline success
+    // feedback — addressing the "no real feedback after creating a file"
+    // pain point that motivated moving this out of the cramped inline
     // mini-form in the first place.
-    expect(screen.getByText('my_probe (custom)')).toBeInTheDocument()
+    expect(screen.getAllByText('my_probe (custom)')).toHaveLength(2)
     expect(screen.getByText('Created vitals.my_probe')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
@@ -505,7 +528,7 @@ describe('ConfigTab', () => {
     expect((init!.body as FormData).get('category')).toBe('vitals')
     expect((init!.body as FormData).get('file')).toBe(file)
 
-    expect(screen.getByText('uploaded_probe (custom)')).toBeInTheDocument()
+    expect(screen.getAllByText('uploaded_probe (custom)')).toHaveLength(2)
     expect(screen.getByText('Uploaded vitals.uploaded_probe')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
@@ -527,6 +550,142 @@ describe('ConfigTab', () => {
 
     await waitFor(() => expect(screen.getByText("run() signature doesn't match vitals probes")).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  it('lists every discovered probe under "All probes", tagging native vs. custom and gating Delete to custom', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [],
+      choices: ['drives.collector.probes.vitals.smartctl_vitals', 'vitals.custom_one'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+
+    expect(screen.getByText('smartctl_vitals (native)', { selector: '.mp-probe-path' })).toBeInTheDocument()
+    expect(screen.getByText('custom_one (custom)', { selector: '.mp-probe-path' })).toBeInTheDocument()
+    expect(screen.getByTitle('View source')).toBeInTheDocument()
+    expect(screen.getByTitle('View / edit source')).toBeInTheDocument()
+    expect(screen.getAllByTitle('Download')).toHaveLength(2)
+    expect(screen.getAllByTitle('Delete')).toHaveLength(1)
+  })
+
+  it('views a native probe\'s source read-only, with no Save button', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['drives.collector.probes.vitals.smartctl_vitals'],
+    })]
+    router.state.sourceResponse = { content: 'def run(vitals, state):\n    return vitals\n', editable: false }
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    await userEvent.click(screen.getByTitle('View source'))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith(
+      '/api/probes/source?category=vitals&path=drives.collector.probes.vitals.smartctl_vitals',
+    ))
+    const textarea = await screen.findByDisplayValue('def run(vitals, state):\n    return vitals\n', { normalizer: rawValueNormalizer })
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Download/ })).toHaveAttribute(
+      'href', '/api/probes/download?category=vitals&path=drives.collector.probes.vitals.smartctl_vitals',
+    )
+  })
+
+  it('edits and saves a custom probe\'s source, refreshing choices on success', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.editable_one'],
+    })]
+    router.state.sourceResponse = { content: 'def run(vitals, state):\n    return vitals\n', editable: true }
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    await userEvent.click(screen.getByTitle('View / edit source'))
+
+    const textarea = await screen.findByDisplayValue('def run(vitals, state):\n    return vitals\n', { normalizer: rawValueNormalizer })
+    expect(textarea).not.toHaveAttribute('readonly')
+
+    router.state.putSourceResponse = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.editable_one'],
+    })]
+    fireEvent.change(textarea, { target: { value: 'def run(vitals, state):\n    return state\n' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/probes/source', expect.objectContaining({
+      method: 'PUT',
+      body: JSON.stringify({ category: 'vitals', path: 'vitals.editable_one', content: 'def run(vitals, state):\n    return state\n' }),
+    })))
+  })
+
+  it('shows an inline error and keeps the detail panel open when saving an edit fails', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.editable_one'],
+    })]
+    router.state.sourceResponse = { content: 'def run(vitals, state):\n    return vitals\n', editable: true }
+    router.state.putSourceResponse = { error: "run() signature doesn't match vitals probes" }
+    router.state.putSourceStatus = 400
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    await userEvent.click(screen.getByTitle('View / edit source'))
+    const textarea = await screen.findByDisplayValue('def run(vitals, state):\n    return vitals\n', { normalizer: rawValueNormalizer })
+    fireEvent.change(textarea, { target: { value: 'def run(only_one_arg):\n    pass\n' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.getByText("run() signature doesn't match vitals probes")).toBeInTheDocument())
+    expect(screen.getByDisplayValue('def run(only_one_arg):\n    pass\n', { normalizer: rawValueNormalizer })).toBeInTheDocument()
+  })
+
+  it('cancelling a delete confirm leaves the probe in place', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['vitals.custom_one'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    await userEvent.click(screen.getByTitle('Delete'))
+    expect(screen.getByText('Delete custom_one (custom)?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText('Delete custom_one (custom)?')).not.toBeInTheDocument()
+    expect(screen.getByText('custom_one (custom)', { selector: '.mp-probe-path' })).toBeInTheDocument()
+  })
+
+  it('confirming a delete removes the probe from the list and from the row\'s value', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: ['vitals.custom_one'], default: [], choices: ['vitals.custom_one'],
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+    expect(screen.getByText('custom_one (custom)')).toBeInTheDocument()
+
+    router.state.deleteSourceResponse = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: [],
+    })]
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    await userEvent.click(screen.getByTitle('Delete'))
+    // After the trash-icon click, both the row's icon button (title='Delete')
+    // and the confirm card's text button ('Delete') are in the DOM. Scope the
+    // click to the confirm card to avoid the ambiguous getByRole match.
+    const confirmCard = document.querySelector('.confirm-card') as HTMLElement
+    await userEvent.click(within(confirmCard).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith(
+      '/api/probes/source?category=vitals&path=vitals.custom_one', expect.objectContaining({ method: 'DELETE' }),
+    ))
+    await waitFor(() => expect(screen.queryByText('custom_one (custom)')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeInTheDocument()
   })
 
   it('ignores non-numeric input on a numeric control', async () => {

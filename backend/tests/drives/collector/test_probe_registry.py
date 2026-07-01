@@ -193,6 +193,89 @@ class TestWriteProbeFile:
         probe_registry.discover()
         assert "vitals.reused_name" in cfg._props["collector.vitals_probes"].choices
 
+    def test_overwrite_replaces_an_existing_custom_probes_content(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "editable", b"def run(vitals, state):\n    return vitals\n")
+        probe_registry.write_probe_file(
+            "vitals", "editable", b"def run(vitals, state):\n    return state\n", overwrite=True,
+        )
+        content, editable = probe_registry.read_probe_source("vitals", "vitals.editable")
+        assert "return state" in content
+        assert editable is True
+
+    def test_overwrite_of_a_not_yet_existing_name_raises_lookup_error(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeLookupError, match="no longer exists"):
+            probe_registry.write_probe_file(
+                "vitals", "never_created", b"def run(vitals, state):\n    return vitals\n", overwrite=True,
+            )
+
+    def test_overwrite_that_fails_validation_restores_the_original_content(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "guarded", b"def run(vitals, state):\n    return vitals\n")
+        with pytest.raises(probe_registry.ProbeWriteError, match="doesn't match vitals probes"):
+            probe_registry.write_probe_file(
+                "vitals", "guarded", b"def run(only_one_arg):\n    pass\n", overwrite=True,
+            )
+        content, _editable = probe_registry.read_probe_source("vitals", "vitals.guarded")
+        assert "return vitals" in content
+
+        probe_registry.discover()
+        assert "vitals.guarded" in cfg._props["collector.vitals_probes"].choices
+
+
+class TestReadProbeSource:
+    def test_reads_a_native_probe_as_not_editable(self):
+        content, editable = probe_registry.read_probe_source(
+            "scan", "drives.collector.probes.scan.smartctl_scan",
+        )
+        assert "def run(" in content
+        assert editable is False
+
+    def test_reads_a_custom_probe_as_editable(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "readable", b"def run(vitals, state):\n    return vitals\n")
+        content, editable = probe_registry.read_probe_source("vitals", "vitals.readable")
+        assert "return vitals" in content
+        assert editable is True
+
+    def test_rejects_an_unknown_category(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeLookupError, match="unknown probe category"):
+            probe_registry.read_probe_source("not_a_category", "not_a_category.x")
+
+    def test_rejects_a_path_that_does_not_match_the_category(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeLookupError, match="not a vitals probe"):
+            probe_registry.read_probe_source("vitals", "traits.something")
+
+    def test_raises_for_a_custom_file_deleted_from_disk(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "vanishing", b"def run(vitals, state):\n    return vitals\n")
+        (isolated_data_dir / "custom_probes" / "vitals" / "vanishing.py").unlink()
+        with pytest.raises(probe_registry.ProbeLookupError, match="no longer exists"):
+            probe_registry.read_probe_source("vitals", "vitals.vanishing")
+
+
+class TestDeleteProbeFile:
+    def test_deletes_a_custom_probe_and_clears_its_module_cache(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "doomed", b"def run(vitals, state):\n    return vitals\n")
+        assert "vitals.doomed" in sys.modules
+        dest = isolated_data_dir / "custom_probes" / "vitals" / "doomed.py"
+        assert dest.exists()
+
+        probe_registry.delete_probe_file("vitals", "vitals.doomed")
+        assert not dest.exists()
+        assert "vitals.doomed" not in sys.modules
+
+        probe_registry.discover()
+        assert "vitals.doomed" not in cfg._props["collector.vitals_probes"].choices
+
+    def test_rejects_an_unknown_category(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeLookupError, match="unknown probe category"):
+            probe_registry.delete_probe_file("not_a_category", "not_a_category.x")
+
+    def test_rejects_a_native_probe(self):
+        with pytest.raises(probe_registry.ProbeLookupError, match="native probes can't be deleted"):
+            probe_registry.delete_probe_file("scan", "drives.collector.probes.scan.smartctl_scan")
+
+    def test_rejects_a_custom_probe_that_does_not_exist(self, isolated_data_dir):
+        with pytest.raises(probe_registry.ProbeLookupError, match="no longer exists"):
+            probe_registry.delete_probe_file("vitals", "vitals.never_existed")
+
 
 class TestProbeTemplates:
     @pytest.mark.parametrize("category", ["scan", "traits", "telemetry", "vitals"])
