@@ -2,18 +2,14 @@ import { useState } from "react"
 import type { Drive, Job } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
-import HistoryTab from "./HistoryTab"
-import QueueTab from "./QueueTab"
-import RunTaskTab from "./RunTaskTab"
+import TasksTab from "./TasksTab"
 import "./WorkspacePanel.css"
 
-type Tab = "health" | "history" | "queue" | "tasks"
+type Tab = "health" | "tasks"
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "health",  label: "Health"   },
-  { id: "history", label: "History"  },
-  { id: "queue",   label: "Queue"    },
-  { id: "tasks",   label: "Run Task" },
+  { id: "health", label: "Health" },
+  { id: "tasks",  label: "Tasks"  },
 ]
 
 interface Props {
@@ -55,10 +51,8 @@ export default function WorkspacePanel({ drives, selected, jobs, onCancelJob, on
             </nav>
           </div>
           <div className="ws-body">
-            {tab === "health"  && <HealthTab drives={drives} selectedGuids={selected} />}
-            {tab === "history" && <HistoryTab drives={drives} selectedGuids={selected} />}
-            {tab === "queue"   && <QueueTab drives={drives} jobs={jobs} onCancel={onCancelJob} />}
-            {tab === "tasks"   && <RunTaskTab drives={drives} selected={selected} onRun={onRunOperation} />}
+            {tab === "health" && <HealthTab drives={drives} selectedGuids={selected} />}
+            {tab === "tasks"  && <TasksTab drives={drives} selected={selected} jobs={jobs} onCancelJob={onCancelJob} onRunOperation={onRunOperation} />}
           </div>
         </>
       )}

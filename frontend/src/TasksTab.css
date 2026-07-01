@@ -1,0 +1,22 @@
+.tasks-subtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+
+.tasks-subtab {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--t4);
+  background: none;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.tasks-subtab:hover  { color: var(--t2); background: rgba(255,255,255,0.05); }
+.tasks-subtab.active { color: var(--cy); background: rgba(24,196,238,0.1); }
