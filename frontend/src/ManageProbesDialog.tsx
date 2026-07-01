@@ -58,11 +58,17 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
 
   const [detailPath, setDetailPath] = useState<string | null>(null)
   const [detailContent, setDetailContent] = useState("")
+  const [detailOriginalContent, setDetailOriginalContent] = useState("")
   const [detailEditable, setDetailEditable] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [discardAndThen, setDiscardAndThen] = useState<(() => void) | null>(null)
+
+  const detailDirty = detailEditable && detailContent !== detailOriginalContent
+
+  const guardedExit = (action: () => void) => detailDirty ? setDiscardAndThen(() => action) : action()
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -130,6 +136,7 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
   const openDetail = async (path: string) => {
     setDetailPath(path)
     setDetailContent("")
+    setDetailOriginalContent("")
     setDetailLoading(true)
     setDetailError(null)
     setSaveError(null)
@@ -141,6 +148,7 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
         return
       }
       setDetailContent(data.content)
+      setDetailOriginalContent(data.content)
       setDetailEditable(data.editable)
     } catch {
       setDetailError("Network error")
@@ -152,9 +160,11 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
   const closeDetail = () => {
     setDetailPath(null)
     setDetailContent("")
+    setDetailOriginalContent("")
     setDetailEditable(false)
     setDetailError(null)
     setSaveError(null)
+    setDiscardAndThen(null)
   }
 
   const saveDetail = async () => {
@@ -173,6 +183,7 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
         return
       }
       onChoicesRefresh(data as ConfigProp[])
+      setDetailOriginalContent(detailContent)
     } catch {
       setSaveError("Network error")
     } finally {
@@ -206,11 +217,11 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
 
   return createPortal(
     <>
-      <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && guardedExit(onClose)}>
         <div className="manage-probes-card">
           <div className="mp-header">
             <h3>Manage {category} probes</h3>
-            <button className="icon-btn" onClick={onClose} title="Close">
+            <button className="icon-btn" onClick={() => guardedExit(onClose)} title="Close">
               <IconX size={16} />
             </button>
           </div>
@@ -218,7 +229,7 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
             {detailPath ? (
               <section className="mp-section">
                 <div className="mp-detail-header">
-                  <button className="text-link-btn mp-back-btn" onClick={closeDetail}>
+                  <button className="text-link-btn mp-back-btn" onClick={() => guardedExit(closeDetail)}>
                     <IconArrowLeft size={13} /> Back
                   </button>
                   <h4 className="mp-detail-title">{shortProbeLabel(detailPath, category)}</h4>
@@ -321,6 +332,17 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
           </div>
         </div>
       </div>
+      {discardAndThen && (
+        <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && setDiscardAndThen(null)}>
+          <div className="confirm-card">
+            <p>Discard unsaved changes?</p>
+            <div className="restart-confirm-actions">
+              <button className="text-link-btn" onClick={() => setDiscardAndThen(null)}>Keep editing</button>
+              <button className="tinted-btn tint-re" onClick={() => { closeDetail(); discardAndThen() }}>Discard</button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteTarget && (
         <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && !deleting && setDeleteTarget(null)}>
           <div className="confirm-card">
