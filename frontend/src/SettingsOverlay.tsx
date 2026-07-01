@@ -9,6 +9,12 @@ import "./SettingsOverlay.css"
 
 type SettingsTab = "config" | "logs" | "about"
 
+function configValuesEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((v, i) => v === b[i])
+  return a === b
+}
+
 const TABS: { id: SettingsTab; label: string; icon: typeof IconAdjustments; iconClass: string }[] = [
   { id: "config", label: "Config", icon: IconAdjustments, iconClass: "so-nav-icon-config" },
   { id: "logs",   label: "Logs",   icon: IconFileText,    iconClass: "so-nav-icon-logs"   },
@@ -158,7 +164,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const handleChange = (prop: ConfigProp, value: unknown) => {
     setSaveError(null)
     setPending(prev => {
-      if (value === prop.value) {
+      if (configValuesEqual(value, prop.value)) {
         const next = { ...prev }
         delete next[prop.key]
         return next
@@ -512,7 +518,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
               already visible in the control, and reverting that is what the
               footer's Discard button is for — showing this too would raise
               "revert to what?" between the pending edit and the default. */}
-          {!dirty && value !== prop.default && (
+          {!dirty && !configValuesEqual(value, prop.default) && (
             <button className="icon-btn cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
               <IconRotate2 size={14} />
             </button>
