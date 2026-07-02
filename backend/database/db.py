@@ -86,20 +86,22 @@ CREATE TABLE IF NOT EXISTS collector_state (
     last_pruned_at TEXT
 );
 
--- One row per terminal job (completed/failed/cancelled). Active job state
--- lives in JobRegistry; this table is for future History tab queries.
+-- One row per job (queued/running/terminal). Active jobs are written on
+-- creation and at RUNNING-transition so they survive a restart; terminal
+-- jobs are updated in place when the operation finishes.
 CREATE TABLE IF NOT EXISTS jobs (
-    id          TEXT PRIMARY KEY,
-    drive_guid  TEXT NOT NULL,
-    operation   TEXT NOT NULL,
-    category    TEXT NOT NULL,
-    params_json TEXT NOT NULL,
-    status      TEXT NOT NULL,
-    result_json TEXT,
-    error       TEXT,
-    created_at  TEXT NOT NULL,
-    started_at  TEXT,
-    finished_at TEXT
+    id             TEXT PRIMARY KEY,
+    drive_guid     TEXT NOT NULL,
+    operation      TEXT NOT NULL,
+    category       TEXT NOT NULL,
+    params_json    TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    result_json    TEXT,
+    error          TEXT,
+    created_at     TEXT NOT NULL,
+    started_at     TEXT,
+    finished_at    TEXT,
+    reattach_json  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
@@ -136,9 +138,13 @@ def init() -> None:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Apply schema changes that CREATE TABLE IF NOT EXISTS can't express on existing DBs."""
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(drive_records)")}
-    if "label" not in columns:
+    drive_record_cols = {row[1] for row in conn.execute("PRAGMA table_info(drive_records)")}
+    if "label" not in drive_record_cols:
         conn.execute("ALTER TABLE drive_records ADD COLUMN label TEXT")
+
+    job_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "reattach_json" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN reattach_json TEXT")
 
 
 # ---------------------------------------------------------------------------
@@ -309,16 +315,22 @@ def set_last_pruned_at(captured_at_iso: str) -> None:
 # Jobs
 # ---------------------------------------------------------------------------
 
-def record_job(job: Job) -> None:
-    """Persist a terminal job (completed/failed/cancelled) for future History tab use."""
-    logger.debug("recording job %s in history: %s (%s)", job.id[:8], job.operation, job.status.value)
+def record_job(job: Job, reattach_data: dict | None = None) -> None:
+    """Persist a job row (any status) for History tab use and restart recovery.
+
+    Called at creation (QUEUED), at RUNNING-transition, again once reattach data
+    becomes available (after the external resource is acquired), and finally when
+    the job reaches a terminal state.
+    """
+    logger.debug("recording job %s: %s (%s)", job.id[:8], job.operation, job.status.value)
     with _connection() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO jobs (
                 id, drive_guid, operation, category, params_json, status,
-                result_json, error, created_at, started_at, finished_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                result_json, error, created_at, started_at, finished_at,
+                reattach_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id, job.drive_guid, job.operation, job.category,
@@ -328,8 +340,21 @@ def record_job(job: Job) -> None:
                 job.created_at.isoformat(),
                 job.started_at.isoformat() if job.started_at else None,
                 job.finished_at.isoformat() if job.finished_at else None,
+                json.dumps(reattach_data) if reattach_data is not None else None,
             ),
         )
+
+
+def get_active_jobs() -> list[sqlite3.Row]:
+    """Return all jobs with non-terminal status (queued or running) from the previous run."""
+    from jobs.job_models import JobStatus  # local import to avoid circular dependency at module load
+    logger.debug("loading active jobs for restart recovery")
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT * FROM jobs WHERE status IN (?, ?) ORDER BY created_at",
+            (JobStatus.QUEUED.value, JobStatus.RUNNING.value),
+        ).fetchall()
 
 
 def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:

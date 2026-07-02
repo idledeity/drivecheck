@@ -13,11 +13,12 @@ from enum import Enum
 
 
 class JobStatus(Enum):
-    QUEUED    = "queued"
-    RUNNING   = "running"
-    COMPLETED = "completed"
-    FAILED    = "failed"
-    CANCELLED = "cancelled"
+    QUEUED      = "queued"
+    RUNNING     = "running"
+    COMPLETED   = "completed"
+    FAILED      = "failed"
+    CANCELLED   = "cancelled"
+    INTERRUPTED = "interrupted"  # was RUNNING at last shutdown; could not be confirmed or resumed
 
 
 @dataclass

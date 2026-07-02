@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconLoader2, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { formatDuration, formatRelativeTime } from "./format"
 import { JobDetailRows } from "./JobDetails"
@@ -23,7 +23,7 @@ export default function QueueTab({ drives, jobs, onCancel }: Props) {
   const running = jobs.filter(j => j.status === "running")
   const queued = jobs.filter(j => j.status === "queued")
   const finished = jobs
-    .filter(j => j.status === "completed" || j.status === "failed" || j.status === "cancelled")
+    .filter(j => j.status === "completed" || j.status === "failed" || j.status === "cancelled" || j.status === "interrupted")
     .sort((a, b) => new Date(b.finished_at ?? b.created_at).getTime() - new Date(a.finished_at ?? a.created_at).getTime())
     .slice(0, 15)
 
@@ -54,11 +54,12 @@ function Section({ title, jobs, drives, onCancel }: {
 }
 
 const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
-  running:   <IconLoader2 size={13} className="spinning" />,
-  queued:    <IconClock size={13} />,
-  completed: <IconCheck size={13} />,
-  failed:    <IconAlertTriangle size={13} />,
-  cancelled: <IconBan size={13} />,
+  running:     <IconLoader2 size={13} className="spinning" />,
+  queued:      <IconClock size={13} />,
+  completed:   <IconCheck size={13} />,
+  failed:      <IconAlertTriangle size={13} />,
+  cancelled:   <IconBan size={13} />,
+  interrupted: <IconHelpCircle size={13} />,
 }
 
 // Exported for HistoryTab, which renders the same row shape for terminal
@@ -132,7 +133,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           )}
         </div>
       )}
-      {job.status === "failed" && job.error && <div className="queue-error">{job.error}</div>}
+      {(job.status === "failed" || job.status === "interrupted") && job.error && <div className="queue-error">{job.error}</div>}
       {expanded && (
         <div className="queue-details">
           <JobDetailRows job={job} />

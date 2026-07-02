@@ -13,6 +13,7 @@ class SelfTestType(Enum):
     """Self-test mode passed to `smartctl -t`."""
     SHORT = "short"
     LONG = "long"
+    CONVEYANCE = "conveyance"
 
 
 @dataclass

@@ -87,11 +87,12 @@
 }
 
 .queue-status-icon { grid-area: icon; display: flex; align-items: center; align-self: center; flex-shrink: 0; }
-.queue-status-running   { color: var(--cy2); }
-.queue-status-queued    { color: var(--t4); }
-.queue-status-completed { color: var(--gnb); }
-.queue-status-failed    { color: var(--re); }
-.queue-status-cancelled { color: var(--t4); }
+.queue-status-running     { color: var(--cy2); }
+.queue-status-queued      { color: var(--t4); }
+.queue-status-completed   { color: var(--gnb); }
+.queue-status-failed      { color: var(--re); }
+.queue-status-cancelled   { color: var(--t4); }
+.queue-status-interrupted { color: var(--wa); }
 
 .queue-drive-id {
   grid-area: drive;

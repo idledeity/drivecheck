@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request
+from werkzeug.serving import make_server
 from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
@@ -45,6 +46,8 @@ _log.setup_from_config(_CONFIG_PATH)
 
 logger = logging.getLogger(__name__)
 logger.info("drivecheck starting...")
+
+_server = None  # set in __main__ before serve_forever(); used by _restart_process
 
 cfg.load(_CONFIG_PATH)
 cfg.apply_live()
@@ -398,15 +401,18 @@ def _restart_process():
         job_registry.shutdown()
     except Exception:
         logger.exception("error shutting down job registry during restart")
-    # os.execv inherits all open file descriptors, including the socket
-    # Werkzeug bound to listen on — left open, the re-exec'd process fails
-    # to rebind the same port ("Address already in use"). Closing everything
-    # past stdin/stdout/stderr first avoids that.
-    try:
-        max_fd = os.sysconf("SC_OPEN_MAX")
-    except (ValueError, OSError):
-        max_fd = 4096
-    os.closerange(3, max_fd)
+    # Close only the listening socket so the new process can rebind the port.
+    # Python 3.4+ sets O_CLOEXEC on all new file objects and sockets (PEP 446),
+    # so they close atomically during execv — no running thread sees the fd
+    # disappear mid-use, which is what caused the EBADF spam with the old
+    # closerange(3, max_fd) approach.  Leaving non-Python fds (e.g. debugpy's
+    # socket) open also lets debugpy send its process-replaced notification to
+    # VS Code before exec fires.
+    if _server is not None:
+        try:
+            _server.socket.close()
+        except OSError:
+            pass
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
@@ -467,12 +473,17 @@ if __name__ == "__main__":
     user_settings.init()
     db.init()
     collector.start()
+    collector.wait_for_scan()
+    job_registry.recover()
     atexit.register(collector.stop)
     atexit.register(job_registry.shutdown)
 
-    app.run(
-        host=cfg.get("server.host"),
-        port=args.port if args.port is not None else cfg.get("server.port"),
-        debug=cfg.get("server.debug"),
-        use_reloader=args.reload,
-    )
+    host = cfg.get("server.host")
+    port = args.port if args.port is not None else cfg.get("server.port")
+
+    if args.reload:
+        # Reloader mode forks a child process and can't use the make_server path.
+        app.run(host=host, port=port, debug=cfg.get("server.debug"), use_reloader=True)
+    else:
+        _server = make_server(host, port, app, threaded=True)
+        _server.serve_forever()

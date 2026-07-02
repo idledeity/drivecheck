@@ -64,7 +64,7 @@ export type DriveVitals = {
   io: DriveIOActivity
 }
 
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled"
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted"
 
 export type OperationProgress = {
   percent: number | null

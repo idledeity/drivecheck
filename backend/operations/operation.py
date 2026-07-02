@@ -9,12 +9,21 @@ holds one instance of that class for the duration of its run.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Callable
 
 from drives.drive_models import DriveContext
 
 
 class OperationCancelled(Exception):
     """Raised by an operation's run() when cancellation is requested mid-execution."""
+
+
+class ReattachFailed(Exception):
+    """Raised by reattach() when verification of a previously-RUNNING job fails.
+
+    Distinct from NotImplementedError (operation type never supports reattach)
+    — both land the job in INTERRUPTED but with different messages.
+    """
 
 
 @dataclass
@@ -92,3 +101,36 @@ class OperationBase(ABC):
 
     def cancel(self) -> None:
         """Request cancellation of a running operation. Default: no-op."""
+
+    # ------------------------------------------------------------------
+    # Restart-reattachment interface
+    # ------------------------------------------------------------------
+
+    def get_reattach_data(self) -> dict | None:
+        """Return the data needed to reattach to this operation after a restart.
+
+        Called immediately after the operation has acquired its external resource
+        (spawned a subprocess, or confirmed a self-test started on the drive).
+        Return None until that moment — JobRegistry will persist the first
+        non-None value it receives.  Default: None (operation is not reattachable).
+        """
+        return None
+
+    def reattach(self, context: DriveContext, params: dict, reattach_data: dict) -> dict:
+        """Resume a job that was RUNNING when the process last stopped.
+
+        Same return/exception contract as run(): return a JSON-serialisable result
+        dict on success, raise OperationCancelled if cancelled mid-run, or raise
+        any other exception to mark the job FAILED.  Raise ReattachFailed (not
+        RuntimeError) when the external resource can't be verified — that produces
+        INTERRUPTED rather than FAILED.  Default: unsupported.
+        """
+        raise NotImplementedError("operation does not support reattach")
+
+    def _save_reattach(self) -> None:
+        """Call after acquiring the reattachable external resource to persist
+        reattach data immediately.  No-op unless JobRegistry has wired a callback
+        onto this instance via _save_reattach_cb."""
+        cb: Callable[[], None] | None = getattr(self, "_save_reattach_cb", None)
+        if cb is not None:
+            cb()

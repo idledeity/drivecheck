@@ -11,12 +11,12 @@ Dispatch is event-driven — triggered on job creation and again when a job
 finishes (freeing its drive and/or a worker slot) — so no separate scheduler
 thread is needed.
 
-Active job state lives in memory only (server restart mid-job loses the job —
-acceptable, the user re-runs it). Terminal jobs (completed/failed/cancelled)
-are additionally persisted to the `jobs` table via db.record_job() for future
-History tab use.
+Active job state is persisted to the `jobs` table as it changes (on creation,
+at RUNNING-transition, and once operation-specific reattach data is captured)
+so that recover() can restore QUEUED/RUNNING jobs after a process restart.
 """
 
+import json
 import logging
 import threading
 import uuid
@@ -29,7 +29,7 @@ from settings import cfg
 from database import db
 
 logger = logging.getLogger(__name__)
-from operations.operation import OperationBase, OperationCancelled, OperationProgress
+from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
 from operations.operation_registry import OPERATIONS
 from drives.drive_models import DriveContext
 from jobs.job_models import Job, JobStatus
@@ -56,6 +56,7 @@ class JobRegistry:
         self._running: set[str] = set()   # drive guids with a job currently executing
         self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=self._max_parallel, thread_name_prefix="job")
+        self._shutting_down = False
 
     @classmethod
     def from_config(cls, get_context: Callable[[str], DriveContext | None]) -> "JobRegistry":
@@ -65,6 +66,10 @@ class JobRegistry:
         once here at startup is sufficient.
         """
         return cls(max_parallel=cfg.get("jobs.max_parallel"), get_context=get_context)
+
+    # ---------------------------------------------------------------------------
+    # Public API
+    # ---------------------------------------------------------------------------
 
     def create_jobs(self, guids: list[str], operation_key: str, params: dict) -> list[Job] | None:
         """Create one queued job per drive that supports the operation.
@@ -94,9 +99,12 @@ class JobRegistry:
                     category=op_cls.category,
                     params=dict(merged_params),
                 )
+                instance = op_cls()
+                self._prepare_instance(instance, job)
                 self._jobs[job.id] = job
-                self._instances[job.id] = op_cls()
+                self._instances[job.id] = instance
                 self._pending.append(job.id)
+                db.record_job(job)  # persist QUEUED state immediately
                 created.append(job)
             self._dispatch()
         if created:
@@ -104,6 +112,48 @@ class JobRegistry:
         else:
             logger.debug("create_jobs: no eligible drive(s) for operation '%s' among %s", operation_key, guids)
         return created
+
+    def recover(self) -> None:
+        """Restore QUEUED and RUNNING jobs from the previous process run.
+
+        Must be called once at startup after collector.wait_for_scan() so that
+        drive contexts are resolvable.  QUEUED jobs are re-enqueued normally;
+        RUNNING jobs are submitted directly to _execute() with reattach_data so
+        the operation can verify and resume its external resource (subprocess /
+        SMART self-test).  Jobs that can't be recovered are marked INTERRUPTED.
+        """
+        rows = db.get_active_jobs()
+        if not rows:
+            return
+
+        recovered_queued = 0
+        recovered_running = 0
+        interrupted_immediately = 0
+
+        for row in rows:
+            try:
+                self._recover_one(row)
+                if row["status"] == JobStatus.QUEUED.value:
+                    recovered_queued += 1
+                else:
+                    recovered_running += 1
+            except Exception:
+                logger.exception("unexpected error recovering job %s — marking interrupted", row["id"][:8])
+                self._mark_interrupted_by_id(
+                    row["id"], row["drive_guid"], row["operation"],
+                    row["category"], row["params_json"],
+                    row["created_at"], row["started_at"],
+                    "Unexpected error during recovery",
+                )
+                interrupted_immediately += 1
+
+        with self._lock:
+            self._dispatch()
+
+        logger.info(
+            "job recovery: %d queued re-enqueued, %d running resumed, %d interrupted immediately",
+            recovered_queued, recovered_running, interrupted_immediately,
+        )
 
     def list_jobs(self) -> list[Job]:
         """Return a snapshot of all jobs created this session (queued, running, or finished)."""
@@ -155,6 +205,26 @@ class JobRegistry:
         db.record_job(job)
         return True
 
+    def shutdown(self) -> None:
+        """Allow any in-flight jobs to finish on their own, without blocking shutdown.
+
+        Reattach data is already persisted at the moment each operation acquires
+        its external resource — no flush needed here.  Subprocess-backed operations
+        are intentionally left running so they can be reattached on the next startup.
+        """
+        logger.info("shutting down job registry (%d running)", len(self._running))
+        self._shutting_down = True
+        self._executor.shutdown(wait=False)
+
+    # ---------------------------------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------------------------------
+
+    def _prepare_instance(self, instance: OperationBase, job: Job) -> None:
+        """Wire job-id and the reattach-persist callback onto a fresh operation instance."""
+        instance._job_id = job.id
+        instance._save_reattach_cb = lambda: db.record_job(job, instance.get_reattach_data())
+
     def _dispatch(self) -> None:
         """Submit as many pending jobs as the concurrency limits allow. Caller holds self._lock.
 
@@ -171,25 +241,42 @@ class JobRegistry:
                 continue
             if self._max_parallel is not None and len(self._running) >= self._max_parallel:
                 break
-            self._pending.remove(job_id)
-            self._running.add(job.drive_guid)
+            self._submit(job)
+
+    def _submit(self, job: Job, reattach_data: dict | None = None) -> None:
+        """Mark a job as running and submit it to the executor. Caller holds self._lock."""
+        assert self._lock.locked(), "_submit called without holding self._lock"
+        if job.id in self._pending:
+            self._pending.remove(job.id)
+        self._running.add(job.drive_guid)
+        if reattach_data is None:
+            # Fresh dispatch — set started_at now
             job.status = JobStatus.RUNNING
             job.started_at = datetime.now()
-            self._executor.submit(self._execute, job)
+            db.record_job(job, self._instances[job.id].get_reattach_data())
+        # For recovered RUNNING jobs, status/started_at are already correct from the DB row
+        self._executor.submit(self._execute, job, reattach_data)
 
-    def _execute(self, job: Job) -> None:
-        logger.info("job %s started: %s", job.id[:8], job.operation)
+    def _execute(self, job: Job, reattach_data: dict | None = None) -> None:
+        logger.info("job %s %s: %s", job.id[:8], "reattaching" if reattach_data is not None else "started", job.operation)
         instance = self._instances[job.id]
         context = self._get_context(job.drive_guid)
         try:
             if context is None:
                 raise RuntimeError("drive no longer present")
-            job.result = instance.run(context, job.params)
+            if reattach_data is not None:
+                job.result = instance.reattach(context, job.params, reattach_data)
+            else:
+                job.result = instance.run(context, job.params)
             job.status = JobStatus.COMPLETED
             logger.info("job %s completed: %s", job.id[:8], job.operation)
         except OperationCancelled:
             job.status = JobStatus.CANCELLED
             logger.info("job %s cancelled: %s", job.id[:8], job.operation)
+        except (NotImplementedError, ReattachFailed) as e:
+            job.status = JobStatus.INTERRUPTED
+            job.error = str(e) if str(e) else "Could not resume after restart"
+            logger.warning("job %s interrupted: %s — %s", job.id[:8], job.operation, job.error)
         except Exception as e:
             job.status = JobStatus.FAILED
             job.error = str(e)
@@ -198,10 +285,90 @@ class JobRegistry:
 
         with self._lock:
             self._running.discard(job.drive_guid)
-            self._dispatch()
-        db.record_job(job)
+            if not self._shutting_down:
+                self._dispatch()
+        if not self._shutting_down:
+            db.record_job(job)
 
-    def shutdown(self) -> None:
-        """Allow any in-flight jobs to finish on their own, without blocking shutdown."""
-        logger.info("shutting down job registry (%d running)", len(self._running))
-        self._executor.shutdown(wait=False)
+    def _recover_one(self, row) -> None:
+        """Attempt to recover a single active job row from the previous run."""
+        job_id = row["id"]
+
+        op_cls = OPERATIONS.get(row["operation"])
+        if op_cls is None:
+            logger.warning("job %s: operation '%s' no longer available — marking interrupted", job_id[:8], row["operation"])
+            self._mark_interrupted_by_id(
+                job_id, row["drive_guid"], row["operation"],
+                row["category"], row["params_json"],
+                row["created_at"], row["started_at"],
+                f"Operation '{row['operation']}' is no longer available",
+            )
+            return
+
+        context = self._get_context(row["drive_guid"])
+        if context is None:
+            logger.warning("job %s: drive %s not present after restart — marking interrupted", job_id[:8], row["drive_guid"])
+            self._mark_interrupted_by_id(
+                job_id, row["drive_guid"], row["operation"],
+                row["category"], row["params_json"],
+                row["created_at"], row["started_at"],
+                "Drive not present after restart",
+            )
+            return
+
+        job = Job(
+            id=job_id,
+            drive_guid=row["drive_guid"],
+            operation=row["operation"],
+            category=row["category"],
+            params=json.loads(row["params_json"]),
+            status=JobStatus(row["status"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+        )
+
+        instance = op_cls()
+        self._prepare_instance(instance, job)
+
+        with self._lock:
+            self._jobs[job.id] = job
+            self._instances[job.id] = instance
+
+            if job.status == JobStatus.QUEUED:
+                self._pending.append(job.id)
+                logger.info("job %s re-enqueued: %s", job.id[:8], job.operation)
+
+            elif job.status == JobStatus.RUNNING:
+                reattach_data = json.loads(row["reattach_json"]) if row["reattach_json"] else {}
+                # Occupy the drive slot unconditionally — already-running jobs are not
+                # subject to the current max_parallel cap (a shrunk cap should never
+                # preempt a job that was already in flight).
+                self._running.add(job.drive_guid)
+                self._executor.submit(self._execute, job, reattach_data)
+                logger.info("job %s submitted for reattach: %s", job.id[:8], job.operation)
+
+    def _mark_interrupted_by_id(
+        self,
+        job_id: str,
+        drive_guid: str,
+        operation: str,
+        category: str,
+        params_json: str,
+        created_at_iso: str,
+        started_at_iso: str | None,
+        error_message: str,
+    ) -> None:
+        """Write an INTERRUPTED terminal record for a job that can't be reconstructed."""
+        job = Job(
+            id=job_id,
+            drive_guid=drive_guid,
+            operation=operation,
+            category=category,
+            params=json.loads(params_json),
+            status=JobStatus.INTERRUPTED,
+            error=error_message,
+            created_at=datetime.fromisoformat(created_at_iso),
+            started_at=datetime.fromisoformat(started_at_iso) if started_at_iso else None,
+            finished_at=datetime.now(),
+        )
+        db.record_job(job)
