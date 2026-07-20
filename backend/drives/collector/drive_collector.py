@@ -430,6 +430,13 @@ class Collector:
     def _run_snapshot(self, state: DriveState, now: float) -> None:
         """Persist the most recent telemetry run's raw probe output, if any."""
         if not state.snapshot.extras:
+            # Telemetry and snapshot are both immediately due on first discovery,
+            # and run concurrently on the thread pool. If snapshot wins that race,
+            # extras are still empty. Reschedule 5 s out so we retry promptly
+            # once telemetry finishes rather than waiting the full snapshot interval.
+            if state.snapshot.telemetry.last_polled_at is None:
+                with self._lock:
+                    self._schedules[state.context.guid]["snapshot"] = now + 5
             return
         captured_at = state.snapshot.telemetry.last_polled_at.isoformat()
         db.record_raw_snapshot(

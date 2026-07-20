@@ -52,8 +52,14 @@ def run_smartctl(*args) -> dict:
 
 
 def scan() -> dict:
-    """smartctl --scan: discover attached drives."""
-    return run_smartctl("--scan")
+    """smartctl --scan-open: discover attached drives with correct access types.
+
+    --scan-open opens each device to detect its real protocol (e.g. SAT for
+    SATA drives behind a SAS HBA) instead of guessing from the device path.
+    Without this, SATA-over-SAS drives get type=scsi, causing all probes to
+    run under -d scsi and return no ATA model/attributes data.
+    """
+    return run_smartctl("--scan-open")
 
 
 def info(device_name: str, access_type: str) -> dict:

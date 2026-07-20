@@ -23,7 +23,11 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
     if block_device is None:
         return vitals
 
-    temp_files = glob.glob(f"/sys/block/{block_device}/device/hwmon*/**/temp1_*", recursive=True)
+    # Sysfs hwmon path: device/hwmon/hwmon<N>/temp1_*.
+    # Never use recursive=True here — sysfs hwmon entries have a "device"
+    # symlink that points back to the parent scsi device, creating an infinite
+    # loop when glob follows it recursively.
+    temp_files = glob.glob(f"/sys/block/{block_device}/device/hwmon/hwmon*/temp1_*")
     if not temp_files:
         logger.debug("no hwmon temp files found for %s", block_device)
         return vitals

@@ -60,7 +60,10 @@ def _map_ata(data: dict) -> DCSignals:
         if "raw" in entry
     }
 
-    temp = attrs.get(0xBE) or attrs.get(0xC2)  # 190 (Airflow Temp) or 194 (HDA Temp)
+    # temperature.current is normalized by smartctl across all drives; raw
+    # attribute values for IDs 190/194 are drive-family-specific packed fields
+    # that may encode min/max history alongside current temp (e.g. Seagate Exos).
+    temp = data.get("temperature", {}).get("current") or attrs.get(0xBE) or attrs.get(0xC2)
 
     return DCSignals(
         power_on_hours=attrs.get(0x09),
