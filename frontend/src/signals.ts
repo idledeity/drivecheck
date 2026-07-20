@@ -22,6 +22,10 @@ export const SIGNALS: Record<string, SignalDescriptor> = {
     label:  "Uncorr",
     format: v => v !== null ? String(v) : "—",
   },
+  crc_errors: {
+    label:  "CRC Err",
+    format: v => v !== null ? String(v) : "—",
+  },
   load_unload_cycles: {
     label:  "Ld/UL",
     format: v => v !== null ? (v as number).toLocaleString() : "—",
@@ -33,6 +37,6 @@ export const SIGNALS: Record<string, SignalDescriptor> = {
 }
 
 export const DEFAULT_FOOTER_SIGNALS: Record<string, string[]> = {
-  default: ["power_on_hours", "reallocated", "pending",            "uncorrected"],
+  default: ["power_on_hours", "reallocated", "pending",            "uncorrected", "crc_errors"],
   SAS:     ["power_on_hours", "reallocated", "load_unload_cycles", "uncorrected"],
 }

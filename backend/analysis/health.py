@@ -21,6 +21,7 @@ def score_health(signals: DCSignals) -> DriveHealth:
         "reallocated": flag(signals.reallocated, warn_gte=1),
         "pending":     flag(signals.pending,     warn_gte=1),
         "uncorrected": flag(signals.uncorrected, crit_gte=1),
+        "crc_errors":  flag(signals.crc_errors,  warn_gte=1),
         "temp":        flag(signals.temp,        warn_gte=45),
     }
 

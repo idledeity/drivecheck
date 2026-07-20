@@ -112,6 +112,7 @@ def drives():
             "reallocated": signals.reallocated,
             "pending": signals.pending,
             "uncorrected": signals.uncorrected,
+            "crc_errors": signals.crc_errors,
             "load_unload_cycles": signals.load_unload_cycles,
             "smart_passed": signals.smart_passed,
             "health_status": health.health_status,
