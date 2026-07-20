@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import DriveCard from "./DriveCard"
 import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
@@ -10,6 +10,7 @@ export default function App() {
   const [drives, setDrives] = useState<Drive[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [selected, setSelected] = useState<string[]>([])
+  const anchorRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   // Persisted to sessionStorage so a refresh while Settings is open doesn't
@@ -75,7 +76,28 @@ export default function App() {
       })
       .catch(() => setError("Backend unavailable — retrying…"))
 
-  const toggleSelect = (guid: string) => {
+  const handleSelect = (guid: string, e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
+    } else if (e.shiftKey && anchorRef.current) {
+      const guids = drives.map(d => d.guid)
+      const anchorIdx = guids.indexOf(anchorRef.current)
+      const clickIdx = guids.indexOf(guid)
+      if (anchorIdx === -1) {
+        setSelected([guid])
+        anchorRef.current = guid
+      } else {
+        const lo = Math.min(anchorIdx, clickIdx)
+        const hi = Math.max(anchorIdx, clickIdx)
+        setSelected(guids.slice(lo, hi + 1))
+      }
+    } else {
+      setSelected([guid])
+      anchorRef.current = guid
+    }
+  }
+
+  const handleSelectToggle = (guid: string) => {
     setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
   }
 
@@ -144,7 +166,8 @@ export default function App() {
                 key={d.guid}
                 drive={d}
                 selected={selected.includes(d.guid)}
-                onSelect={() => toggleSelect(d.guid)}
+                onSelect={(e) => handleSelect(d.guid, e)}
+                onSelectToggle={() => handleSelectToggle(d.guid)}
                 footerSignals={settings?.footer_signals}
                 onLabelChange={handleLabelChange}
                 job={activeJobForDrive(d.guid)}

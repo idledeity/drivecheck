@@ -6,10 +6,11 @@ import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Drive, Job, OperationInfo, Settings } from './types'
 
 vi.mock('./DriveCard', () => ({
-  default: ({ drive, selected, onSelect, onLabelChange, job, queuedJobs }: {
+  default: ({ drive, selected, onSelect, onSelectToggle, onLabelChange, job, queuedJobs }: {
     drive: Drive
     selected: boolean
-    onSelect: () => void
+    onSelect: (e: React.MouseEvent) => void
+    onSelectToggle: () => void
     onLabelChange?: (guid: string, label: string | null) => void
     job?: Job
     queuedJobs: Job[]
@@ -17,6 +18,7 @@ vi.mock('./DriveCard', () => ({
     <div data-testid={`drive-card-${drive.guid}`} data-selected={selected}>
       <span>{drive.model}</span>
       <button onClick={onSelect}>{`select-${drive.guid}`}</button>
+      <button onClick={onSelectToggle}>{`toggle-${drive.guid}`}</button>
       <button onClick={() => onLabelChange?.(drive.guid, 'New Label')}>{`relabel-${drive.guid}`}</button>
       <span data-testid={`active-job-${drive.guid}`}>{job?.id ?? 'none'}</span>
       <span data-testid={`queued-count-${drive.guid}`}>{queuedJobs.length}</span>
@@ -138,15 +140,29 @@ describe('App', () => {
     expect(screen.getByTestId('drive-card-d2')).toHaveAttribute('data-selected', 'true')
   })
 
-  it("toggles a single drive's selection via its card", async () => {
-    router.state.drives = [makeDrive({ guid: 'd1' })]
+  it('exclusively selects one drive and clears others on plain click', async () => {
+    router.state.drives = [makeDrive({ guid: 'd1' }), makeDrive({ guid: 'd2' })]
     render(<App />)
     await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('select-d1'))
     expect(screen.getByTestId('drive-card-d1')).toHaveAttribute('data-selected', 'true')
+    expect(screen.getByTestId('drive-card-d2')).toHaveAttribute('data-selected', 'false')
 
-    await userEvent.click(screen.getByText('select-d1'))
+    await userEvent.click(screen.getByText('select-d2'))
+    expect(screen.getByTestId('drive-card-d1')).toHaveAttribute('data-selected', 'false')
+    expect(screen.getByTestId('drive-card-d2')).toHaveAttribute('data-selected', 'true')
+  })
+
+  it('toggles drive selection via onSelectToggle (long press)', async () => {
+    router.state.drives = [makeDrive({ guid: 'd1' })]
+    render(<App />)
+    await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('toggle-d1'))
+    expect(screen.getByTestId('drive-card-d1')).toHaveAttribute('data-selected', 'true')
+
+    await userEvent.click(screen.getByText('toggle-d1'))
     expect(screen.getByTestId('drive-card-d1')).toHaveAttribute('data-selected', 'false')
   })
 

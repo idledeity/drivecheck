@@ -12,7 +12,8 @@ import "./DriveCard.css"
 interface Props {
   drive: Drive
   selected: boolean
-  onSelect: () => void
+  onSelect: (e: React.MouseEvent) => void
+  onSelectToggle: () => void
   footerSignals?: Record<string, string[]>
   onLabelChange?: (guid: string, label: string | null) => void
   job?: Job
@@ -25,7 +26,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, footerSignals, onLabelChange, job, queuedJobs }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, footerSignals, onLabelChange, job, queuedJobs }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -98,6 +99,8 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
   const hoverTimerRef = useRef<number | null>(null)
   const lastPosRef = useRef<{ x: number; y: number } | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressedRef = useRef(false)
 
   // (hover: hover) is true for a device whose *primary* pointer can actually
   // hover (a mouse) — false for touch, even on a touchscreen laptop with a
@@ -119,6 +122,21 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
       clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
     }
+  }
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    longPressedRef.current = false
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressedRef.current = true
+      onSelectToggle()
+    }, 500)
   }
 
   const togglePopover = (which: "task" | "queued") => (e: React.MouseEvent) => {
@@ -170,10 +188,8 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
     setPopover(null)
   }
 
-  // Guards against a pending hover-intent timer firing setPopover after this
-  // card has already unmounted (e.g. the job finished and the drive's task
-  // zone re-rendered to a different branch, or the drive itself disappeared).
-  useEffect(() => cancelHoverTimer, [])
+  // Guards against pending timers firing after unmount.
+  useEffect(() => () => { cancelHoverTimer(); cancelLongPress() }, [])
 
   // Click-outside-to-dismiss (plus scroll, since a position:fixed popover
   // would otherwise drift away from the task zone it's anchored to): both
@@ -224,7 +240,11 @@ export default function DriveCard({ drive, selected, onSelect, footerSignals, on
   return (
     <div
       className={`drive-card bar-${health.bar}${selected ? " sel" : ""}`}
-      onClick={onSelect}
+      onClick={(e) => { if (longPressedRef.current) { longPressedRef.current = false; return }; onSelect(e) }}
+      onPointerDown={supportsHover ? undefined : handlePointerDown}
+      onPointerUp={supportsHover ? undefined : cancelLongPress}
+      onPointerCancel={supportsHover ? undefined : cancelLongPress}
+      onContextMenu={supportsHover ? undefined : (e) => e.preventDefault()}
     >
       {/* Row 1: name + badge */}
       <div className="dc-r1">

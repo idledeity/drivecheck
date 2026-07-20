@@ -32,16 +32,18 @@ afterEach(() => {
 
 function renderCard(props: Partial<Parameters<typeof DriveCard>[0]> = {}) {
   const onSelect = vi.fn()
+  const onSelectToggle = vi.fn()
   const onLabelChange = vi.fn()
   render(<DriveCard
     drive={makeDrive()}
     selected={false}
     onSelect={onSelect}
+    onSelectToggle={onSelectToggle}
     queuedJobs={[]}
     onLabelChange={onLabelChange}
     {...props}
   />)
-  return { onSelect, onLabelChange }
+  return { onSelect, onSelectToggle, onLabelChange }
 }
 
 describe('health badge', () => {
