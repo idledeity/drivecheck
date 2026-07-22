@@ -10,7 +10,9 @@
   position: relative;
   box-shadow: inset 0 1px rgba(255,255,255,0.05), 0 4px 14px rgba(0,0,0,0.4);
   cursor: pointer;
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .drive-card::before {
@@ -77,21 +79,6 @@
   box-shadow: 0 0 5px rgba(168,85,247,0.65);
 }
 
-.dc-ctx-btn {
-  width: 18px; height: 18px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid var(--bd2);
-  border-radius: 4px;
-  padding: 0;
-  color: var(--cy);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.dc-ctx-btn:hover { color: var(--cy2); border-color: var(--cy); }
 
 .dc-ctx-menu { min-width: 120px; }
 .dc-ctx-placeholder { font-size: 11px; color: var(--t3); padding: 2px 0; }

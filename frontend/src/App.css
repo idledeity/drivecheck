@@ -165,6 +165,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
   gap: 10px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .status-scanning {
