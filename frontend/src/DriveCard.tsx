@@ -250,7 +250,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, f
       <div className="dc-r1">
         <div className="dc-sel-btn" />
         <div ref={idFade.ref} className={`dc-r1-id${idFade.fade ? " dc-edge-fade" : ""}`}>
-          {drive.manufacturer && <span className="dc-mfr">{drive.manufacturer}</span>}
+          {(drive.white_label ?? drive.manufacturer_short) && <span className="dc-mfr">{drive.white_label ?? drive.manufacturer_short}</span>}
           <span className="dc-model">{drive.model ?? drive.device}</span>
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
           {editingLabel ? (

@@ -111,6 +111,8 @@ export type Drive = {
   info_name: string
   serial: string | null
   manufacturer: string | null
+  manufacturer_short: string | null
+  white_label: string | null
   model: string | null
   capacity_bytes: number | null
   drive_type: "HDD" | "SSD" | "NVMe" | "SAS" | "Unknown" | null

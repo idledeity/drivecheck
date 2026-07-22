@@ -43,7 +43,9 @@ class DriveDescriptor:
 class DriveTraits:
     """Intrinsic physical characteristics as reported by drive firmware."""
     serial: str             | None = None
-    manufacturer: str       | None = None
+    manufacturer: str       | None = None   # canonical common name — "Western Digital"
+    manufacturer_short: str | None = None   # short display name   — "WD"
+    white_label: str        | None = None
     model: str              | None = None
     capacity_bytes: int     | None = None
     drive_type: DriveType   | None = None

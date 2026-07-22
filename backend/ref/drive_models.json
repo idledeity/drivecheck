@@ -1,0 +1,4 @@
+{
+  "HUS726060ALS*": { "family": "Ultrastar 7K6000", "note": "HGST SAS variant missing from smartctl drivedb" },
+  "MB3000GCVBT":   { "white_label": "HP",          "note": "HP OEM; manufactured by Western Digital" }
+}

@@ -1,0 +1,251 @@
+{
+  "_comment": "Primary key is the canonical manufacturer name. wwn_names lists known IEEE OUI company strings for that manufacturer — exact matches are tried first, then substring. Order matters only for cross-manufacturer disambiguation: more-specific entries (HGST) must precede broader ones (Western Digital, Hitachi) so they win the substring fallback.",
+
+  "HGST": {
+    "wwn_names": ["HGST a Western Digital Company", "HGST"],
+    "common": "HGST",
+    "short": "HGST"
+  },
+
+  "Seagate": {
+    "wwn_names": ["Seagate Technology", "Seagate Cloud Systems Inc", "Seagate"],
+    "common": "Seagate",
+    "short": "Seagate"
+  },
+  "Western Digital": {
+    "wwn_names": ["Western Digital Technologies, Inc.", "WESTERN DIGITAL CORPORATION", "WESTERN DIGITAL", "Western Digital"],
+    "common": "Western Digital",
+    "short": "WD"
+  },
+  "Micron": {
+    "wwn_names": ["MICRON TECHNOLOGY, INC."],
+    "common": "Micron",
+    "short": "Micron"
+  },
+  "SanDisk": {
+    "wwn_names": ["SanDisk Corporation", "SanDisk"],
+    "common": "SanDisk",
+    "short": "SanDisk"
+  },
+  "Kioxia": {
+    "wwn_names": ["Kioxia Corporation", "Kioxia"],
+    "common": "Kioxia",
+    "short": "Kioxia"
+  },
+  "Toshiba": {
+    "wwn_names": ["TOSHIBA CORPORATION", "Toshiba Corporation", "Toshiba Corp.", "TOSHIBA CLIENT SOLUTIONS CO., LTD.", "Toshiba Samsung Storage Technology Korea Corporation", "Toshiba"],
+    "common": "Toshiba",
+    "short": "Toshiba"
+  },
+  "Samsung": {
+    "wwn_names": ["Samsung Electronics Co., Ltd.", "Samsung Electronics Co.,Ltd", "SAMSUNG ELECTRONICS", "Samsung Electronics Co., Ltd. ARTIK", "Samsung Electronics Co., Ltd., Memory Division", "Samsung Electronics"],
+    "common": "Samsung",
+    "short": "Samsung"
+  },
+  "SK Hynix": {
+    "wwn_names": ["SK hynix", "SK Hynix"],
+    "common": "SK Hynix",
+    "short": "SK Hynix"
+  },
+  "Kingston": {
+    "wwn_names": ["Kingston Technology Company, Inc.", "Kingston Technology"],
+    "common": "Kingston",
+    "short": "Kingston"
+  },
+
+  "Intel": {
+    "wwn_names": ["Intel Corporation", "Intel Corporate", "Intel Corp"],
+    "common": "Intel",
+    "short": "Intel"
+  },
+
+  "Hitachi": {
+    "wwn_names": ["HITACHI-LG DATA STORAGE INC", "Hitachi-LG Data Storage Korea, Inc", "Hitachi Data Systems", "HITACHI, LTD.", "Hitachi, Ltd.", "Hitachi,Ltd.", "Hitachi"],
+    "common": "Hitachi",
+    "short": "Hitachi"
+  },
+
+  "IBM": {
+    "wwn_names": ["IBM Corporation", "IBM Corp", "IBM JAPAN, FUJISAWA MT+D", "IBM"],
+    "common": "IBM",
+    "short": "IBM"
+  },
+
+  "Fujitsu": {
+    "wwn_names": ["FUJITSU LIMITED", "Fujitsu Limited", "Fujitsu"],
+    "common": "Fujitsu",
+    "short": "Fujitsu"
+  },
+  "Maxtor": {
+    "wwn_names": ["MAXTOR CORP.", "Maxtor"],
+    "common": "Maxtor",
+    "short": "Maxtor"
+  },
+  "Quantum": {
+    "wwn_names": ["Quantum Corporation", "Quantum Corp.", "Quantum"],
+    "common": "Quantum",
+    "short": "Quantum"
+  },
+  "Iomega": {
+    "wwn_names": ["Iomega Corporation", "Iomega"],
+    "common": "Iomega",
+    "short": "Iomega"
+  },
+  "Micropolis": {
+    "wwn_names": ["MICROPOLIS CORP.", "Micropolis"],
+    "common": "Micropolis",
+    "short": "Micropolis"
+  },
+  "Conner": {
+    "wwn_names": ["CONNER PERIPHERALS", "Conner Peripherals", "Conner"],
+    "common": "Conner",
+    "short": "Conner"
+  },
+  "OCZ": {
+    "wwn_names": ["OCZ Technology", "OCZ"],
+    "common": "OCZ",
+    "short": "OCZ"
+  },
+  "Lite-On": {
+    "wwn_names": ["LITE-ON Technology Corp.", "Lite-On Technology", "Lite-On"],
+    "common": "Lite-On",
+    "short": "Lite-On"
+  },
+
+  "ADATA": {
+    "wwn_names": ["ADATA Technology Co., Ltd"],
+    "common": "ADATA",
+    "short": "ADATA"
+  },
+  "Transcend": {
+    "wwn_names": ["Transcend Information", "Transcend"],
+    "common": "Transcend",
+    "short": "Transcend"
+  },
+  "Phison": {
+    "wwn_names": ["Phison Electronics Corp.", "Phison"],
+    "common": "Phison",
+    "short": "Phison"
+  },
+  "Silicon Motion": {
+    "wwn_names": ["Silicon Motion, Inc.", "Silicon Motion"],
+    "common": "Silicon Motion",
+    "short": "SMI"
+  },
+  "Apacer": {
+    "wwn_names": ["Apacer Technology Inc.", "Apacer"],
+    "common": "Apacer",
+    "short": "Apacer"
+  },
+  "Team Group": {
+    "wwn_names": ["Team Group Inc", "Team Group"],
+    "common": "Team Group",
+    "short": "Team"
+  },
+  "SSSTC": {
+    "wwn_names": ["Solid State Storage Technology Corporation", "SSSTC"],
+    "common": "SSSTC",
+    "short": "SSSTC"
+  },
+  "Patriot": {
+    "wwn_names": ["Patriot Memory", "Patriot"],
+    "common": "Patriot",
+    "short": "Patriot"
+  },
+  "GoodRAM": {
+    "wwn_names": ["Wilk Elektronik S.A.", "GoodRAM"],
+    "common": "GoodRAM",
+    "short": "GoodRAM"
+  },
+  "PNY": {
+    "wwn_names": ["PNY Technologies, INC."],
+    "common": "PNY",
+    "short": "PNY"
+  },
+  "Corsair": {
+    "wwn_names": ["Corsair Memory, Inc.", "Corsair"],
+    "common": "Corsair",
+    "short": "Corsair"
+  },
+  "Lexar": {
+    "wwn_names": ["LEXAR CO.,LIMITED", "Lexar Media, Inc.", "Lexar"],
+    "common": "Lexar",
+    "short": "Lexar"
+  },
+  "YMTC": {
+    "wwn_names": ["Yangtze Memory Technologies Co., Ltd.", "Yangtze Memory"],
+    "common": "YMTC",
+    "short": "YMTC"
+  },
+  "Unis Flash": {
+    "wwn_names": ["Unis Flash Memory Technology(Chengdu)Co.,Ltd.", "Unis Flash"],
+    "common": "Unis Flash",
+    "short": "Unis Flash"
+  },
+
+  "Innodisk": {
+    "wwn_names": ["innodisk Corporation", "Innodisk"],
+    "common": "Innodisk",
+    "short": "Innodisk"
+  },
+  "Swissbit": {
+    "wwn_names": ["Swissbit AG", "Swissbit"],
+    "common": "Swissbit",
+    "short": "Swissbit"
+  },
+  "SMART": {
+    "wwn_names": ["SMART Storage Systems", "SMART Modular Technologies", "SMART High Reliability Solutions, Inc."],
+    "common": "SMART",
+    "short": "SMART"
+  },
+  "Greenliant": {
+    "wwn_names": ["Greenliant"],
+    "common": "Greenliant",
+    "short": "Greenliant"
+  },
+  "Virtium": {
+    "wwn_names": ["Virtium"],
+    "common": "Virtium",
+    "short": "Virtium"
+  },
+  "Hyperstone": {
+    "wwn_names": ["Hyperstone GmbH", "Hyperstone"],
+    "common": "Hyperstone",
+    "short": "Hyperstone"
+  },
+  "Biwin": {
+    "wwn_names": ["Biwin Semiconductor (HK) Company Limted", "Biwin"],
+    "common": "Biwin",
+    "short": "Biwin"
+  },
+  "Memblaze": {
+    "wwn_names": ["Beijing Memblaze Technology Co Ltd", "Memblaze"],
+    "common": "Memblaze",
+    "short": "Memblaze"
+  },
+  "Shannon Systems": {
+    "wwn_names": ["Shannon Systems"],
+    "common": "Shannon Systems",
+    "short": "Shannon"
+  },
+  "Quanta Storage": {
+    "wwn_names": ["Quanta Storage Inc.", "Quanta Storage"],
+    "common": "Quanta Storage",
+    "short": "Quanta"
+  },
+  "Overland Storage": {
+    "wwn_names": ["Overland Storage Inc.", "Overland Storage"],
+    "common": "Overland Storage",
+    "short": "Overland"
+  },
+  "Ramaxel": {
+    "wwn_names": ["DongGuan Ramaxel Memory Technology Limited", "DongGuan Ramaxel Memory Technology", "Ramaxel"],
+    "common": "Ramaxel",
+    "short": "Ramaxel"
+  },
+  "UNIC Memory": {
+    "wwn_names": ["UNIC Memory Technology Co Ltd", "UNIC Memory"],
+    "common": "UNIC Memory",
+    "short": "UNIC"
+  }
+}

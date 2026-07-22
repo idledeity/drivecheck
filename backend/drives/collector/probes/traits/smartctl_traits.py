@@ -9,6 +9,8 @@ re-uses across polls rather than re-querying every time.
 
 import logging
 
+import drives.manufacturer as mfr_db
+from drives.catalog import lookup_drive_model
 from drives.tools import smartctl
 from drives.drive_models import DriveDescriptor, DriveTraits, DriveType
 
@@ -21,10 +23,29 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
 
     rotation_rate = data.get("rotation_rate")
 
+    # Resolve manufacturer. SCSI/SAS drives expose a vendor string directly;
+    # SATA/NVMe drives carry an OUI in their WWN that maps to an IEEE name.
+    scsi_vendor = data.get("scsi_vendor")
+    if scsi_vendor:
+        mfr = mfr_db.from_ieee_name(scsi_vendor) or mfr_db.from_name(scsi_vendor)
+    else:
+        mfr = mfr_db.from_oui(data.get("wwn", {}).get("oui"))
+
+    raw_model  = data.get("model_name") or data.get("scsi_product")
+    model_info = lookup_drive_model(raw_model)
+
+    # model_family from smartctl db wins; drive_models.json fills the gap
+    model_family = data.get("model_family") or (model_info or {}).get("family")
+    # Strip redundant manufacturer prefix ("Seagate Exos X16" → "Exos X16")
+    if model_family and mfr and model_family.lower().startswith(mfr.name.lower()):
+        model_family = model_family[len(mfr.name):].strip()
+
     traits = DriveTraits(
         serial=data.get("serial_number"),
-        model=data.get("model_name") or data.get("scsi_product"),
-        manufacturer=data.get("scsi_vendor"),
+        model=model_family or raw_model,
+        manufacturer=mfr.name if mfr else scsi_vendor,
+        manufacturer_short=mfr.short if mfr else scsi_vendor,
+        white_label=(model_info or {}).get("white_label"),
         capacity_bytes=data.get("user_capacity", {}).get("bytes"),
         drive_type=_infer_drive_type(data),
         form_factor=data.get("form_factor", {}).get("name"),
