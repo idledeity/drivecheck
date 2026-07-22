@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import DriveCard from "./DriveCard"
+import DriveContextMenu from "./DriveContextMenu"
 import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
@@ -13,6 +14,19 @@ export default function App() {
   const anchorRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ pos: { x: number; y: number }; guids: string[] } | null>(null)
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const handleDriveContextMenu = (guid: string, pos: { x: number; y: number }) => {
+    if (selected.includes(guid) && selected.length > 1) {
+      setContextMenu({ pos, guids: selected })
+    } else {
+      setSelected([guid])
+      anchorRef.current = guid
+      setContextMenu({ pos, guids: [guid] })
+    }
+  }
   // Persisted to sessionStorage so a refresh while Settings is open doesn't
   // silently drop back to the main view.
   const [settingsOpen, setSettingsOpen] = useState(() => sessionStorage.getItem("drivecheck.settingsOpen") === "1")
@@ -167,6 +181,7 @@ export default function App() {
                 drive={d}
                 selected={selected.includes(d.guid)}
                 onSelect={(e) => handleSelect(d.guid, e)}
+                onContextMenu={handleDriveContextMenu}
                 onSelectToggle={() => handleSelectToggle(d.guid)}
                 footerSignals={settings?.footer_signals}
                 onLabelChange={handleLabelChange}
@@ -177,6 +192,7 @@ export default function App() {
           </div>
       }
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
+      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} onClose={closeContextMenu} />}
       <WorkspacePanel
         drives={drives}
         selected={selected}

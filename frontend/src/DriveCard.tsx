@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconMenu2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
@@ -14,6 +14,7 @@ interface Props {
   selected: boolean
   onSelect: (e: React.MouseEvent) => void
   onSelectToggle: () => void
+  onContextMenu?: (guid: string, pos: { x: number; y: number }) => void
   footerSignals?: Record<string, string[]>
   onLabelChange?: (guid: string, label: string | null) => void
   job?: Job
@@ -26,7 +27,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, footerSignals, onLabelChange, job, queuedJobs }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, onLabelChange, job, queuedJobs }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -101,6 +102,17 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, f
   const pillRef = useRef<HTMLButtonElement>(null)
   const longPressTimerRef = useRef<number | null>(null)
   const longPressedRef = useRef(false)
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    onContextMenu?.(drive.guid, { x: e.clientX, y: e.clientY })
+  }
+
+  const handleCtxBtn = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onContextMenu?.(drive.guid, { x: r.left, y: r.bottom })
+  }
 
   // (hover: hover) is true for a device whose *primary* pointer can actually
   // hover (a mouse) — false for touch, even on a touchscreen laptop with a
@@ -244,11 +256,19 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, f
       onPointerDown={supportsHover ? undefined : handlePointerDown}
       onPointerUp={supportsHover ? undefined : cancelLongPress}
       onPointerCancel={supportsHover ? undefined : cancelLongPress}
-      onContextMenu={supportsHover ? undefined : (e) => e.preventDefault()}
+      onContextMenu={supportsHover ? handleContextMenu : (e) => e.preventDefault()}
     >
       {/* Row 1: name + badge */}
       <div className="dc-r1">
-        <div className="dc-sel-btn" />
+        {supportsHover
+          ? <div className="dc-sel-btn" />
+          : <button
+              className="dc-ctx-btn"
+              aria-label="Drive options"
+              onClick={handleCtxBtn}
+              onPointerDown={e => e.stopPropagation()}
+            ><IconMenu2 size={15} /></button>
+        }
         <div ref={idFade.ref} className={`dc-r1-id${idFade.fade ? " dc-edge-fade" : ""}`}>
           {(drive.white_label ?? drive.manufacturer_short) && <span className="dc-mfr">{drive.white_label ?? drive.manufacturer_short}</span>}
           <span className="dc-model">{drive.model ?? drive.device}</span>
