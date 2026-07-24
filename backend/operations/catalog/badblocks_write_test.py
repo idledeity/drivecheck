@@ -120,6 +120,7 @@ class BadblocksWriteTestOperation(OperationBase):
     name = "Bad Block Scan (badblocks)"
     category = "Scan"
     tool = "badblocks"
+    destructive = True
     params = [
         ParamSpec(name="block_size", label="Block size (bytes)",  type="number",  default=4096, min=512, max=65536),
         ParamSpec(name="passes",     label="Write/read passes",   type="number",  default=1, min=1, max=4),

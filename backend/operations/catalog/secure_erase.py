@@ -87,6 +87,7 @@ class SecureEraseOperation(OperationBase):
     name = "Secure Erase (shred)"
     category = "Maintenance"
     tool = "shred"
+    destructive = True
     params = [
         ParamSpec(name="passes",    label="Random overwrite passes", type="number",  default=1, min=1, max=7),
         ParamSpec(name="zero_fill", label="Final zero-fill pass",    type="boolean", default=True),
