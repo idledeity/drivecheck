@@ -122,6 +122,7 @@ def drives():
             "last_polled_at": polled_at.isoformat() if polled_at else None,
             "is_mounted": state.attachment.is_mounted,
             "label": state.label,
+            "locked": state.locked,
             "vitals": {
                 "temp": vitals.temp,
                 "temp_source": vitals.temp_source,
@@ -141,18 +142,30 @@ def drives():
 @app.route("/api/drives/<guid>", methods=["PATCH"])
 def patch_drive(guid):
     body = request.get_json(force=True) or {}
-    if "label" not in body:
-        return jsonify({"error": "missing 'label'"}), 400
+    if "label" not in body and "locked" not in body:
+        return jsonify({"error": "missing 'label' or 'locked'"}), 400
 
-    label = body["label"]
-    if label is not None and not isinstance(label, str):
-        return jsonify({"error": "'label' must be a string or null"}), 400
-    if isinstance(label, str):
-        label = label.strip() or None
+    result = {"guid": guid}
 
-    if not collector.set_drive_label(guid, label):
-        return jsonify({"error": "unknown drive"}), 404
-    return jsonify({"guid": guid, "label": label})
+    if "label" in body:
+        label = body["label"]
+        if label is not None and not isinstance(label, str):
+            return jsonify({"error": "'label' must be a string or null"}), 400
+        if isinstance(label, str):
+            label = label.strip() or None
+        if not collector.set_drive_label(guid, label):
+            return jsonify({"error": "unknown drive"}), 404
+        result["label"] = label
+
+    if "locked" in body:
+        locked = body["locked"]
+        if not isinstance(locked, bool):
+            return jsonify({"error": "'locked' must be a boolean"}), 400
+        if not collector.set_drive_locked(guid, locked):
+            return jsonify({"error": "unknown drive"}), 404
+        result["locked"] = locked
+
+    return jsonify(result)
 
 
 @app.route("/api/drives/<guid>/raw/latest")
@@ -211,6 +224,7 @@ def list_operations():
                 "name": op_cls.name,
                 "category": op_cls.category,
                 "tool": op_cls.tool,
+                "destructive": op_cls.destructive,
                 "params": [asdict(p) for p in op_cls.params],
             })
     return jsonify(result)
@@ -260,6 +274,18 @@ def create_jobs():
     params = body.get("params", {})
     if not guids or not operation:
         return jsonify({"error": "missing 'guids' or 'operation'"}), 400
+
+    op_cls = OPERATIONS.get(operation)
+    if op_cls is None:
+        return jsonify({"error": "unknown operation"}), 404
+
+    if op_cls.destructive:
+        locked_guids = [g for g in guids if collector.is_drive_locked(g)]
+        if locked_guids:
+            return jsonify({
+                "error": "one or more drives are locked",
+                "locked_guids": locked_guids,
+            }), 423
 
     jobs = job_registry.create_jobs(guids, operation, params)
     if jobs is None:

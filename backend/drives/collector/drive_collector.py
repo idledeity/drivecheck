@@ -258,6 +258,23 @@ class Collector:
         db.set_drive_label(guid, label)
         return True
 
+    def set_drive_locked(self, guid: str, locked: bool) -> bool:
+        """Update a drive's locked state. Returns False if the drive is unknown."""
+        with self._lock:
+            state = self._drive_states.get(guid)
+            if state is None:
+                logger.debug("set_drive_locked: unknown drive %s", guid)
+                return False
+            state.locked = locked
+        db.set_drive_locked(guid, locked)
+        return True
+
+    def is_drive_locked(self, guid: str) -> bool | None:
+        """Return the locked state for a drive, or None if the drive is unknown."""
+        with self._lock:
+            state = self._drive_states.get(guid)
+            return state.locked if state else None
+
     def trigger_poll(self, guids: list[str] | None = None) -> bool:
         """Force an immediate telemetry refresh, blocking until complete.
 
@@ -565,6 +582,7 @@ class Collector:
                 state.attachment.block_device = resolve_block_device(best_traits.serial)
                 record = db.get_drive_record(guid)
                 state.label = record["label"] if record else None
+                state.locked = bool(record["locked"]) if record else False
                 self._drive_states[guid] = state
                 # Telemetry/snapshot/vitals are due immediately so a newly discovered
                 # drive gets a baseline reading in this same tick. Traits were just

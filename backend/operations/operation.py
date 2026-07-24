@@ -56,9 +56,10 @@ class OperationBase(ABC):
     """Base class for all operations. Subclasses are registered, not instantiated, at startup."""
 
     name: str
-    category: str   # "Test" | "Scan" | "Maintenance" | "Debug"
+    category: str        # "Test" | "Scan" | "Maintenance" | "Debug"
     tool: str
     params: list[ParamSpec] = []
+    destructive: bool = False   # True if the operation writes to or erases the drive
 
     @staticmethod
     @abstractmethod

@@ -261,3 +261,5 @@ class DriveState:
 
     # User-assigned label (e.g. "NAS pool #3"), persisted in drive_records.
     label: str | None = None
+    # When True, the backend rejects destructive operations on this drive.
+    locked: bool = False

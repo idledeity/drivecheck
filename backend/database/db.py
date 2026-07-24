@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS drive_records (
     drive_type     TEXT,
     first_seen     TEXT NOT NULL,
     conflict_flag  INTEGER NOT NULL DEFAULT 0,
-    label          TEXT
+    label          TEXT,
+    locked         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS drive_signals (
@@ -141,6 +142,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     drive_record_cols = {row[1] for row in conn.execute("PRAGMA table_info(drive_records)")}
     if "label" not in drive_record_cols:
         conn.execute("ALTER TABLE drive_records ADD COLUMN label TEXT")
+    if "locked" not in drive_record_cols:
+        conn.execute("ALTER TABLE drive_records ADD COLUMN locked INTEGER NOT NULL DEFAULT 0")
 
     job_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     if "reattach_json" not in job_cols:
@@ -194,6 +197,13 @@ def set_drive_label(guid: str, label: str | None) -> None:
     logger.info("setting label for drive %s: %r", guid, label)
     with _connection() as conn:
         conn.execute("UPDATE drive_records SET label = ? WHERE guid = ?", (label, guid))
+
+
+def set_drive_locked(guid: str, locked: bool) -> None:
+    """Persist the locked state for a drive."""
+    logger.info("setting locked for drive %s: %s", guid, locked)
+    with _connection() as conn:
+        conn.execute("UPDATE drive_records SET locked = ? WHERE guid = ?", (int(locked), guid))
 
 
 # ---------------------------------------------------------------------------
