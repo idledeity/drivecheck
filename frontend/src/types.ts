@@ -102,6 +102,7 @@ export type OperationInfo = {
   name: string
   category: string
   tool: string
+  destructive: boolean
   params: ParamSpec[]
 }
 
@@ -133,4 +134,5 @@ export type Drive = {
   is_mounted: boolean
   vitals: DriveVitals
   label: string | null
+  locked: boolean
 }

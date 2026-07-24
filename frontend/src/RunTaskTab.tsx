@@ -61,8 +61,13 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
     .map(d => d ? (d.label ?? d.model ?? d.device) : null)
     .filter((s): s is string => s !== null)
 
+  const lockedSelected = activeOp?.destructive
+    ? selected.filter(guid => drives.find(d => d.guid === guid)?.locked)
+    : []
+  const blockedByLock = lockedSelected.length > 0
+
   const handleRun = () => {
-    if (!activeOp) return
+    if (!activeOp || blockedByLock) return
     setRunning(true)
     onRun(selected, activeOp.key, paramValues).finally(() => setRunning(false))
   }
@@ -100,7 +105,12 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
                 onChange={value => setParamValues(prev => ({ ...prev, [spec.name]: value }))}
               />
             ))}
-            <button className="rt-run" onClick={handleRun} disabled={running}>
+            {blockedByLock && (
+              <div className="rt-lock-warning">
+                {lockedSelected.length === 1 ? "1 drive is" : `${lockedSelected.length} drives are`} locked — unlock before running a destructive operation.
+              </div>
+            )}
+            <button className="rt-run" onClick={handleRun} disabled={running || blockedByLock}>
               <IconPlayerPlay size={14} />
               Run
             </button>

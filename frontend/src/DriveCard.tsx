@@ -248,7 +248,8 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
   return (
     <div
-      className={`drive-card bar-${health.bar}${selected ? " sel" : ""}`}
+      className={`drive-card bar-${health.bar}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
+      title={drive.locked ? "Write protected — destructive operations blocked" : undefined}
       onClick={(e) => { if (longPressedRef.current) { longPressedRef.current = false; return }; supportsHover ? onSelect(e) : onSelectToggle() }}
       onPointerDown={supportsHover ? undefined : handlePointerDown}
       onPointerUp={supportsHover ? undefined : cancelLongPress}

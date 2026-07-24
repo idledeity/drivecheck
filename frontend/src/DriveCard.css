@@ -1,6 +1,8 @@
 .drive-card {
-  background: linear-gradient(180deg, var(--bt) 0%, var(--bb) 100%);
-  border: 1px solid var(--bd);
+  background:
+    linear-gradient(rgba(0,0,0,0.52), rgba(0,0,0,0.52)) 100% 13px / 3px 18px no-repeat,
+    linear-gradient(180deg, var(--bt) 0%, var(--bb) 100%);
+  border: none;
   border-radius: 12px;
   padding: 8px 10px 0 10px;
   display: flex;
@@ -28,10 +30,10 @@
 .bar-grey::before  { background: var(--bd2); }
 
 .drive-card.sel {
-  border-color: #a855f7;
   box-shadow:
     inset 0 1px rgba(255,255,255,0.05),
-    0 0 0 2px rgba(168,85,247,0.15),
+    0 0 0 1px #a855f7,
+    0 0 0 3px rgba(168,85,247,0.15),
     0 4px 14px rgba(0,0,0,0.4);
 }
 
@@ -80,8 +82,50 @@
 }
 
 
-.dc-ctx-menu { min-width: 120px; }
-.dc-ctx-placeholder { font-size: 11px; color: var(--t3); padding: 2px 0; }
+.dc-ctx-menu { min-width: 180px; }
+
+.dc-ctx-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 5px 2px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.dc-ctx-item:hover { background: var(--bi); color: var(--t1); }
+.dc-ctx-item.dc-ctx-item-warn { color: #d97706; }
+.dc-ctx-item.dc-ctx-item-warn:hover { color: #f59e0b; }
+
+.dc-ctx-confirm { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.dc-ctx-confirm-msg { font-size: 11.5px; color: var(--t2); }
+.dc-ctx-confirm-btns { display: flex; gap: 6px; }
+.dc-ctx-btn {
+  flex: 1;
+  padding: 3px 0;
+  border-radius: 4px;
+  border: 1px solid var(--bd2);
+  font-size: 11px;
+  cursor: pointer;
+  background: var(--bi);
+  color: var(--t2);
+}
+.dc-ctx-btn:hover { background: var(--bd2); }
+.dc-ctx-btn.dc-ctx-btn-confirm {
+  background: #d97706;
+  border-color: #d97706;
+  color: #fff;
+}
+.dc-ctx-btn.dc-ctx-btn-confirm:hover { background: #b45309; border-color: #b45309; }
+
+.drive-card.locked {
+  background:
+    linear-gradient(#999, #999) 100% 13px / 3px 18px no-repeat,
+    linear-gradient(180deg, var(--bt) 0%, var(--bb) 100%);
+}
 
 .dc-mfr {
   font-size: 11.5px;

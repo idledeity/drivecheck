@@ -148,6 +148,17 @@ export default function App() {
     }).catch(() => setError("Backend unavailable — retrying…"))
   }
 
+  const handleSetLocked = (guids: string[], locked: boolean) => {
+    setDrives(prev => prev.map(d => guids.includes(d.guid) ? { ...d, locked } : d))
+    guids.forEach(guid =>
+      fetch(`/api/drives/${guid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locked }),
+      }).catch(() => setError("Backend unavailable — retrying…"))
+    )
+  }
+
   // The job a DriveCard's task zone should reflect: the drive's running job,
   // or else its earliest-queued one (jobs are returned in creation order).
   const activeJobForDrive = (guid: string): Job | undefined =>
@@ -192,7 +203,7 @@ export default function App() {
           </div>
       }
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
-      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} onClose={closeContextMenu} />}
+      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} drives={drives} onClose={closeContextMenu} onSetLocked={handleSetLocked} />}
       <WorkspacePanel
         drives={drives}
         selected={selected}

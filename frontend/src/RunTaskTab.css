@@ -109,6 +109,16 @@
 .rt-run:hover:not(:disabled) { background: rgba(24,196,238,0.18); }
 .rt-run:disabled { opacity: 0.5; cursor: default; }
 
+.rt-lock-warning {
+  font-size: 11.5px;
+  color: #d97706;
+  background: rgba(217,119,6,0.1);
+  border: 1px solid rgba(217,119,6,0.3);
+  border-radius: 5px;
+  padding: 5px 10px;
+  max-width: 320px;
+}
+
 /* Below this width, the sidebar's fixed 180px was eating most of the row,
    cramming the form into a sliver — there was actually enough width for
    the two columns side by side, the op names just needed room to wrap
