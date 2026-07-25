@@ -139,13 +139,15 @@ export default function App() {
       })
       .catch(() => setError("Backend unavailable — retrying…"))
 
-  const handleLabelChange = (guid: string, label: string | null) => {
-    setDrives(prev => prev.map(d => d.guid === guid ? { ...d, label } : d))
-    fetch(`/api/drives/${guid}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label }),
-    }).catch(() => setError("Backend unavailable — retrying…"))
+  const handleRename = (guids: string[], label: string | null) => {
+    setDrives(prev => prev.map(d => guids.includes(d.guid) ? { ...d, label } : d))
+    guids.forEach(guid =>
+      fetch(`/api/drives/${guid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      }).catch(() => setError("Backend unavailable — retrying…"))
+    )
   }
 
   const handleSetLocked = (guids: string[], locked: boolean) => {
@@ -195,7 +197,6 @@ export default function App() {
                 onContextMenu={handleDriveContextMenu}
                 onSelectToggle={() => handleSelectToggle(d.guid)}
                 footerSignals={settings?.footer_signals}
-                onLabelChange={handleLabelChange}
                 job={activeJobForDrive(d.guid)}
                 queuedJobs={queuedJobsForDrive(d.guid)}
               />
@@ -203,7 +204,7 @@ export default function App() {
           </div>
       }
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
-      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} drives={drives} onClose={closeContextMenu} onSetLocked={handleSetLocked} />}
+      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} drives={drives} onClose={closeContextMenu} onSetLocked={handleSetLocked} onRename={handleRename} />}
       <WorkspacePanel
         drives={drives}
         selected={selected}

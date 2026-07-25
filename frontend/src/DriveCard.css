@@ -120,6 +120,34 @@
   color: #fff;
 }
 .dc-ctx-btn.dc-ctx-btn-confirm:hover { background: #b45309; border-color: #b45309; }
+.dc-ctx-btn.dc-ctx-btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.dc-ctx-btn.dc-ctx-btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+.dc-ctx-count {
+  display: block;
+  font-size: 10.5px;
+  color: var(--t4);
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 2px;
+}
+
+.dc-ctx-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  color: var(--t2);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+}
+.dc-ctx-rename-input:focus { border-color: var(--cy); }
 
 .drive-card.locked {
   background:
@@ -164,44 +192,9 @@
   text-overflow: ellipsis;
   flex-shrink: 1;
   min-width: 0;
-  cursor: text;
-}
-.dc-label:hover { color: var(--t2); }
-
-.dc-label-edit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 0 2px;
-  color: var(--t4);
-  cursor: pointer;
-  border-radius: 4px;
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-}
-.dc-label-edit:hover {
-  opacity: 1;
-  color: var(--t2);
-  background: var(--bi);
 }
 
-.dc-label-input {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--t2);
-  background: var(--bi);
-  border: 1px solid var(--bd2);
-  border-radius: 4px;
-  padding: 1px 5px;
-  width: 110px;
-  min-width: 0;
-  flex-shrink: 1;
-  outline: none;
-}
-.dc-label-input:focus { border-color: var(--cy); }
+
 
 /* ── Row 2: traits + serial ── */
 /* align-items:baseline, not center: .dc-tv/.dc-tsep and .dc-serial mix

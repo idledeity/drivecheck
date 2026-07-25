@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { Drive } from "./types"
 
@@ -8,13 +8,17 @@ interface Props {
   drives: Drive[]
   onClose: () => void
   onSetLocked: (guids: string[], locked: boolean) => void
+  onRename?: (guids: string[], label: string | null) => void
 }
 
 const MENU_W = 180
-const MENU_H = 120
+const MENU_H = 160
 
-export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked }: Props) {
+export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename }: Props) {
   const [confirmingUnlock, setConfirmingUnlock] = useState(false)
+  const [renamingInMenu, setRenamingInMenu] = useState(false)
+  const [renameInput, setRenameInput] = useState("")
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     document.addEventListener("click", onClose)
@@ -24,6 +28,10 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
       window.removeEventListener("scroll", onClose, true)
     }
   }, [onClose])
+
+  useEffect(() => {
+    if (renamingInMenu) renameInputRef.current?.focus()
+  }, [renamingInMenu])
 
   const style = {
     top: Math.min(pos.y + 4, window.innerHeight - MENU_H - 8),
@@ -56,9 +64,44 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
     setConfirmingUnlock(false)
   }
 
+  const handleRenameClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setRenameInput(guids.length === 1 ? (selectedDrives[0]?.label ?? "") : "")
+    setRenamingInMenu(true)
+  }
+
+  const commitRename = () => {
+    const next = renameInput.trim() || null
+    onRename?.(guids, next)
+    onClose()
+  }
+
   return createPortal(
     <div className="dc-popover dc-ctx-menu" style={style} onClick={e => e.stopPropagation()}>
-      {confirmingUnlock ? (
+      {renamingInMenu ? (
+        <div className="dc-ctx-confirm">
+          <span className="dc-ctx-confirm-msg">
+            Rename {guids.length === 1 ? "drive" : `${guids.length} drives`}
+          </span>
+          <input
+            ref={renameInputRef}
+            className="dc-ctx-rename-input"
+            value={renameInput}
+            placeholder="Label…"
+            onChange={e => setRenameInput(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              e.stopPropagation()
+              if (e.key === "Enter") commitRename()
+              else if (e.key === "Escape") setRenamingInMenu(false)
+            }}
+          />
+          <div className="dc-ctx-confirm-btns">
+            <button className="dc-ctx-btn" onClick={e => { e.stopPropagation(); setRenamingInMenu(false) }}>Cancel</button>
+            <button className="dc-ctx-btn dc-ctx-btn-primary" onClick={e => { e.stopPropagation(); commitRename() }}>Rename</button>
+          </div>
+        </div>
+      ) : confirmingUnlock ? (
         <div className="dc-ctx-confirm">
           <span className="dc-ctx-confirm-msg">Unlock {guids.length === 1 ? "this drive" : "these drives"}?</span>
           <div className="dc-ctx-confirm-btns">
@@ -68,6 +111,12 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
         </div>
       ) : (
         <>
+          {guids.length > 1 && (
+            <span className="dc-ctx-count">{guids.length} drives selected</span>
+          )}
+          <button className="dc-ctx-item" onClick={handleRenameClick}>
+            Rename drive{guids.length > 1 ? "s" : ""}
+          </button>
           {anyUnlocked && (
             <button className="dc-ctx-item" onClick={handleLock}>
               Lock drive{guids.length > 1 ? "s" : ""}

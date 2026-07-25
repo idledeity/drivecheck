@@ -33,17 +33,15 @@ afterEach(() => {
 function renderCard(props: Partial<Parameters<typeof DriveCard>[0]> = {}) {
   const onSelect = vi.fn()
   const onSelectToggle = vi.fn()
-  const onLabelChange = vi.fn()
   render(<DriveCard
     drive={makeDrive()}
     selected={false}
     onSelect={onSelect}
     onSelectToggle={onSelectToggle}
     queuedJobs={[]}
-    onLabelChange={onLabelChange}
     {...props}
   />)
-  return { onSelect, onSelectToggle, onLabelChange }
+  return { onSelect, onSelectToggle }
 }
 
 describe('health badge', () => {
@@ -93,58 +91,15 @@ describe('selection', () => {
   })
 })
 
-describe('label editing', () => {
-  it('shows an add-label button when the drive has no label', () => {
-    renderCard({ drive: makeDrive({ label: null }) })
-    expect(screen.getByTitle('Add label')).toBeInTheDocument()
-  })
-
-  it('shows the label and starts editing on click without selecting the card', async () => {
-    const { onSelect } = renderCard({ drive: makeDrive({ label: 'NAS pool' }) })
+describe('label display', () => {
+  it('shows the label when the drive has one', () => {
+    renderCard({ drive: makeDrive({ label: 'NAS pool' }) })
     expect(screen.getByText('(NAS pool)')).toBeInTheDocument()
-    await userEvent.click(screen.getByText('(NAS pool)'))
-    expect(screen.getByPlaceholderText('Label…')).toHaveValue('NAS pool')
-    expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('commits a trimmed label on blur', async () => {
-    const { onLabelChange } = renderCard({ drive: makeDrive({ guid: 'd1', label: null }) })
-    await userEvent.click(screen.getByTitle('Add label'))
-    await userEvent.type(screen.getByPlaceholderText('Label…'), '  New Label  ')
-    fireEvent.blur(screen.getByPlaceholderText('Label…'))
-    expect(onLabelChange).toHaveBeenCalledWith('d1', 'New Label')
-  })
-
-  it('commits null when the input is cleared to blank', async () => {
-    const { onLabelChange } = renderCard({ drive: makeDrive({ guid: 'd1', label: 'Old' }) })
-    await userEvent.click(screen.getByText('(Old)'))
-    await userEvent.clear(screen.getByPlaceholderText('Label…'))
-    fireEvent.blur(screen.getByPlaceholderText('Label…'))
-    expect(onLabelChange).toHaveBeenCalledWith('d1', null)
-  })
-
-  it('does not call onLabelChange when the value is unchanged', async () => {
-    const { onLabelChange } = renderCard({ drive: makeDrive({ guid: 'd1', label: 'Same' }) })
-    await userEvent.click(screen.getByText('(Same)'))
-    fireEvent.blur(screen.getByPlaceholderText('Label…'))
-    expect(onLabelChange).not.toHaveBeenCalled()
-  })
-
-  it('cancels the edit on Escape without committing', async () => {
-    const { onLabelChange } = renderCard({ drive: makeDrive({ guid: 'd1', label: 'Old' }) })
-    await userEvent.click(screen.getByText('(Old)'))
-    await userEvent.clear(screen.getByPlaceholderText('Label…'))
-    await userEvent.type(screen.getByPlaceholderText('Label…'), 'Discarded')
-    await userEvent.keyboard('{Escape}')
-    expect(onLabelChange).not.toHaveBeenCalled()
-    expect(screen.getByText('(Old)')).toBeInTheDocument()
-  })
-
-  it('commits on Enter', async () => {
-    const { onLabelChange } = renderCard({ drive: makeDrive({ guid: 'd1', label: null }) })
-    await userEvent.click(screen.getByTitle('Add label'))
-    await userEvent.type(screen.getByPlaceholderText('Label…'), 'Quick{Enter}')
-    expect(onLabelChange).toHaveBeenCalledWith('d1', 'Quick')
+  it('shows nothing for the label when the drive has none', () => {
+    renderCard({ drive: makeDrive({ label: null }) })
+    expect(document.querySelector('.dc-label')).not.toBeInTheDocument()
   })
 })
 

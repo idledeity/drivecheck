@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconPencil, IconServer, IconTemperature } from "@tabler/icons-react"
+import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
@@ -16,7 +16,6 @@ interface Props {
   onSelectToggle: () => void
   onContextMenu?: (guid: string, pos: { x: number; y: number }) => void
   footerSignals?: Record<string, string[]>
-  onLabelChange?: (guid: string, label: string | null) => void
   job?: Job
   queuedJobs: Job[]
 }
@@ -27,7 +26,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, onLabelChange, job, queuedJobs }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -51,10 +50,6 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // The backend already fills this in (operation's own estimate, or a
   // percent/elapsed extrapolation) — see JobRegistry.get_progress().
   const remainingSeconds = job?.progress.eta_seconds ?? null
-
-  const [editingLabel, setEditingLabel] = useState(false)
-  const [labelInput, setLabelInput] = useState("")
-  const cancelLabelEdit = useRef(false)
 
   // Each scrollable row (mobile/touch only — see DriveCard.css) gets its own
   // overflow check, so the edge-fade only shows up on a row that's actually
@@ -230,22 +225,6 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     document.body,
   )
 
-  const startLabelEdit = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setLabelInput(drive.label ?? "")
-    setEditingLabel(true)
-  }
-
-  const commitLabelEdit = () => {
-    setEditingLabel(false)
-    if (cancelLabelEdit.current) {
-      cancelLabelEdit.current = false
-      return
-    }
-    const next = labelInput.trim() || null
-    if (next !== drive.label) onLabelChange?.(drive.guid, next)
-  }
-
   return (
     <div
       className={`drive-card bar-${health.bar}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
@@ -263,27 +242,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {(drive.white_label ?? drive.manufacturer_short) && <span className="dc-mfr">{drive.white_label ?? drive.manufacturer_short}</span>}
           <span className="dc-model">{drive.model ?? drive.device}</span>
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
-          {editingLabel ? (
-            <input
-              className="dc-label-input"
-              autoFocus
-              value={labelInput}
-              placeholder="Label…"
-              onClick={e => e.stopPropagation()}
-              onChange={e => setLabelInput(e.target.value)}
-              onBlur={commitLabelEdit}
-              onKeyDown={e => {
-                if (e.key === "Enter") e.currentTarget.blur()
-                else if (e.key === "Escape") { cancelLabelEdit.current = true; e.currentTarget.blur() }
-              }}
-            />
-          ) : drive.label ? (
-            <span className="dc-label" onClick={startLabelEdit} title="Click to edit label">({drive.label})</span>
-          ) : (
-            <button className="dc-label-edit" onClick={startLabelEdit} title="Add label">
-              <IconPencil size={14} />
-            </button>
-          )}
+          {drive.label && <span className="dc-label">({drive.label})</span>}
         </div>
         <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
       </div>
