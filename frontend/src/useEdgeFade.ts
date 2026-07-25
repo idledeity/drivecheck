@@ -1,36 +1,40 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 // Tracks whether an element's content actually overflows its own box, so a
 // scrollable row's edge-fade mask (DriveCard.css/QueueTab.css) only shows up
-// when there's really something to scroll to — a plain CSS mask can't tell
-// the difference and ends up fading a row that already fits just as much as
-// one that doesn't.
+// when there's really something to scroll to.
 //
-// The no-deps useLayoutEffect re-checks after every render (cheap — just two
-// property reads), which is what picks up content changes (a longer status
-// message, a drive's device path changing) without this hook needing to know
-// which props actually affect any particular row's width. The resize/
-// orientationchange listeners separately catch layout changes that don't
-// come from a re-render at all (window resize, phone rotation).
+// Two mechanisms work together:
+// - No-deps useEffect re-checks scrollWidth after every render, catching
+//   content changes (longer status strings, new device paths) without needing
+//   to know which props affect each row's width. useEffect (not useLayoutEffect)
+//   so the reads are async and don't block paint.
+// - ResizeObserver + window-resize listener catch layout changes that don't
+//   come from a re-render (window resize, column reflow, phone rotation).
+//   ResizeObserver fires on element-level size changes; the window listener is
+//   a fallback for environments where ResizeObserver doesn't fire on resize
+//   (also required for the window-resize test in jsdom which stubs ResizeObserver).
 export function useEdgeFade<T extends HTMLElement>() {
   const ref = useRef<T>(null)
   const [overflowing, setOverflowing] = useState(false)
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = ref.current
     if (el) setOverflowing(el.scrollWidth > el.clientWidth + 1)
   })
 
   useEffect(() => {
-    const recheck = () => {
-      const el = ref.current
-      if (el) setOverflowing(el.scrollWidth > el.clientWidth + 1)
-    }
-    window.addEventListener("resize", recheck)
-    window.addEventListener("orientationchange", recheck)
+    const el = ref.current
+    if (!el) return
+    const check = () => setOverflowing(el.scrollWidth > el.clientWidth + 1)
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    window.addEventListener("resize", check)
+    window.addEventListener("orientationchange", check)
     return () => {
-      window.removeEventListener("resize", recheck)
-      window.removeEventListener("orientationchange", recheck)
+      ro.disconnect()
+      window.removeEventListener("resize", check)
+      window.removeEventListener("orientationchange", check)
     }
   }, [])
 

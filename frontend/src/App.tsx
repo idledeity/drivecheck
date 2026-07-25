@@ -7,10 +7,12 @@ import WorkspacePanel from "./WorkspacePanel"
 import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
 
-function cmpStr(a: string | null, b: string | null) {
-  if (a === null && b === null) return 0
-  if (a === null) return 1
-  if (b === null) return -1
+const EMPTY_JOBS: Job[] = []
+
+function cmpStr(a: string | null | undefined, b: string | null | undefined) {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
   return a.localeCompare(b)
 }
 
@@ -202,14 +204,27 @@ export default function App() {
     )
   }
 
-  // The job a DriveCard's task zone should reflect: the drive's running job,
-  // or else its earliest-queued one (jobs are returned in creation order).
-  const activeJobForDrive = (guid: string): Job | undefined =>
-    jobs.find(j => j.drive_guid === guid && j.status === "running")
-      ?? jobs.find(j => j.drive_guid === guid && j.status === "queued")
-
-  const queuedJobsForDrive = (guid: string): Job[] =>
-    jobs.filter(j => j.drive_guid === guid && j.status === "queued")
+  // Pre-computed once per jobs change: avoids O(drives × jobs) scans in the
+  // render and gives DriveCard stable array references for queuedJobs.
+  const { activeJobMap, queuedJobsMap } = useMemo(() => {
+    const running = new Map<string, Job>()
+    const queued  = new Map<string, Job[]>()
+    for (const j of jobs) {
+      if (j.status === "running") {
+        if (!running.has(j.drive_guid)) running.set(j.drive_guid, j)
+      } else if (j.status === "queued") {
+        const arr = queued.get(j.drive_guid)
+        if (arr) arr.push(j)
+        else queued.set(j.drive_guid, [j])
+      }
+    }
+    // Active = running job if present, else earliest queued
+    const active = new Map<string, Job>(running)
+    for (const [guid, arr] of queued) {
+      if (!active.has(guid)) active.set(guid, arr[0])
+    }
+    return { activeJobMap: active, queuedJobsMap: queued }
+  }, [jobs])
 
   const sortedDrives = useMemo(
     () => sort ? sortDrives(drives, sort, jobs) : drives,
@@ -245,8 +260,8 @@ export default function App() {
                 onContextMenu={handleDriveContextMenu}
                 onSelectToggle={() => handleSelectToggle(d.guid)}
                 footerSignals={settings?.footer_signals}
-                job={activeJobForDrive(d.guid)}
-                queuedJobs={queuedJobsForDrive(d.guid)}
+                job={activeJobMap.get(d.guid)}
+                queuedJobs={queuedJobsMap.get(d.guid) ?? EMPTY_JOBS}
               />
             ))}
           </div>

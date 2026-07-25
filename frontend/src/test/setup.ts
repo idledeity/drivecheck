@@ -20,3 +20,14 @@ afterEach(() => {
 
 // jsdom doesn't implement scrollIntoView at all (it does no layout).
 Element.prototype.scrollIntoView = () => {}
+
+// jsdom doesn't implement ResizeObserver. Stub it out so components that use
+// it (e.g. useEdgeFade) mount without errors. The callback is never invoked
+// since jsdom does no layout anyway — tests that care about resize re-checks
+// must trigger the callback manually via the mock if needed.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
