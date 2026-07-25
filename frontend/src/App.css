@@ -71,9 +71,6 @@
   text-align: left;
 }
 
-.gc-btn-active {
-  color: var(--cy) !important;
-}
 
 .gc-sort-dir {
   font-size: 9px;

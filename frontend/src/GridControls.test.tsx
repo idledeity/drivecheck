@@ -13,6 +13,8 @@ function renderControls(overrides: Partial<Parameters<typeof GridControls>[0]> =
     onProbe: vi.fn().mockResolvedValue(undefined),
     onScan: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
+    sort: { key: "device" as const, dir: "asc" as const },
+    onSortChange: vi.fn(),
     ...overrides,
   }
   render(<GridControls {...props} />)

@@ -57,7 +57,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [contextMenu, setContextMenu] = useState<{ pos: { x: number; y: number }; guids: string[] } | null>(null)
-  const [sort, setSort] = useState<SortState | null>(null)
+  const [sort, setSort] = useState<SortState>({ key: "device", dir: "asc" })
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
@@ -227,7 +227,7 @@ export default function App() {
   }, [jobs])
 
   const sortedDrives = useMemo(
-    () => sort ? sortDrives(drives, sort, jobs) : drives,
+    () => sortDrives(drives, sort, jobs),
     [drives, sort, jobs],
   )
 
