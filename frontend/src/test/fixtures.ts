@@ -41,6 +41,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     },
     label: null,
     locked: false,
+    first_seen: "2026-01-01T00:00:00",
     ...overrides,
   }
 }

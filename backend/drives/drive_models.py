@@ -263,3 +263,5 @@ class DriveState:
     label: str | None = None
     # When True, the backend rejects destructive operations on this drive.
     locked: bool = False
+    # ISO timestamp of first detection, preserved across restarts.
+    first_seen: str | None = None

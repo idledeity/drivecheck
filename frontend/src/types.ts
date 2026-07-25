@@ -135,4 +135,15 @@ export type Drive = {
   vitals: DriveVitals
   label: string | null
   locked: boolean
+  first_seen: string | null
+}
+
+export type SortKey =
+  | "label" | "manufacturer" | "model" | "capacity"
+  | "health" | "active_task" | "first_seen" | "locked"
+  | "device" | "serial"
+
+export interface SortState {
+  key: SortKey
+  dir: "asc" | "desc"
 }

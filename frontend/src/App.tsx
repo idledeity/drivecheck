@@ -1,11 +1,51 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import DriveCard from "./DriveCard"
 import DriveContextMenu from "./DriveContextMenu"
 import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
-import type { Drive, Job, Settings } from "./types"
+import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
+
+function cmpStr(a: string | null, b: string | null) {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a.localeCompare(b)
+}
+
+function cmpNum(a: number | null, b: number | null) {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a - b
+}
+
+const HEALTH_RANK: Record<string, number> = { Healthy: 0, Unrated: 1, Degraded: 2, Failing: 3 }
+
+function sortDrives(drives: Drive[], sort: SortState, jobs: Job[]): Drive[] {
+  const taskRank = (guid: string) =>
+    jobs.some(j => j.drive_guid === guid && j.status === "running") ? 0
+    : jobs.some(j => j.drive_guid === guid && j.status === "queued") ? 1
+    : 2
+
+  return [...drives].sort((a, b) => {
+    let cmp = 0
+    switch (sort.key) {
+      case "label":        cmp = cmpStr(a.label, b.label); break
+      case "manufacturer": cmp = cmpStr(a.white_label ?? a.manufacturer_short, b.white_label ?? b.manufacturer_short); break
+      case "model":        cmp = cmpStr(a.model, b.model); break
+      case "capacity":     cmp = cmpNum(a.capacity_bytes, b.capacity_bytes); break
+      case "health":       cmp = (HEALTH_RANK[a.health_status ?? ""] ?? 1) - (HEALTH_RANK[b.health_status ?? ""] ?? 1); break
+      case "active_task":  cmp = taskRank(a.guid) - taskRank(b.guid); break
+      case "first_seen":   cmp = cmpStr(a.first_seen, b.first_seen); break
+      case "locked":       cmp = (a.locked ? 0 : 1) - (b.locked ? 0 : 1); break
+      case "device":       cmp = cmpStr(a.device, b.device); break
+      case "serial":       cmp = cmpStr(a.serial, b.serial); break
+    }
+    return sort.dir === "asc" ? cmp : -cmp
+  })
+}
 
 export default function App() {
   const [drives, setDrives] = useState<Drive[]>([])
@@ -15,6 +55,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [contextMenu, setContextMenu] = useState<{ pos: { x: number; y: number }; guids: string[] } | null>(null)
+  const [sort, setSort] = useState<SortState | null>(null)
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
@@ -94,7 +135,7 @@ export default function App() {
     if (e.ctrlKey || e.metaKey) {
       setSelected(prev => prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid])
     } else if (e.shiftKey && anchorRef.current) {
-      const guids = drives.map(d => d.guid)
+      const guids = sortedDrives.map(d => d.guid)
       const anchorIdx = guids.indexOf(anchorRef.current)
       const clickIdx = guids.indexOf(guid)
       if (anchorIdx === -1) {
@@ -170,6 +211,11 @@ export default function App() {
   const queuedJobsForDrive = (guid: string): Job[] =>
     jobs.filter(j => j.drive_guid === guid && j.status === "queued")
 
+  const sortedDrives = useMemo(
+    () => sort ? sortDrives(drives, sort, jobs) : drives,
+    [drives, sort, jobs],
+  )
+
   return (
     <div>
       {error && <div className="status-error">{error}</div>}
@@ -183,12 +229,14 @@ export default function App() {
           onProbe={handleProbe}
           onScan={handleScan}
           onOpenSettings={() => setSettingsOpen(true)}
+          sort={sort}
+          onSortChange={setSort}
         />
       </div>
       {drives.length === 0
         ? <p className="status-scanning">Scanning…</p>
         : <div className="card-grid">
-            {drives.map(d => (
+            {sortedDrives.map(d => (
               <DriveCard
                 key={d.guid}
                 drive={d}

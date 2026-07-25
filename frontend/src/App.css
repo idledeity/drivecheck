@@ -71,6 +71,72 @@
   text-align: left;
 }
 
+.gc-btn-active {
+  color: var(--cy) !important;
+}
+
+.gc-sort-dir {
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+.gc-sort-wrap {
+  position: relative;
+}
+
+.gc-sort-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 130px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gc-sort-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 5px 6px;
+  font-size: 11.5px;
+  color: var(--t2);
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+  gap: 8px;
+}
+
+.gc-sort-item:hover {
+  background: var(--bd);
+  color: var(--t1);
+}
+
+.gc-sort-item-active {
+  color: var(--cy);
+}
+
+.gc-sort-item-dir {
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+.gc-sort-sep {
+  height: 1px;
+  background: var(--bd);
+  margin: 3px 2px;
+}
+
 /* Shared icon-only utility button (Settings + WorkspacePanel): muted cyan at
    rest, brighter cyan with a matching tint on hover/focus. Disabled buttons
    keep the muted resting color and just lose the hover reaction, so

@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { IconDeselect, IconRefresh, IconScan, IconSelectAll, IconSettings } from "@tabler/icons-react"
-import type { Drive } from "./types"
+import { useEffect, useRef, useState } from "react"
+import { IconArrowsSort, IconDeselect, IconRefresh, IconScan, IconSelectAll, IconSettings } from "@tabler/icons-react"
+import type { Drive, SortKey, SortState } from "./types"
 
 interface Props {
   drives: Drive[]
@@ -10,11 +10,39 @@ interface Props {
   onProbe: () => Promise<unknown>
   onScan: () => Promise<unknown>
   onOpenSettings: () => void
+  sort?: SortState | null
+  onSortChange?: (sort: SortState | null) => void
 }
 
-export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan, onOpenSettings }: Props) {
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "label",        label: "Custom Name" },
+  { key: "manufacturer", label: "Manufacturer" },
+  { key: "model",        label: "Model Number" },
+  { key: "capacity",     label: "Capacity" },
+  { key: "health",       label: "Health Status" },
+  { key: "active_task",  label: "Active Task" },
+  { key: "first_seen",   label: "Date Added" },
+  { key: "locked",       label: "Lock Status" },
+  { key: "device",       label: "/dev device" },
+  { key: "serial",       label: "Serial Number" },
+]
+
+export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan, onOpenSettings, sort, onSortChange }: Props) {
   const [probing, setProbing] = useState(false)
   const [scanning, setScanning] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!sortOpen) return
+    const close = (e: MouseEvent) => {
+      if (sortWrapRef.current && !sortWrapRef.current.contains(e.target as Node)) {
+        setSortOpen(false)
+      }
+    }
+    document.addEventListener("click", close)
+    return () => document.removeEventListener("click", close)
+  }, [sortOpen])
 
   const handleProbe = () => {
     setProbing(true)
@@ -26,7 +54,17 @@ export default function GridControls({ drives, selected, onSelectAll, onUnselect
     onScan().finally(() => setScanning(false))
   }
 
+  const handleSortSelect = (key: SortKey) => {
+    if (sort?.key === key) {
+      onSortChange?.({ key, dir: sort.dir === "asc" ? "desc" : "asc" })
+    } else {
+      onSortChange?.({ key, dir: "asc" })
+    }
+    setSortOpen(false)
+  }
+
   const probeLabel = selected.length > 0 ? `Probe selected (${selected.length})` : "Probe all drives"
+  const activeSortLabel = sort ? SORT_OPTIONS.find(o => o.key === sort.key)?.label : null
 
   return (
     <div className="grid-controls">
@@ -48,6 +86,39 @@ export default function GridControls({ drives, selected, onSelectAll, onUnselect
         <span className="gc-probe-label">{probeLabel}</span>
       </button>
       <span className="gc-sep" />
+      <div ref={sortWrapRef} className="gc-sort-wrap">
+        <button
+          className={`gc-btn${sort ? " gc-btn-active" : ""}`}
+          onClick={() => setSortOpen(o => !o)}
+          title="Sort drives"
+        >
+          <IconArrowsSort size={13} />
+          <span>{activeSortLabel ?? "Sort"}</span>
+          {sort && <span className="gc-sort-dir">{sort.dir === "asc" ? "↑" : "↓"}</span>}
+        </button>
+        {sortOpen && (
+          <div className="gc-sort-dropdown">
+            {SORT_OPTIONS.map(({ key, label }) => (
+              <button
+                key={key}
+                className={`gc-sort-item${sort?.key === key ? " gc-sort-item-active" : ""}`}
+                onClick={() => handleSortSelect(key)}
+              >
+                <span>{label}</span>
+                {sort?.key === key && <span className="gc-sort-item-dir">{sort.dir === "asc" ? "↑" : "↓"}</span>}
+              </button>
+            ))}
+            {sort && (
+              <>
+                <div className="gc-sort-sep" />
+                <button className="gc-sort-item" onClick={() => { onSortChange?.(null); setSortOpen(false) }}>
+                  Clear sort
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
       <button className="gc-btn" onClick={onOpenSettings} title="Settings">
         <IconSettings size={13} />
         <span>Settings</span>

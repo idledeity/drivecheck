@@ -123,6 +123,7 @@ def drives():
             "is_mounted": state.attachment.is_mounted,
             "label": state.label,
             "locked": state.locked,
+            "first_seen": state.first_seen,
             "vitals": {
                 "temp": vitals.temp,
                 "temp_source": vitals.temp_source,

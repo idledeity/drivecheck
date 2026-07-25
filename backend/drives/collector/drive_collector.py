@@ -583,6 +583,7 @@ class Collector:
                 record = db.get_drive_record(guid)
                 state.label = record["label"] if record else None
                 state.locked = bool(record["locked"]) if record else False
+                state.first_seen = record["first_seen"] if record else None
                 self._drive_states[guid] = state
                 # Telemetry/snapshot/vitals are due immediately so a newly discovered
                 # drive gets a baseline reading in this same tick. Traits were just
