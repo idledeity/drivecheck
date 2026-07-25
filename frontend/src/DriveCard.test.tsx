@@ -79,7 +79,8 @@ describe('identity row', () => {
 })
 
 describe('selection', () => {
-  it('calls onSelect when the card is clicked', async () => {
+  it('calls onSelect when the card is clicked on hover-capable devices', async () => {
+    mockMatchMedia(true)
     const { onSelect } = renderCard()
     await userEvent.click(screen.getByText('ModelX'))
     expect(onSelect).toHaveBeenCalledOnce()

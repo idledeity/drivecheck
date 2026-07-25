@@ -13,6 +13,8 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     info_name: '/dev/sda',
     serial: 'SN123',
     manufacturer: 'Acme',
+    manufacturer_short: 'Acme',
+    white_label: null,
     model: 'ModelX',
     capacity_bytes: 1_000_000_000_000,
     drive_type: 'HDD',
@@ -25,6 +27,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     pending: 0,
     load_unload_cycles: null,
     uncorrected: 0,
+    crc_errors: null,
     smart_passed: true,
     health_status: 'Healthy',
     signal_flags: {},
@@ -37,6 +40,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
       io: { read_iops: null, write_iops: null, read_bytes_per_sec: null, write_bytes_per_sec: null, busy_pct: null },
     },
     label: null,
+    locked: false,
     ...overrides,
   }
 }
