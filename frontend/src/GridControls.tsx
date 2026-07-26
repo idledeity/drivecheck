@@ -15,15 +15,15 @@ interface Props {
 }
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "label",        label: "Custom Name" },
-  { key: "manufacturer", label: "Manufacturer" },
-  { key: "model",        label: "Model Number" },
-  { key: "capacity",     label: "Capacity" },
-  { key: "health",       label: "Health Status" },
-  { key: "active_task",  label: "Active Task" },
+  { key: "device",       label: "/dev device" },
   { key: "first_seen",   label: "Date Added" },
   { key: "locked",       label: "Lock Status" },
-  { key: "device",       label: "/dev device" },
+  { key: "health",       label: "Health Status" },
+  { key: "active_task",  label: "Active Task" },
+  { key: "capacity",     label: "Capacity" },
+  { key: "manufacturer", label: "Manufacturer" },
+  { key: "model",        label: "Model Number" },
+  { key: "label",        label: "Custom Name" },
   { key: "serial",       label: "Serial Number" },
 ]
 
