@@ -34,7 +34,7 @@ describe('SIGNALS', () => {
 describe('DEFAULT_FOOTER_SIGNALS', () => {
   it('uses pending/uncorrected for the default (ATA) drive type', () => {
     expect(DEFAULT_FOOTER_SIGNALS.default).toEqual(
-      ['power_on_hours', 'reallocated', 'pending', 'uncorrected'],
+      ['power_on_hours', 'reallocated', 'pending', 'uncorrected', 'crc_errors'],
     )
   })
 

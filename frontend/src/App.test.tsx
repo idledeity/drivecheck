@@ -6,12 +6,12 @@ import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Drive, Job, OperationInfo, Settings } from './types'
 
 vi.mock('./DriveCard', () => ({
-  default: ({ drive, selected, onSelect, onSelectToggle, onLabelChange, job, queuedJobs }: {
+  default: ({ drive, selected, onSelect, onSelectToggle, onContextMenu, job, queuedJobs }: {
     drive: Drive
     selected: boolean
     onSelect: (e: React.MouseEvent) => void
     onSelectToggle: () => void
-    onLabelChange?: (guid: string, label: string | null) => void
+    onContextMenu?: (guid: string, pos: { x: number; y: number }) => void
     job?: Job
     queuedJobs: Job[]
   }) => (
@@ -19,9 +19,21 @@ vi.mock('./DriveCard', () => ({
       <span>{drive.model}</span>
       <button onClick={onSelect}>{`select-${drive.guid}`}</button>
       <button onClick={onSelectToggle}>{`toggle-${drive.guid}`}</button>
-      <button onClick={() => onLabelChange?.(drive.guid, 'New Label')}>{`relabel-${drive.guid}`}</button>
+      <button onClick={() => onContextMenu?.(drive.guid, { x: 0, y: 0 })}>{`context-${drive.guid}`}</button>
       <span data-testid={`active-job-${drive.guid}`}>{job?.id ?? 'none'}</span>
       <span data-testid={`queued-count-${drive.guid}`}>{queuedJobs.length}</span>
+    </div>
+  ),
+}))
+
+vi.mock('./DriveContextMenu', () => ({
+  default: ({ guids, onRename, onClose }: {
+    guids: string[]
+    onRename: (guids: string[], label: string | null) => void
+    onClose: () => void
+  }) => (
+    <div data-testid="context-menu">
+      <button onClick={() => { onRename(guids, 'New Label'); onClose() }}>rename</button>
     </div>
   ),
 }))
@@ -203,7 +215,8 @@ describe('App', () => {
     render(<App />)
     await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('relabel-d1'))
+    await userEvent.click(screen.getByText('context-d1'))
+    await userEvent.click(screen.getByText('rename'))
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/drives/d1', expect.objectContaining({
       method: 'PATCH',
       body: JSON.stringify({ label: 'New Label' }),
@@ -234,6 +247,7 @@ describe('App', () => {
     render(<App />)
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/jobs'))
 
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
     await userEvent.click(screen.getByTitle('Cancel'))
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/jobs/job-1/cancel', expect.objectContaining({ method: 'POST' })))
@@ -245,6 +259,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('select-d1'))
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Run Task' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
 

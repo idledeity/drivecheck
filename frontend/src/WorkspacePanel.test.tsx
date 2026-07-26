@@ -34,18 +34,21 @@ describe('WorkspacePanel', () => {
 
   it('switches to the Queue tab', async () => {
     renderPanel()
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
     expect(screen.getByText(/Running and queued jobs/)).toBeInTheDocument()
   })
 
   it('switches to the Run Task tab', async () => {
     renderPanel()
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Run Task' }))
     expect(screen.getByText(/Select one or more drives to configure/)).toBeInTheDocument()
   })
 
   it('switches to the History tab', async () => {
     renderPanel()
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'History' }))
     expect(screen.getByText(/Select one or more drives to view job history/)).toBeInTheDocument()
   })
