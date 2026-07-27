@@ -128,6 +128,7 @@ export type Drive = {
   uncorrected: number | null
   crc_errors: number | null
   smart_passed: boolean | null
+  health_pct: number | null
   health_status: "Healthy" | "Degraded" | "Failing" | null
   signal_flags: Record<string, "ok" | "warn" | "crit">
   last_polled_at: string | null

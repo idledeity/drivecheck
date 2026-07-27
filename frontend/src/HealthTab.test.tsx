@@ -16,8 +16,28 @@ describe('HealthTab', () => {
   it('defaults to the overview sub-tab without fetching anything', () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
     expect(screen.getByRole('button', { name: 'Overview' })).toHaveClass('active')
-    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByText(/Select one or more drives/)).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('shows health score and flagged signals for a selected drive', () => {
+    const drive = makeDrive({
+      guid: 'd1',
+      health_pct: 85,
+      health_status: 'Degraded',
+      signal_flags: { reallocated: 'warn', temp: 'ok' },
+      reallocated: 3,
+    })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    expect(screen.getByText('85')).toBeInTheDocument()
+    expect(screen.getByText('Degraded')).toBeInTheDocument()
+    expect(screen.getByText(/Realloc/)).toBeInTheDocument()
+  })
+
+  it('shows "No flagged signals" when all signals are ok', () => {
+    const drive = makeDrive({ guid: 'd1', health_pct: 100, health_status: 'Healthy' })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    expect(screen.getByText('No flagged signals')).toBeInTheDocument()
   })
 
   it('switches to the SMART attributes sub-tab and fetches data for it', async () => {
@@ -26,10 +46,11 @@ describe('HealthTab', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/raw/latest'))
   })
 
-  it('switches to the report sub-tab, which is a stub', async () => {
-    render(<HealthTab drives={[]} selectedGuids={[]} />)
+  it('switches to the report sub-tab and shows download button', async () => {
+    const drive = makeDrive({ guid: 'd1' })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
     await userEvent.click(screen.getByRole('button', { name: 'Report' }))
-    expect(screen.getByText(/Identity · verdict/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument()
   })
 
   it('marks the active sub-tab button', async () => {

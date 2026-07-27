@@ -14,25 +14,59 @@ from drives.drive_models import DCSignals, DriveHealth
 
 logger = logging.getLogger(__name__)
 
+# Points deducted from 100 per signal severity.
+SIGNAL_WEIGHTS: dict[str, dict[str, int]] = {
+    "reallocated":        {"warn": 15, "crit": 35},
+    "pending":            {"warn": 10, "crit": 25},
+    "uncorrected":        {"warn": 10, "crit": 25},
+    "crc_errors":         {"warn":  5, "crit": 15},
+    "power_on_hours":     {"warn":  5, "crit": 15},
+    "load_unload_cycles": {"warn":  5, "crit": 10},
+    "temp":               {"warn":  5, "crit": 15},
+}
+
+# When SMART itself reports failure the score is capped here regardless of
+# individual signal deductions — the drive firmware is already telling us it's done.
+SMART_FAIL_CAP = 40
+
+# Score → status boundaries.
+_HEALTHY_GTE  = 90
+_DEGRADED_GTE = 60
+
 
 def score_health(signals: DCSignals) -> DriveHealth:
-    """Classify signals into per-field flags and an overall health status."""
+    """Classify signals into per-field flags, a 0–100 health score, and overall status."""
     flags = {
-        "reallocated": flag(signals.reallocated, warn_gte=1),
-        "pending":     flag(signals.pending,     warn_gte=1),
-        "uncorrected": flag(signals.uncorrected, crit_gte=1),
-        "crc_errors":  flag(signals.crc_errors,  warn_gte=1),
-        "temp":        flag(signals.temp,        warn_gte=45),
+        "reallocated":        flag(signals.reallocated,        warn_gte=1),
+        "pending":            flag(signals.pending,            warn_gte=1),
+        "uncorrected":        flag(signals.uncorrected,        crit_gte=1),
+        "crc_errors":         flag(signals.crc_errors,         warn_gte=1),
+        "power_on_hours":     flag(signals.power_on_hours,     warn_gte=40_000, crit_gte=60_000),
+        "load_unload_cycles": flag(signals.load_unload_cycles, warn_gte=500_000, crit_gte=700_000),
+        "temp":               flag(signals.temp,               warn_gte=45),
     }
 
-    if signals.smart_passed is False:
-        status = "Failing"
-    elif (signals.reallocated or 0) > 0 or (signals.uncorrected or 0) > 0:
-        status = "Degraded"
-    elif signals.smart_passed is True:
-        status = "Healthy"
+    if signals.smart_passed is None:
+        health_pct = None
+        status = None
     else:
-        status = None  # Unrated
+        score = 100
+        for key, weights in SIGNAL_WEIGHTS.items():
+            severity = flags.get(key, "ok")
+            if severity == "crit":
+                score -= weights["crit"]
+            elif severity == "warn":
+                score -= weights["warn"]
+        if signals.smart_passed is False:
+            score = min(score, SMART_FAIL_CAP)
+        health_pct = max(0, score)
 
-    logger.debug("scored health: status=%s flags=%s", status, flags)
-    return DriveHealth(health_status=status, signal_flags=flags)
+        if health_pct >= _HEALTHY_GTE:
+            status = "Healthy"
+        elif health_pct >= _DEGRADED_GTE:
+            status = "Degraded"
+        else:
+            status = "Failing"
+
+    logger.debug("scored health: status=%s pct=%s flags=%s", status, health_pct, flags)
+    return DriveHealth(health_pct=health_pct, health_status=status, signal_flags=flags)

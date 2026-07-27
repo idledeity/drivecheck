@@ -22,14 +22,14 @@ describe('WorkspacePanel', () => {
   it('defaults to the Health tab, expanded', () => {
     renderPanel()
     expect(screen.getByRole('button', { name: 'Health' })).toHaveClass('active')
-    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByText(/Select one or more drives to view an overview/)).toBeInTheDocument()
   })
 
   it('collapses the body when the toggle is clicked', async () => {
     renderPanel()
-    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByText(/Select one or more drives to view an overview/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Collapse workspace panel' }))
-    expect(screen.queryByRole('heading', { name: 'Overview' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Select one or more drives to view an overview/)).not.toBeInTheDocument()
   })
 
   it('switches to the Queue tab', async () => {

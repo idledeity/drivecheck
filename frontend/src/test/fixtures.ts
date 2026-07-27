@@ -29,6 +29,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     uncorrected: 0,
     crc_errors: null,
     smart_passed: true,
+    health_pct: 100,
     health_status: 'Healthy',
     signal_flags: {},
     last_polled_at: null,
