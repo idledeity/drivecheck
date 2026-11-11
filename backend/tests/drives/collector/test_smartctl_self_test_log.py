@@ -1,5 +1,14 @@
-from analysis.self_test_log import build_self_test_log
+# Parse -> judge, end to end: the statuses the SMART tab shows for the drive's self-test log.
+from dataclasses import asdict
+from types import SimpleNamespace
+
+from analysis.smart_attributes import judge_row
+from drives.collector.probes.telemetry.smartctl_self_test_log import parse_self_test_log
 from drives.drive_models import DriveType
+
+
+def build_self_test_log(data, drive_type):
+    return [SimpleNamespace(**judge_row(asdict(f), {})) for f in parse_self_test_log(data, drive_type)]
 
 
 def test_ata_log_empty_when_missing():

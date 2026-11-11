@@ -514,8 +514,11 @@ class Collector:
         """Persist a telemetry run's raw report and remember it as the drive's
         latest snapshot (see capture_smart). Returns its summary."""
         captured_at = snapshot.telemetry.last_polled_at.isoformat()
+        # The signals ride along so the report can be judged on its own when
+        # served (analysis.smart_attributes.judge_report) — facts, not judgements.
+        report = {**snapshot.extras, "signals": asdict(snapshot.telemetry.signals)}
         snapshot_id = db.record_raw_snapshot(
-            state.context.guid, captured_at, "smartctl_telemetry", json.dumps(snapshot.extras)
+            state.context.guid, captured_at, "smartctl_telemetry", json.dumps(report)
         )
         summary = {
             "snapshot_id": snapshot_id,

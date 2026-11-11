@@ -194,8 +194,44 @@ class DriveVitals:
 # ---------------------------------------------------------------------------
 
 @dataclass
+class AttributeMetric:
+    """A number on an AttributeFact for analysis.smart_attributes to judge.
+      kind            — what the number is; selects the judging rule (METRIC_RULES)
+      measured        — the number judged, which need not be the one shown (an ATA
+                        row shows the raw value but is measured by its normalized one)
+      drive_threshold — a limit the drive itself reports for it, if any (an ATA
+                        attribute's thresh, an NVMe spare threshold, a rated lifetime count)
+    """
+    kind: str
+    measured: float
+    drive_threshold: float | None = None
+
+
+@dataclass
+class AttributeFact:
+    """One SMART attribute or self-test log entry as a probe reports it: facts
+    only, no ok/warn/crit. Only key, label and value are required; the optional
+    fields are what analysis.smart_attributes judges the row by, and a row with
+    none of them is judged ok.
+      value        — display text, as shown in the SMART tab
+      signal       — the DCSignals field this row shows; it takes that signal's flag
+      metric       — a number judged by the rule for its kind
+      drive_report — the drive's own statement about it: "ok" | "marginal" | "failed"
+                     (e.g. ATA when_failed, a self-test result, SMART overall status)
+    """
+    key: str
+    label: str
+    value: str
+    detail: str | None = None
+    signal: str | None = None
+    metric: AttributeMetric | None = None
+    drive_report: str | None = None
+
+
+@dataclass
 class AttributeRow:
-    """One row in the SMART attributes sub-page."""
+    """One judged row in the SMART attributes sub-page — an AttributeFact plus
+    the status analysis.smart_attributes derived from it when served."""
     key: str
     label: str
     value: str

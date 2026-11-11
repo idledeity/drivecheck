@@ -98,6 +98,9 @@ def test_capture_smart_forces_a_poll_and_saves_its_full_report(monkeypatch):
     assert summary["signals"]["power_on_hours"] == _SAS_DATA["power_on_time"]["hours"]
     report = json.loads(db.get_raw_snapshot(summary["snapshot_id"])["raw_json"])
     assert report["smartctl"] == _SAS_DATA
+    # Facts only: the signals to judge it by, and rows without statuses.
+    assert report["signals"] == summary["signals"]
+    assert report["self_test_log"] and all("status" not in row for row in report["self_test_log"])
     # Same path as a scheduled poll: the reading lands in the signal history and live state.
     with db._connection() as conn:
         captured = {r[0] for r in conn.execute("SELECT captured_at FROM drive_signals WHERE drive_guid = 'g1'")}

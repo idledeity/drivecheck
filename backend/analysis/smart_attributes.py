@@ -1,225 +1,91 @@
 """
-analysis.smart_attributes — Build per-attribute SMART rows for the Health ->
-SMART attributes sub-page.
+analysis.smart_attributes — Judge SMART attribute and self-test facts.
 
-Takes the raw smartctl JSON plus the already-computed DCSignals/DriveHealth (so
-attributes that map onto a DCSignals field reuse its signal_flags entry — one
-threshold definition, not two) and returns AttributeRow entries ready for the
-frontend to render directly.
+Probes store AttributeFact rows (drives.drive_models) — facts, no ok/warn/crit.
+This module derives each row's status when it is served, so stored rows are
+always judged by the current rules:
+  signal       — the row takes that DCSignals field's flag (analysis.health),
+                 one threshold definition for the card and the SMART tab alike
+  metric       — judged by the METRIC_RULES rule for its kind
+  drive_report — the drive's own statement: failed → crit, marginal → warn
+A row takes the worst status of the inputs it has; a row with none is ok.
 """
 
 import logging
+from collections.abc import Callable
 
+from analysis.health import score_signals
 from analysis.severity import flag
-from drives.drive_models import AttributeRow, DCSignals, DriveHealth, DriveType
 
 logger = logging.getLogger(__name__)
 
-# ATA SMART attribute IDs that map onto a DCSignals field — reuse its signal_flags
-# entry instead of re-deriving a threshold here.
-_ATA_SIGNAL_IDS = {5: "reallocated", 190: "temp", 194: "temp", 197: "pending", 198: "uncorrected"}
+_RANK = {"ok": 0, "warn": 1, "crit": 2}
+
+_DRIVE_REPORT_STATUS = {"failed": "crit", "marginal": "warn", "ok": "ok"}
 
 
-def build_attribute_rows(data: dict, drive_type: DriveType, signals: DCSignals, health: DriveHealth) -> list[AttributeRow]:
-    """Build display-ready, classified attribute rows for a drive's raw SMART data."""
-    if drive_type == DriveType.NVME:
-        rows = _nvme_rows(data, health)
-    elif drive_type == DriveType.SAS:
-        rows = _scsi_rows(data, health)
-    else:
-        rows = _ata_rows(data, health)
-    logger.debug("built %d attribute row(s) for drive_type=%s", len(rows), drive_type)
-    return rows
+def _normalized_value(measured: float, drive_threshold: float | None) -> str:
+    # ATA: the drive's normalized value at or below its own threshold is a
+    # failing attribute. A threshold of 0 means the drive sets none.
+    return "crit" if drive_threshold and measured <= drive_threshold else "ok"
 
 
-def _ata_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:
-    """Full raw attribute dump from ata_smart_attributes.table — one row per entry."""
-    rows = []
-    for entry in data.get("ata_smart_attributes", {}).get("table", []):
-        attr_id = entry.get("id")
-        raw = entry.get("raw", {})
-        value, worst, thresh = entry.get("value"), entry.get("worst"), entry.get("thresh")
-
-        signal = _ATA_SIGNAL_IDS.get(attr_id)
-        if signal:
-            status = health.signal_flags.get(signal, "ok")
-        elif entry.get("when_failed"):
-            status = "crit"
-        elif thresh and value is not None and value <= thresh:
-            status = "crit"
-        else:
-            status = "ok"
-
-        rows.append(AttributeRow(
-            key=f"ata_{attr_id}",
-            label=entry.get("name", f"Attribute {attr_id}").replace("_", " "),
-            value=raw.get("string", str(raw.get("value", "—"))),
-            status=status,
-            detail=f"value {value} · worst {worst} · thresh {thresh}",
-        ))
-    return rows
+def _rated_lifetime(measured: float, drive_threshold: float | None) -> str:
+    if not drive_threshold:
+        return "ok"
+    return flag(measured / drive_threshold, warn_gte=0.8, crit_gte=1.0)
 
 
-def _scsi_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:
-    """Curated rows from SCSI/SAS error counters and log pages."""
-    rows = []
-
-    smart_status = data.get("smart_status", {})
-    passed = smart_status.get("passed")
-    rows.append(AttributeRow(
-        key="smart_status",
-        label="SMART Overall Status",
-        value="PASSED" if passed else "FAILED" if passed is False else "—",
-        status="crit" if passed is False else "ok",
-        detail=smart_status.get("scsi", {}).get("ie_string") if passed is False else None,
-    ))
-
-    temp = data.get("temperature", {})
-    if temp.get("current") is not None:
-        trip = temp.get("drive_trip")
-        rows.append(AttributeRow(
-            key="temperature",
-            label="Temperature",
-            value=f"{temp['current']}°C",
-            status=health.signal_flags.get("temp", "ok"),
-            detail=f"Trip threshold {trip}°C" if trip is not None else None,
-        ))
-
-    poh = data.get("power_on_time", {}).get("hours")
-    if poh is not None:
-        rows.append(AttributeRow(
-            key="power_on_hours",
-            label="Power-On Hours",
-            value=f"{poh:,}",
-            status="ok",
-        ))
-
-    defects = data.get("scsi_grown_defect_list")
-    if defects is not None:
-        rows.append(AttributeRow(
-            key="grown_defect_list",
-            label="Grown Defect List",
-            value=f"{defects:,}",
-            status=health.signal_flags.get("reallocated", "ok"),
-        ))
-
-    error_log = data.get("scsi_error_counter_log")
-    if error_log:
-        read_u   = error_log.get("read",   {}).get("total_uncorrected_errors") or 0
-        write_u  = error_log.get("write",  {}).get("total_uncorrected_errors") or 0
-        verify_u = error_log.get("verify", {}).get("total_uncorrected_errors") or 0
-        rows.append(AttributeRow(
-            key="uncorrected_errors",
-            label="Uncorrected Errors",
-            value=f"{read_u + write_u + verify_u:,}",
-            status=health.signal_flags.get("uncorrected", "ok"),
-            detail=f"Read {read_u} · Write {write_u} · Verify {verify_u}",
-        ))
-
-    cycles = data.get("scsi_start_stop_cycle_counter", {})
-    rows += _lifetime_cycle_row(
-        cycles, "load_unload_cycles", "Load/Unload Cycles",
-        "accumulated_load_unload_cycles", "specified_load_unload_count_over_device_lifetime",
-    )
-    rows += _lifetime_cycle_row(
-        cycles, "start_stop_cycles", "Start/Stop Cycles",
-        "accumulated_start_stop_cycles", "specified_cycle_count_over_device_lifetime",
-    )
-
-    return rows
+def _available_spare(measured: float, drive_threshold: float | None) -> str:
+    return "warn" if drive_threshold is not None and measured <= drive_threshold else "ok"
 
 
-def _lifetime_cycle_row(cycles: dict, key: str, label: str, accumulated_field: str, specified_field: str) -> list[AttributeRow]:
-    """Build a row comparing an accumulated cycle count to its rated lifetime spec."""
-    accumulated = cycles.get(accumulated_field)
-    if accumulated is None:
-        return []
-
-    specified = cycles.get(specified_field)
-    if specified:
-        ratio = accumulated / specified
-        return [AttributeRow(
-            key=key,
-            label=label,
-            value=f"{accumulated:,} / {specified:,}",
-            status=flag(ratio, warn_gte=0.8, crit_gte=1.0),
-            detail=f"{ratio * 100:.0f}% of rated lifetime",
-        )]
-
-    return [AttributeRow(key=key, label=label, value=f"{accumulated:,}", status="ok")]
+# Metric kind -> rule(measured, drive_threshold) -> "ok" | "warn" | "crit".
+METRIC_RULES: dict[str, Callable[[float, float | None], str]] = {
+    "normalized_value":  _normalized_value,
+    "rated_lifetime":    _rated_lifetime,
+    "available_spare":   _available_spare,
+    "percentage_used":   lambda measured, _t: flag(measured, warn_gte=80, crit_gte=100),
+    "error_log_entries": lambda measured, _t: flag(measured, warn_gte=1),
+}
 
 
-def _nvme_rows(data: dict, health: DriveHealth) -> list[AttributeRow]:
-    """Rows from nvme_smart_health_information_log."""
-    log = data.get("nvme_smart_health_information_log", {})
-    rows = []
+def judge_row(row: dict, signal_flags: dict[str, str]) -> dict:
+    """An AttributeRow dict ({key, label, value, status, detail}) for a stored
+    AttributeFact dict. A row stored by an older version already carries its
+    status and none of the judging inputs, so it is returned as stored."""
+    if "status" in row:
+        return row
+    statuses = ["ok"]
+    if row.get("signal"):
+        statuses.append(signal_flags.get(row["signal"], "ok"))
+    metric = row.get("metric")
+    if metric:
+        # .get: one unreadable stored row mustn't fail the whole report.
+        rule = METRIC_RULES.get(metric.get("kind"))
+        if rule is None:
+            logger.debug("no rule for metric %r on row %s; not judged", metric, row.get("key"))
+        elif metric.get("measured") is not None:
+            statuses.append(rule(metric["measured"], metric.get("drive_threshold")))
+    if row.get("drive_report"):
+        statuses.append(_DRIVE_REPORT_STATUS.get(row["drive_report"], "ok"))
+    return {
+        "key": row["key"],
+        "label": row["label"],
+        "value": row["value"],
+        "status": max(statuses, key=_RANK.__getitem__),
+        "detail": row.get("detail"),
+    }
 
-    crit = log.get("critical_warning")
-    if crit is not None:
-        rows.append(AttributeRow(
-            key="critical_warning",
-            label="Critical Warning",
-            value=f"0x{crit:02x}",
-            status="ok" if crit == 0 else "crit",
-        ))
 
-    temp_kelvin = log.get("temperature")
-    if temp_kelvin is not None:
-        rows.append(AttributeRow(
-            key="temperature",
-            label="Temperature",
-            value=f"{temp_kelvin - 273}°C",
-            status=health.signal_flags.get("temp", "ok"),
-        ))
-
-    spare = log.get("available_spare")
-    threshold = log.get("available_spare_threshold")
-    if spare is not None:
-        rows.append(AttributeRow(
-            key="available_spare",
-            label="Available Spare",
-            value=f"{spare}%",
-            status="warn" if threshold is not None and spare <= threshold else "ok",
-            detail=f"Threshold {threshold}%" if threshold is not None else None,
-        ))
-
-    used = log.get("percentage_used")
-    if used is not None:
-        rows.append(AttributeRow(
-            key="percentage_used",
-            label="Percentage Used",
-            value=f"{used}%",
-            status=flag(used, warn_gte=80, crit_gte=100),
-        ))
-
-    media_errors = log.get("media_errors")
-    if media_errors is not None:
-        rows.append(AttributeRow(
-            key="media_errors",
-            label="Media Errors",
-            value=f"{media_errors:,}",
-            status=health.signal_flags.get("uncorrected", "ok"),
-        ))
-
-    poh = log.get("power_on_hours")
-    if poh is not None:
-        rows.append(AttributeRow(key="power_on_hours", label="Power-On Hours", value=f"{poh:,}", status="ok"))
-
-    power_cycles = log.get("power_cycles")
-    if power_cycles is not None:
-        rows.append(AttributeRow(key="power_cycles", label="Power Cycles", value=f"{power_cycles:,}", status="ok"))
-
-    unsafe = log.get("unsafe_shutdowns")
-    if unsafe is not None:
-        rows.append(AttributeRow(key="unsafe_shutdowns", label="Unsafe Shutdowns", value=f"{unsafe:,}", status="ok"))
-
-    err_entries = log.get("num_err_log_entries")
-    if err_entries is not None:
-        rows.append(AttributeRow(
-            key="error_log_entries",
-            label="Error Log Entries",
-            value=f"{err_entries:,}",
-            status=flag(err_entries, warn_gte=1),
-        ))
-
-    return rows
+def judge_report(raw: dict, signals: dict | None = None) -> dict:
+    """A stored raw snapshot (drive_raw_snapshots.raw_json) with its
+    smart_attributes and self_test_log rows judged. Signal flags come from the
+    snapshot's own stored signals, else `signals` (e.g. the job summary that
+    points at an older snapshot stored without them)."""
+    signal_flags = score_signals(raw.get("signals") or signals).signal_flags
+    judged = dict(raw)
+    for key in ("smart_attributes", "self_test_log"):
+        if key in raw:
+            judged[key] = [judge_row(row, signal_flags) for row in raw[key]]
+    return judged

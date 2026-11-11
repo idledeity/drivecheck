@@ -224,7 +224,7 @@ drivecheck/
 │   │   ├── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
 │   │   ├── severity.py         (shared ok/warn/crit threshold helper)
 │   │   ├── health.py           (DCSignals -> DriveHealth: signal_flags + health_status)
-│   │   └── smart_attributes.py (raw smartctl data -> AttributeRow list for the SMART tab)
+│   │   └── smart_attributes.py (judges stored AttributeFact rows -> AttributeRow statuses, when served)
 │   └── drive_tools/
 │       └── smartctl.py         (raw subprocess wrapper around smartctl -j)
 ├── frontend/
@@ -452,12 +452,22 @@ Note: `pending` is an imperfect mapping for SAS — the UI surfaces this distinc
 ### DriveSnapshot
 Point-in-time capture of one collector poll. Persisted to SQLite; one row per poll per drive.
 - `telemetry` — DriveTelemetry (contains DCSignals + last_polled_at)
-- `health` — DriveHealth (health_pct, health_status)
+- `health` — DriveHealth (health_pct, health_status), scored by the collector
+  after the whole telemetry chain — probes never set it
 - `extras` — free-form dict for arbitrary probe output; raw JSON blobs live here.
-  Also holds `extras["smart_attributes"]` (`AttributeRow[]`) — per-attribute
-  ok/warn/crit classification computed by `analysis/smart_attributes.py`,
-  consumed by the SMART attributes sub-page
+  Also holds `extras["smart_attributes"]` and `extras["self_test_log"]`
+  (`AttributeFact[]`, parsed by `probes/telemetry/smartctl_attributes.py` and
+  `smartctl_self_test_log.py`) — facts only, no ok/warn/crit. Only key/label/value
+  are required; optional `signal` / `metric` / `drive_report` are the inputs
+  `analysis/smart_attributes.py` judges each row by when it is served.
+  Persisted to drive_raw_snapshots together with the snapshot's `signals`.
 - `probe_log` — list of ProbeRecord (one per probe that ran)
+
+**Store facts, not judgements:** the DB holds raw values and tool output only.
+Flags, health score/status and attribute statuses are derived at the API layer
+(`app._with_judgements`, `analysis.smart_attributes.judge_report`), so old records
+are always shown against current thresholds. Rows stored by older versions with a
+`status` are served as stored.
 
 ### DriveVitals
 Cheap, high-rate readings (temperature + disk IO activity) collected on the
@@ -947,7 +957,8 @@ Below tiles: flagged dc_signals inline, or all-clear message.
 
 **SMART attributes** — implemented (`SmartAttributesPanel.tsx`). Fetches
 `/api/drives/<guid>/raw/latest` and renders `extras["smart_attributes"]`
-(`AttributeRow[]`, computed by `analysis/smart_attributes.py` — see DriveSnapshot).
+(`AttributeRow[]`, judged from stored facts by `analysis/smart_attributes.py` when
+served — see DriveSnapshot).
 Rows are sorted client-side by severity (crit → warn → ok) so flagged attributes
 float to top — the only "interpretation" left to the frontend, since reordering by
 a backend-provided status doesn't require new thresholds. Drive switcher strip lists

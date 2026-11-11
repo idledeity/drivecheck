@@ -10,9 +10,8 @@ import logging
 from dataclasses import asdict
 from datetime import datetime
 
-from analysis.health import score_health
-from analysis.self_test_log import build_self_test_log
-from analysis.smart_attributes import build_attribute_rows
+from drives.collector.probes.telemetry.smartctl_attributes import parse_attributes
+from drives.collector.probes.telemetry.smartctl_self_test_log import parse_self_test_log
 from drives.tools import smartctl
 from drives.drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
 
@@ -35,11 +34,10 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
         signals = _map_ata(data)
 
     snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
-    # Health itself is scored by the collector after the whole probe chain; this
-    # local scoring only feeds the attribute rows' statuses.
-    rows = build_attribute_rows(data, drive_type, signals, score_health(signals))
-    snapshot.extras["smart_attributes"] = [asdict(r) for r in rows]
-    snapshot.extras["self_test_log"] = [asdict(r) for r in build_self_test_log(data, drive_type)]
+    # Facts only: health is scored by the collector after the whole chain, and
+    # these rows are judged when served (analysis.smart_attributes).
+    snapshot.extras["smart_attributes"] = [asdict(r) for r in parse_attributes(data, drive_type)]
+    snapshot.extras["self_test_log"] = [asdict(r) for r in parse_self_test_log(data, drive_type)]
     snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
@@ -124,6 +122,7 @@ def _map_nvme(data: dict) -> DCSignals:
 if __name__ == "__main__":
     from drives.collector.probes.scan.smartctl_scan import run as scan_drives
     from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
+    from analysis.smart_attributes import judge_report
     from drives.drive_models import DriveContext
     import uuid
 
@@ -135,9 +134,9 @@ if __name__ == "__main__":
         print(f"  polled_at: {snapshot.telemetry.last_polled_at}")
         for key, value in asdict(snapshot.telemetry.signals).items():
             print(f"  {key}: {value}")
-        print(f"  health: {score_health(snapshot.telemetry.signals)}")
         print(f"  extras keys: {list(snapshot.extras.keys())}")
-        print(f"  smart_attributes:")
-        for row in snapshot.extras["smart_attributes"]:
+        print(f"  smart_attributes (judged as served):")
+        signals = asdict(snapshot.telemetry.signals)
+        for row in judge_report({**snapshot.extras, "signals": signals})["smart_attributes"]:
             print(f"    [{row['status']:>4}] {row['label']}: {row['value']}" + (f"  ({row['detail']})" if row["detail"] else ""))
         print(f"  probe_log: {snapshot.probe_log}")

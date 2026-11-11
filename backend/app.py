@@ -21,6 +21,7 @@ from operations.operation_registry import OPERATIONS, discover as discover_opera
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
 from analysis.health import score_signals
+from analysis.smart_attributes import judge_report
 from analysis.smart_delta import compare_signals
 from database import db
 from settings import user_settings
@@ -234,7 +235,7 @@ def drive_raw_snapshot_latest(guid):
     return jsonify({
         "captured_at": row["captured_at"],
         "probe": row["probe"],
-        "raw": json.loads(row["raw_json"]),
+        "raw": judge_report(json.loads(row["raw_json"])),
     })
 
 
@@ -361,13 +362,13 @@ def create_jobs():
 
 
 def _full_report(summary: dict | None) -> dict | None:
-    """The full raw SMART report a summary points at, or None if there is none
-    (capture failed) or it was pruned (collector.keep_job_snapshots off)."""
+    """The full raw SMART report a summary points at, judged, or None if there is
+    none (capture failed) or it was pruned (collector.keep_job_snapshots off)."""
     snapshot_id = (summary or {}).get("snapshot_id")
     if snapshot_id is None:
         return None
     row = db.get_raw_snapshot(snapshot_id)
-    return json.loads(row["raw_json"]) if row else None
+    return judge_report(json.loads(row["raw_json"]), summary.get("signals")) if row else None
 
 
 @app.route("/api/jobs/<job_id>/smart")
