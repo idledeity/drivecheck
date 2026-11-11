@@ -16,16 +16,24 @@ THIS OPERATION DESTROYS ALL DATA ON THE TARGET DEVICE PERMANENTLY. It refuses to
 run if any partition of the device is currently mounted, checked via /proc/mounts
 at startup.
 
-shred's verbose output format (uses \\r for in-place updates):
-    shred: /dev/sda: pass 1/3 (random)...  12%
-    shred: /dev/sda: pass 1/3 (random)...  25%
+shred's verbose output (observed with coreutils 9.7):
+    shred: /dev/sda: pass 1/2 (random)...
+    shred: /dev/sda: pass 1/2 (random)...54MiB/400MiB 13%
     ...
-    shred: /dev/sda: pass 3/3 (000000)...
+    shred: /dev/sda: pass 1/2 (random)...400MiB/400MiB 100%
+    shred: /dev/sda: pass 2/2 (000000)...
+    ...
+    shred: /dev/sda: pass 2/2 (000000)...400MiB/400MiB 100%
+shred prints no completion line. Progress (every ~5s) is only shown for a pass
+that takes that long, and such a pass then ends with a "100%" line — so for a
+real drive, the last pass's 100% line is the evidence the run finished. Any
+other "shred: <device>: ..." line is an error.
 """
 
 import logging
 import re
 import shutil
+from pathlib import Path
 
 from drives.drive_models import DriveContext
 from operations.logged_process import LoggedProcessOperation
@@ -39,6 +47,28 @@ _PROGRESS_RE = re.compile(r"pass\s+(\d+)/(\d+).*?(\d+)%")
 _PASS_START_RE = re.compile(r"pass\s+(\d+)/(\d+)")
 
 _SBIN_PATH = "/usr/sbin:/usr/local/sbin:/sbin"
+
+# A pass line: "shred: /dev/sda: pass 2/3 (random)...[progress]"
+_PASS_LINE_RE = re.compile(r"^shred: .*: pass (\d+)/(\d+) \([^)]*\)\.\.\.(.*)$")
+
+
+def _read_shred_outcome(path: Path, total_passes: int) -> tuple[bool, list[str]]:
+    """Scan a whole shred log; return (last pass reached 100%, error lines)."""
+    try:
+        text = path.read_bytes().decode("utf-8", errors="replace")
+    except OSError:
+        return False, []
+    finished = False
+    errors = []
+    for line in (ln.strip() for ln in re.split(r"[\r\n]", text)):
+        if not line:
+            continue
+        m = _PASS_LINE_RE.match(line)
+        if m is None:
+            errors.append(line)
+        elif int(m.group(1)) == total_passes and m.group(3).endswith("100%"):
+            finished = True
+    return finished, errors
 
 
 def _find_shred() -> str:
@@ -88,10 +118,27 @@ class SecureEraseOperation(LoggedProcessOperation):
             self._percent = round((current_pass - 1) * 100 / self._total_passes, 1)
             self._message = line.split(": ", 2)[-1]
 
+    def _finished_in_log(self) -> bool:
+        finished, errors = _read_shred_outcome(self._log_path, self._total_passes)
+        return finished or bool(errors)
+
     def _verdict(self, returncode: int | None) -> dict:
-        if returncode != 0 and returncode is not None:
+        finished, errors = _read_shred_outcome(self._log_path, self._total_passes)
+        failure = None
+        if errors:
+            more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
+            failure = errors[0] + more
+        elif returncode not in (0, None):
+            failure = f"shred exited with code {returncode}"
+        elif returncode is None and not finished:
+            # Reattached: no exit code, so the last pass's 100% line is the only proof.
+            failure = (
+                f"shred did not report finishing pass {self._total_passes}/{self._total_passes} — "
+                "the run did not finish (process killed?)"
+            )
+        if failure:
             self._message = "Failed"
-            raise RuntimeError(f"shred exited with code {returncode}")
+            raise RuntimeError(failure)
 
         self._percent = 100.0
         self._message = "Done"
