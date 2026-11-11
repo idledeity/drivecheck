@@ -45,6 +45,31 @@ logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_SECONDS = 30
 _SMARTCTL_CALL_TIMEOUT_SECONDS = 30
+# How many polls a finished-looking status may go unconfirmed (test never seen
+# running, no new self-test log entry) before the job fails rather than passes.
+_UNCONFIRMED_POLL_LIMIT = 10
+
+
+def _self_test_log(data: dict, drive_type: DriveType) -> list[dict]:
+    """The drive's self-test log entries, newest first."""
+    if drive_type == DriveType.SAS:
+        entries = []
+        while (entry := data.get(f"scsi_self_test_{len(entries)}")) is not None:
+            entries.append(entry)
+        return entries
+    return data.get("ata_smart_self_test_log", {}).get("standard", {}).get("table", [])
+
+
+def _log_has_new_entry(before: list[dict], after: list[dict]) -> bool:
+    """True if the self-test log gained an entry since `before` was read.
+
+    Entries carry no unique id and the log can hold identical rows (same type,
+    result and hour), so a new entry is seen as the log growing, or, once the
+    log is full and rotating, as its contents changing.
+    """
+    if len(after) > len(before):
+        return True
+    return len(after) == len(before) and after != before
 
 
 class SmartSelfTestOperation(OperationBase):
@@ -66,6 +91,10 @@ class SmartSelfTestOperation(OperationBase):
         self._device: str | None = None
         self._access_type: str | None = None
         self._drive_type: DriveType | None = None
+        # Evidence that the result we read belongs to this job's test, not an
+        # earlier one: we saw it running, or the log gained an entry since start.
+        self._seen_running = False
+        self._log_before_start: list[dict] = []
 
     @staticmethod
     def supports(context: DriveContext) -> bool:
@@ -85,6 +114,8 @@ class SmartSelfTestOperation(OperationBase):
 
         self._message = "Starting"
         with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
+            self._log_before_start = _self_test_log(smartctl.attributes_all(device, access_type), drive_type)
+        with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
             start_result = smartctl.self_test_start(device, access_type, self.test_type)
         if not start_result.success:
             self._message = "Failed"
@@ -96,6 +127,7 @@ class SmartSelfTestOperation(OperationBase):
         # aren't visible yet we fall back to capturing on the first poll.
         with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
             initial_data = smartctl.attributes_all(device, access_type)
+        self._seen_running = self._in_progress_status(initial_data, drive_type)[0]
         self._start_hours = self._extract_start_hours(initial_data, drive_type)
         if self._start_hours is not None:
             self._save_reattach()
@@ -138,6 +170,7 @@ class SmartSelfTestOperation(OperationBase):
                 )
             # Our test is still running (or hours unverifiable but plausible).
             self._start_hours = poh_expected
+            self._seen_running = True
             logger.info("reattached to in-progress self-test on %s", device)
             return self._poll_until_done(device, access_type, drive_type, capture_start_hours=False)
 
@@ -161,6 +194,7 @@ class SmartSelfTestOperation(OperationBase):
     ) -> dict:
         """Poll smartctl until the self-test reaches a terminal state."""
         first_poll = True
+        unconfirmed_polls = 0
         while True:
             if self._cancel_event.wait(_POLL_INTERVAL_SECONDS):
                 with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
@@ -178,8 +212,24 @@ class SmartSelfTestOperation(OperationBase):
 
             result_string = self._scsi_status(data) if drive_type == DriveType.SAS else self._ata_status(data)
             if result_string is None:
+                self._seen_running = True
                 logger.debug("self-test poll for %s: percent=%s message=%s", device, self._percent, self._message)
                 continue  # still running; self._percent/_message already updated
+
+            # A finished-looking status may still be the previous test's result
+            # if the drive hasn't registered ours yet — only accept it with proof.
+            if not self._seen_running and not _log_has_new_entry(
+                self._log_before_start, _self_test_log(data, drive_type)
+            ):
+                unconfirmed_polls += 1
+                if unconfirmed_polls >= _UNCONFIRMED_POLL_LIMIT:
+                    self._message = "Failed"
+                    raise RuntimeError(
+                        f"could not confirm the self-test ran on {device}: it was never reported "
+                        f"in progress and no new self-test log entry appeared (status: {result_string})"
+                    )
+                self._message = "Waiting for the drive to report the test"
+                continue
 
             return self._finalize(device, result_string)
 
