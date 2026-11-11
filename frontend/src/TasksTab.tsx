@@ -38,7 +38,7 @@ export default function TasksTab({ drives, selected, jobs, onCancelJob, onRunOpe
         ))}
       </nav>
       <div className="tasks-subtab-body">
-        {subTab === "history" && <HistoryTab drives={drives} selectedGuids={selected} />}
+        {subTab === "history" && <HistoryTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={onCancelJob} />}
         {subTab === "queue"   && <QueueTab drives={drives} jobs={jobs} onCancel={onCancelJob} />}
         {subTab === "run"     && <RunTaskTab drives={drives} selected={selected} onRun={onRunOperation} />}
       </div>

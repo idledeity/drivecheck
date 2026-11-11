@@ -62,8 +62,8 @@ const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
   interrupted: <IconHelpCircle size={13} />,
 }
 
-// Exported for HistoryTab, which renders the same row shape for terminal
-// jobs (onCancel is a no-op there since cancellable is never true for them).
+// Exported for HistoryTab, which renders the same row for every job a drive
+// has run, running ones included (so its cancel button is live there too).
 export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
