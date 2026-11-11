@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
     """Set state.attachment.is_mounted by checking /proc/mounts for the block device."""
-    block_device = state.attachment.block_device
+    block_device = state.context.block_device
     if block_device is None:
         state.attachment.is_mounted = False
         return vitals
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     import uuid
     from datetime import datetime
 
-    from drives.drive_models import DriveAttachment, DriveContext
+    from drives.drive_models import DriveContext
     from drives.collector.probes.scan.smartctl_scan import run as scan_drives
     from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
     from drives.collector.probes.vitals.block_device import run as resolve_block_device
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     for descriptor in scan_drives():
         traits = fetch_traits(descriptor)
         device = resolve_block_device(traits.serial)
-        context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits)
-        state = DriveState(context=context, traits=traits, attachment=DriveAttachment(block_device=device))
+        context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits, block_device=device)
+        state = DriveState(context=context, traits=traits)
         run(DriveVitals(captured_at=datetime.now()), state)
         print(f"{descriptor.info_name} -> {device}: is_mounted={state.attachment.is_mounted}")

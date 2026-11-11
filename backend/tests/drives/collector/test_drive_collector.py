@@ -233,7 +233,7 @@ def test_drives_trading_bays_keep_their_identities_and_follow_their_paths(monkey
         state = states[serial]
         assert [d.device_name for d in state.attachment.descriptors] == [f"/dev/{bay}"]
         assert state.context.descriptor.device_name == f"/dev/{bay}"
-        assert state.attachment.block_device == bay
+        assert state.context.block_device == bay
 
 
 def test_a_failed_scan_leaves_the_registry_unchanged(monkeypatch):
@@ -269,3 +269,18 @@ def test_smartctl_scan_probe_raises_on_a_timed_out_scan(monkeypatch):
     # Real shape of an empty-but-successful scan: no drives, no error.
     monkeypatch.setattr(smartctl_scan.smartctl, "scan", lambda: {"smartctl": {"exit_status": 0}, "devices": []})
     assert smartctl_scan.run() == []
+
+
+def test_a_renamed_block_device_is_picked_up_on_the_next_scan(monkeypatch):
+    bays = _Bays(sdb="SER-A")
+    collector = _collector_over(monkeypatch, bays)
+    collector._run_scan(0)
+    state = _by_serial(collector)["SER-A"]
+    assert state.context.block_device == "sdb"
+
+    # Same smartctl path, new kernel name (e.g. replugged behind an HBA).
+    from drives.collector import drive_collector
+    monkeypatch.setattr(drive_collector, "resolve_block_device", lambda serial: "sdf")
+    collector._run_scan(1)
+    assert state.context.block_device == "sdf"
+    assert state.context.block_device_path == "/dev/sdf"

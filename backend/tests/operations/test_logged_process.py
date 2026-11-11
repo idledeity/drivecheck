@@ -118,3 +118,60 @@ def test_reattach_to_a_process_started_by_a_previous_backend_finishes(tmp_path):
     result = _ShellOperation().reattach(_SHELL_CONTEXT, {}, _reattach_data(pid, log))
     assert result["returncode"] is None  # exit code isn't recoverable for a non-child
     assert "done" in result["log"]
+
+
+# ---------------------------------------------------------------------------
+# Targeting the kernel block device, not smartctl's path
+# ---------------------------------------------------------------------------
+
+from operations.catalog.badblocks_write_test import BadblocksWriteTestOperation  # noqa: E402
+from operations.catalog.secure_erase import SecureEraseOperation  # noqa: E402
+
+_PROCESS_OPS = [DDReadTestOperation, DDWriteTestOperation, BadblocksWriteTestOperation, SecureEraseOperation]
+
+
+def _nvme_context(block_device="nvme0n1"):
+    # smartctl talks to the NVMe controller; the data lives on the namespace.
+    return DriveContext(
+        guid="g", descriptor=DriveDescriptor("/dev/nvme0", "nvme", "/dev/nvme0"),
+        traits=DriveTraits(serial="NVME-SER", capacity_bytes=1 << 30), block_device=block_device,
+    )
+
+
+@pytest.mark.parametrize("op_cls", _PROCESS_OPS)
+def test_process_operations_target_the_block_device(op_cls, real_block_device_path):
+    op = op_cls()
+    context = _nvme_context()
+    params = {p.name: p.default for p in op.params}
+    op._configure(context, params)
+    cmd = op._build_command(context, params)
+    assert any(arg.endswith("/dev/nvme0n1") for arg in cmd)
+    assert not any(arg.endswith("/dev/nvme0") for arg in cmd)
+
+
+@pytest.mark.parametrize("op_cls", _PROCESS_OPS)
+def test_process_operations_need_a_resolved_block_device(op_cls):
+    assert op_cls.supports(_nvme_context()) is True
+    assert op_cls.supports(_nvme_context(block_device=None)) is False
+    megaraid = DriveContext(guid="g", descriptor=DriveDescriptor("/dev/bus/0", "megaraid,3", "/dev/bus/0"),
+                            block_device="sdd")
+    assert op_cls.supports(megaraid) is True
+
+
+def test_run_refuses_when_the_serial_now_resolves_elsewhere(monkeypatch, real_block_device_path, tmp_path):
+    monkeypatch.setattr(logged_process, "resolve_block_device", lambda serial: "sdc")
+    context = DriveContext(guid="g", descriptor=DriveDescriptor("/dev/sdb", "sat", "/dev/sdb"),
+                           traits=DriveTraits(serial="SER-A"), block_device="sdb")
+    op = _ShellOperation()
+    with pytest.raises(RuntimeError, match="now /dev/sdc, not /dev/sdb"):
+        op.run(context, {"script": "echo should-not-run >&2"})
+    assert not (tmp_path / "job_logs").exists()  # nothing was started
+
+
+def test_run_refuses_when_the_block_device_is_gone(monkeypatch, real_block_device_path, tmp_path):
+    monkeypatch.setattr(logged_process, "resolve_block_device", lambda serial: None)
+    context = DriveContext(guid="g", descriptor=DriveDescriptor("/dev/sdb", "sat", "/dev/sdb"),
+                           traits=DriveTraits(serial="SER-A"), block_device="sdb")
+    with pytest.raises(RuntimeError, match="not found"):
+        _ShellOperation().run(context, {"script": "echo should-not-run >&2"})
+    assert not (tmp_path / "job_logs").exists()

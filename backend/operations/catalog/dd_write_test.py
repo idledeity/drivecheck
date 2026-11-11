@@ -31,7 +31,7 @@ class DDWriteTestOperation(DDOperation):
     ]
 
     def _build_command(self, context: DriveContext, params: dict) -> list[str]:
-        device = context.descriptor.device_name
+        device = context.block_device_path
         if self._total_bytes is None:
             raise RuntimeError(
                 f"capacity of {device} is unknown — set an explicit block count for the write test"

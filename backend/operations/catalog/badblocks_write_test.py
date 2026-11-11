@@ -131,7 +131,7 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
             "-b", str(int(params["block_size"])),
             "-c", "1024",
             "-p", str(self._passes),
-            context.descriptor.device_name,
+            context.block_device_path,
         ]
 
     def _on_log_bytes(self, chunk: bytes) -> None:

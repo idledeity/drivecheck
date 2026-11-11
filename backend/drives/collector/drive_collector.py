@@ -635,7 +635,25 @@ class Collector:
             self._discover(unknown, matched_guids, now)
 
         self._remove_gone_drives(matched_guids)
+        self._refresh_block_devices()
         self._recompute_phase_fractions()
+
+    def _refresh_block_devices(self) -> None:
+        """Re-resolve every drive's block device by serial.
+
+        The kernel name can change while smartctl's path doesn't (a replug
+        behind a MegaRAID HBA, an NVMe controller reset), and destructive
+        operations target the block device, so it can't be resolved only once.
+        """
+        with self._lock:
+            states = list(self._drive_states.values())
+        for state in states:
+            block_device = resolve_block_device(state.traits.serial)
+            with self._lock:
+                if block_device != state.context.block_device:
+                    logger.info("block device for %s changed: %s -> %s",
+                                state.traits.serial, state.context.block_device, block_device)
+                state.context.block_device = block_device
 
     def _reread_traits(self, descriptor: DriveDescriptor) -> DriveTraits | None:
         """Re-run the traits chain for a known path, or None if a probe raised."""
@@ -666,7 +684,7 @@ class Collector:
         if primary is None:
             return
         state.context.descriptor = primary
-        state.attachment.block_device = resolve_block_device(state.traits.serial)
+        state.context.block_device = resolve_block_device(state.traits.serial)
 
     def _discover(
         self,
@@ -717,7 +735,7 @@ class Collector:
                 state.traits = best_traits
                 state.attachment.descriptors = all_descriptors
                 state.attachment.active_index = 0
-                state.attachment.block_device = resolve_block_device(best_traits.serial)
+                state.context.block_device = resolve_block_device(best_traits.serial)
                 record = db.get_drive_record(guid)
                 state.label = record["label"] if record else None
                 state.locked = bool(record["locked"]) if record else False

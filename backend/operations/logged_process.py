@@ -35,6 +35,7 @@ from abc import abstractmethod
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
+from drives.collector.probes.vitals.block_device import run as resolve_block_device
 from drives.drive_models import DriveContext
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
 from system_utils import paths
@@ -133,8 +134,9 @@ class LoggedProcessOperation(OperationBase):
 
     @staticmethod
     def supports(context: DriveContext) -> bool:
-        descriptor = context.descriptor
-        return descriptor.device_name.startswith("/dev/") and "megaraid" not in descriptor.access_type
+        # These programs read and write the kernel block device, not the path
+        # smartctl uses (an NVMe controller, or /dev/bus/N behind a MegaRAID HBA).
+        return context.block_device is not None
 
     # ------------------------------------------------------------------
     # Subclass hooks
@@ -188,8 +190,19 @@ class LoggedProcessOperation(OperationBase):
         if self._cancel_event.is_set():
             raise OperationCancelled()
 
-        device = context.descriptor.device_name
+        device = context.block_device_path
         self._device = device
+
+        # Kernel names can change between scans (a replug, a reboot). Check the
+        # serial still resolves to this device right before touching it.
+        current = resolve_block_device(context.traits.serial)
+        if device is None or current != context.block_device:
+            self._message = "Failed"
+            raise RuntimeError(
+                f"the block device for serial {context.traits.serial} is now "
+                f"{'/dev/' + current if current else 'not found'}, not {device} — "
+                "rescan drives and try again"
+            )
 
         if self.destructive and is_device_mounted(device):
             self._message = "Failed"
@@ -232,7 +245,7 @@ class LoggedProcessOperation(OperationBase):
         except (KeyError, TypeError, ValueError) as e:
             raise ReattachFailed(f"incomplete reattach data: {e}") from e
 
-        device = context.descriptor.device_name
+        device = context.block_device_path
         self._device = device
         self._log_path = log_path
         self._configure(context, params)

@@ -5,7 +5,8 @@ Descriptors like "/dev/bus/1" + "megaraid,0" don't map directly to
 /sys/class/block/<dev>. This probe matches traits.serial against
 `lsblk -J -o NAME,SERIAL -d` to find the corresponding block device
 (e.g. "sdb"), which the other vitals probes use for sysfs lookups.
-Resolved once per drive at discovery time.
+Resolved at discovery and re-resolved on every scan; operations re-check it before
+starting, since kernel names can change between scans.
 """
 
 import json

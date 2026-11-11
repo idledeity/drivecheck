@@ -27,7 +27,7 @@ class DDReadTestOperation(DDOperation):
     ]
 
     def _build_command(self, context: DriveContext, params: dict) -> list[str]:
-        cmd = ["dd", f"if={context.descriptor.device_name}", "of=/dev/null", f"bs={self._block_size}", "status=progress"]
+        cmd = ["dd", f"if={context.block_device_path}", "of=/dev/null", f"bs={self._block_size}", "status=progress"]
         count = int(params["count"])
         skip = int(params["skip"])
         if count > 0:

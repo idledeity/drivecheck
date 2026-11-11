@@ -106,7 +106,7 @@ class SecureEraseOperation(LoggedProcessOperation):
         cmd = [_find_shred(), f"--iterations={int(params['passes'])}", "--verbose"]
         if bool(params["zero_fill"]):
             cmd.append("--zero")
-        cmd.append(context.descriptor.device_name)
+        cmd.append(context.block_device_path)
         return cmd
 
     def _on_log_line(self, line: str) -> None:

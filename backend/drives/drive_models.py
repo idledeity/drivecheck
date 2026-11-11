@@ -67,6 +67,17 @@ class DriveContext:
     guid: str
     descriptor: DriveDescriptor
     traits: DriveTraits = field(default_factory=DriveTraits)
+    # The kernel block device (e.g. "sdb", "nvme0n1"), resolved via lsblk by
+    # serial. Not the same as descriptor.device_name, which is the path smartctl
+    # talks to — for NVMe that is the controller (/dev/nvme0), and behind a
+    # MegaRAID HBA it is /dev/bus/N. None if no block device matched.
+    block_device: str | None = None
+
+    @property
+    def block_device_path(self) -> str | None:
+        """Path of the block device, e.g. "/dev/sdb" — what dd, badblocks and shred
+        must target. None if unresolved."""
+        return f"/dev/{self.block_device}" if self.block_device else None
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +91,6 @@ class DriveAttachment:
     descriptors: list[DriveDescriptor] = field(default_factory=list)
     active_index: int = 0       # index into descriptors; matches context.descriptor
     is_mounted: bool  = False
-    block_device: str | None = None   # e.g. "sdb" — resolved via lsblk by serial; None if no match
 
     @property
     def primary_descriptor(self) -> "DriveDescriptor | None":

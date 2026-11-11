@@ -19,7 +19,7 @@ _SECTOR_SIZE = 512  # bytes; diskstats sector counts are always in 512-byte unit
 
 def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
     """Fill in io from /sys/class/block/<dev>/stat deltas against the previous reading."""
-    block_device = state.attachment.block_device
+    block_device = state.context.block_device
     if block_device is None:
         return vitals
 
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     from drives.collector.probes.scan.smartctl_scan import run as scan_drives
     from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
     from drives.collector.probes.vitals.block_device import run as resolve_block_device
-    from drives.drive_models import DriveAttachment, DriveContext
+    from drives.drive_models import DriveContext
 
     for descriptor in scan_drives():
         traits = fetch_traits(descriptor)
@@ -78,8 +78,8 @@ if __name__ == "__main__":
         print(f"\n{descriptor.info_name} -> {device}")
         if device is None:
             continue
-        context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits)
-        state = DriveState(context=context, traits=traits, attachment=DriveAttachment(block_device=device))
+        context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits, block_device=device)
+        state = DriveState(context=context, traits=traits)
         state.vitals = run(DriveVitals(captured_at=datetime.now()), state)
         time.sleep(1)
         vitals = run(DriveVitals(captured_at=datetime.now()), state)
