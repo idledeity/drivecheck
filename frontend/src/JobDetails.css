@@ -125,7 +125,8 @@
   line-height: 1.35;
 }
 
-.job-smart-note:first-of-type {
+/* The first note after the table (:first-of-type would count the verdict div). */
+.job-smart-table + .job-smart-note {
   margin-top: 4px;
 }
 

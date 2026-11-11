@@ -14,18 +14,17 @@ structure than the ATA/SCSI self-test log:
     - self_test_result.string  (human-readable outcome)
     - power_on_hours (used as the reattach correlator, same strategy as ATA)
 
-`test_type` is abstract; concrete subclasses set it to SHORT or LONG.
+`test_type` (declared on SelfTestOperation) is abstract; concrete subclasses
+set it to SHORT or LONG.
 """
 
 import logging
-import threading
-from abc import abstractmethod
 
 from drives.drive_models import DriveContext, DriveType
 from drives.tools import smartctl
-from drives.tools.smartctl import SelfTestType
 from drives.tools.timeout import ProbeTimeout
-from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
+from operations.catalog.self_test_common import SelfTestOperation
+from operations.operation import OperationCancelled, ReattachFailed
 
 logger = logging.getLogger(__name__)
 
@@ -42,24 +41,8 @@ _NVME_RESULT_PASS = 0
 _NVME_RESULT_ABORTED_BY_HOST = 5
 
 
-class NvmeSelfTestOperation(OperationBase):
+class NvmeSelfTestOperation(SelfTestOperation):
     """Starts a NVMe self-test and polls smartctl until it finishes."""
-
-    category = "Test"
-    tool = "smartctl"
-
-    @property
-    @abstractmethod
-    def test_type(self) -> SelfTestType:
-        """Self-test mode this operation starts. Set by subclasses."""
-
-    def __init__(self):
-        self._cancel_event = threading.Event()
-        self._percent: float | None = 0.0
-        self._message: str | None = "Queued"
-        self._start_hours: int | None = None
-        self._device: str | None = None
-        self._access_type: str | None = None
 
     @staticmethod
     def supports(context: DriveContext) -> bool:
@@ -211,15 +194,3 @@ class NvmeSelfTestOperation(OperationBase):
             "test_type": self.test_type.value,
             "start_hours": self._start_hours,
         }
-
-    @classmethod
-    def summarize(cls, result: dict) -> str | None:
-        # Drives word it differently: "Completed" (SAS), "completed without error" (ATA).
-        text = result["result"]
-        return f"Self-test: {text[:1].upper()}{text[1:]}"
-
-    def get_progress(self) -> OperationProgress:
-        return OperationProgress(percent=self._percent, message=self._message)
-
-    def cancel(self) -> None:
-        self._cancel_event.set()

@@ -1,10 +1,11 @@
 """
 operations.catalog.smart_self_test_base — Shared logic for SMART self-tests.
 
-`test_type` is left as an abstract property, so this class still has an
-unimplemented abstractmethod and operation_registry.discover() skips it via
-inspect.isabstract() — even though it lives in operations/catalog alongside
-the concrete short/long test operations that subclass it and set `test_type`.
+`test_type` (declared on SelfTestOperation) is left as an abstract property,
+so this class still has an unimplemented abstractmethod and
+operation_registry.discover() skips it via inspect.isabstract() — even though
+it lives in operations/catalog alongside the concrete short/long test
+operations that subclass it and set `test_type`.
 
 ATA and SCSI/SAS drives report self-test progress completely differently in
 smartctl's JSON, so the poll loop dispatches on drive_type:
@@ -32,14 +33,12 @@ Three reattach outcomes:
 """
 
 import logging
-import threading
-from abc import abstractmethod
 
 from drives.drive_models import DriveContext, DriveType
 from drives.tools import smartctl
-from drives.tools.smartctl import SelfTestType
 from drives.tools.timeout import ProbeTimeout
-from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
+from operations.catalog.self_test_common import SelfTestOperation
+from operations.operation import OperationCancelled, ReattachFailed
 
 logger = logging.getLogger(__name__)
 
@@ -72,24 +71,11 @@ def _log_has_new_entry(before: list[dict], after: list[dict]) -> bool:
     return len(after) == len(before) and after != before
 
 
-class SmartSelfTestOperation(OperationBase):
+class SmartSelfTestOperation(SelfTestOperation):
     """Starts a SMART self-test and polls smartctl until it finishes."""
 
-    category = "Test"
-    tool = "smartctl"
-
-    @property
-    @abstractmethod
-    def test_type(self) -> SelfTestType:
-        """Self-test mode this operation starts. Set by subclasses."""
-
     def __init__(self):
-        self._cancel_event = threading.Event()
-        self._percent: float | None = 0.0
-        self._message: str | None = "Queued"
-        self._start_hours: int | None = None    # power-on-hours at test start (for reattach)
-        self._device: str | None = None
-        self._access_type: str | None = None
+        super().__init__()
         self._drive_type: DriveType | None = None
         # Evidence that the result we read belongs to this job's test, not an
         # earlier one: we saw it running, or the log gained an entry since start.
@@ -333,15 +319,3 @@ class SmartSelfTestOperation(OperationBase):
         if self._start_hours is None:
             return None
         return {"start_hours": self._start_hours}
-
-    @classmethod
-    def summarize(cls, result: dict) -> str | None:
-        # Drives word it differently: "Completed" (SAS), "completed without error" (ATA).
-        text = result["result"]
-        return f"Self-test: {text[:1].upper()}{text[1:]}"
-
-    def get_progress(self) -> OperationProgress:
-        return OperationProgress(percent=self._percent, message=self._message)
-
-    def cancel(self) -> None:
-        self._cancel_event.set()

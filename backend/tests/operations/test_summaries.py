@@ -45,3 +45,11 @@ def test_format_bytes_uses_decimal_units_like_drive_vendors():
     assert format_bytes(14_000_519_643_136) == "14.0 TB"
     assert format_bytes(3_000_592_982_016) == "3.0 TB"
     assert format_bytes(512) == "512 B"
+
+
+def test_format_bytes_picks_the_unit_after_rounding():
+    assert format_bytes(999_999_999_999) == "1.0 TB"
+    assert format_bytes(999_999) == "1.0 MB"
+    assert format_bytes(999_949) == "999.9 KB"
+    assert format_bytes(999) == "999 B"
+    assert format_bytes(1000) == "1.0 KB"

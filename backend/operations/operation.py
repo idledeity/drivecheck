@@ -16,10 +16,14 @@ from drives.drive_models import DriveContext
 
 def format_bytes(n: int) -> str:
     """Decimal byte size as drive vendors (and dd) report it, e.g. 6.0 TB."""
-    for unit, size in (("TB", 1e12), ("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
-        if n >= size:
+    if n < 1000:
+        return f"{n} B"
+    # Choose the unit by the rounded value, so 999_999_999_999 is 1.0 TB and
+    # not 1000.0 GB.
+    for unit, size in (("KB", 1e3), ("MB", 1e6), ("GB", 1e9)):
+        if round(n / size, 1) < 1000:
             return f"{n / size:.1f} {unit}"
-    return f"{n} B"
+    return f"{n / 1e12:.1f} TB"
 
 
 class OperationCancelled(Exception):

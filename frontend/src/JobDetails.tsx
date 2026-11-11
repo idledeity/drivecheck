@@ -26,7 +26,10 @@ const QUEUE_WAIT_SHOWN_SECONDS = 5
 
 function formatSettingValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No"
-  if (typeof value === "number") return value.toLocaleString()
+  // Significant digits, not the default 3 fraction digits: 0.0004 must not show as 0.
+  if (typeof value === "number") return value.toLocaleString(undefined, { maximumSignificantDigits: 15 })
+  if (value === null || value === undefined) return "—"
+  if (typeof value === "object") return JSON.stringify(value)
   return String(value)
 }
 
@@ -42,9 +45,9 @@ function JobSummaryRows({ job }: { job: Job }) {
     <>
       <DetailRow label="Status" value={STATUS_LABEL[job.status]} valueClassName={`job-status-${job.status}`} />
       <DetailRow label="Result" value={jobResultText(job)} />
-      {job.started_at
-        ? <DetailRow label="Started" value={formatTimestamp(job.started_at)} />
-        : <DetailRow label="Queued at" value={formatTimestamp(job.created_at)} />}
+      <DetailRow label="Category" value={job.category} />
+      <DetailRow label="Created" value={formatTimestamp(job.created_at)} />
+      {job.started_at && <DetailRow label="Started" value={formatTimestamp(job.started_at)} />}
       {job.finished_at && <DetailRow label="Finished" value={formatTimestamp(job.finished_at)} />}
       {job.started_at && job.finished_at && (
         <DetailRow label="Duration" value={formatDuration(seconds(job.started_at, job.finished_at))} />
@@ -68,24 +71,26 @@ function JobSettingsRows({ job }: { job: Job }) {
   )
 }
 
-function JobResultRows({ job }: { job: Job }) {
+// The operation-specific result fields not already shown as common properties.
+function resultEntries(job: Job): [string, unknown][] {
   // Device is a common property above. A self-test's "result" string is what
   // its summary shows as Result — but only when there is a summary; without
   // one (operation since removed, or no summarize) this is its only showing.
   const shownAbove = job.summary != null ? ["device", "result"] : ["device"]
-  const entries = Object.entries(job.result ?? {}).filter(([key]) => !shownAbove.includes(key))
-  if (entries.length === 0) return null
+  return Object.entries(job.result ?? {}).filter(([key]) => !shownAbove.includes(key))
+}
+
+function JobResultRows({ job }: { job: Job }) {
   return (
-    <section className="job-detail-section">
-      <h4 className="job-detail-heading">Details</h4>
-      {entries.map(([key, value]) => (
+    <>
+      {resultEntries(job).map(([key, value]) => (
         <DetailRow key={key} label={humanizeKey(key)} value={formatResultValue(key, value)} />
       ))}
-    </section>
+    </>
   )
 }
 
-// Single-column summary: common properties + settings.
+// Single-column summary: common properties, settings and result details.
 export function JobDetailRows({ job }: { job: Job }) {
   return (
     <>
@@ -94,6 +99,12 @@ export function JobDetailRows({ job }: { job: Job }) {
         <>
           <h4 className="job-detail-heading">Settings</h4>
           <JobSettingsRows job={job} />
+        </>
+      )}
+      {resultEntries(job).length > 0 && (
+        <>
+          <h4 className="job-detail-heading">Details</h4>
+          <JobResultRows job={job} />
         </>
       )}
     </>
@@ -113,7 +124,12 @@ export function JobDetails({ job }: { job: Job }) {
           <h4 className="job-detail-heading">Settings</h4>
           <JobSettingsRows job={job} />
         </section>
-        <JobResultRows job={job} />
+        {resultEntries(job).length > 0 && (
+          <section className="job-detail-section">
+            <h4 className="job-detail-heading">Details</h4>
+            <JobResultRows job={job} />
+          </section>
+        )}
       </div>
       <div className="job-details-col">
         <JobSmartPanel job={job} />

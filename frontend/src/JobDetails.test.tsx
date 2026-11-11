@@ -58,10 +58,16 @@ describe('JobDetails — common properties', () => {
     expect(valueOf('Device')).toBe('/dev/sdb')
   })
 
-  it('shows when a job was queued, until it starts', () => {
+  it('shows the category and creation time, started or not', () => {
+    render(<JobDetails job={completed} />)
+    expect(valueOf('Category')).toBe(completed.category)
+    expect(screen.getByText('Created')).toBeInTheDocument()
+  })
+
+  it('shows no start time or duration for a queued job', () => {
     render(<JobDetails job={makeJob({ status: 'queued' })} />)
     expect(valueOf('Status')).toBe('Queued')
-    expect(screen.getByText('Queued at')).toBeInTheDocument()
+    expect(screen.getByText('Created')).toBeInTheDocument()
     expect(screen.queryByText('Started')).not.toBeInTheDocument()
     expect(screen.queryByText('Duration')).not.toBeInTheDocument()
   })
@@ -109,6 +115,19 @@ describe('JobDetails — settings', () => {
     expect(valueOf('Block size')).toBe('4,096')
   })
 
+  it('shows small fractions, missing values and nested values readably', () => {
+    render(<JobDetails job={makeJob({
+      settings: [
+        { name: 'ratio', label: null, value: 0.0004 },
+        { name: 'limit', label: null, value: null },
+        { name: 'ranges', label: null, value: [1, 2] },
+      ],
+    })} />)
+    expect(valueOf('Ratio')).toBe('0.0004')
+    expect(valueOf('Limit')).toBe('—')
+    expect(valueOf('Ranges')).toBe('[1,2]')
+  })
+
   it('says so when an operation has no settings', () => {
     render(<JobDetails job={makeJob({ settings: [] })} />)
     expect(screen.getByText('No settings')).toBeInTheDocument()
@@ -134,6 +153,15 @@ describe('JobDetailRows (narrow popover)', () => {
     expect(valueOf('Status')).toBe('Running')
     expect(valueOf('Write/read passes')).toBe('1')
     expect(screen.queryByText(/SMART before/)).not.toBeInTheDocument()
+  })
+
+  it('lists the result fields of a finished job', () => {
+    render(<JobDetailRows job={makeJob({
+      status: 'completed', summary: 'Read 6.0 TB with no errors',
+      result: { device: '/dev/sdb', bytes_read: 6001175126016, block_size: 1048576 },
+    })} />)
+    expect(valueOf('Bytes read')).toBe('6,001,175,126,016 bytes')
+    expect(valueOf('Block size')).toBe('1,048,576')
   })
 })
 
