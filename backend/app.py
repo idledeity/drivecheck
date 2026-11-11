@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
-from system_utils import origin_guard
+from system_utils import auth, origin_guard
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
 from operations.operation import ParamError
@@ -76,6 +76,8 @@ app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 # request.get_json() without force=True, so a body that isn't
 # application/json gets a 415 instead of being parsed anyway.
 origin_guard.install(app)
+# Every other /api route needs a signed-in session; adds /api/auth/*.
+auth.install(app)
 
 
 @app.errorhandler(415)

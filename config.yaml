@@ -1,9 +1,5 @@
 # config.yaml — drivecheck configuration
 
-auth:
-  username: admin
-  password_hash: ""  # bcrypt hash — generate with scripts/hash_password.py (TODO)
-
 collector:
   scan_interval: 300  # seconds — drive discovery (scan + reconciliation)
   keep_history_days: 90  # days — retention window for time-series tables (drive_signals,

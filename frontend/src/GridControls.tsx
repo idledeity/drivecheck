@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { IconArrowsSort, IconDeselect, IconRefresh, IconScan, IconSelectAll, IconSettings } from "@tabler/icons-react"
+import { IconArrowsSort, IconDeselect, IconRefresh, IconScan, IconLogout, IconSelectAll, IconSettings } from "@tabler/icons-react"
 import type { Drive, SortKey, SortState } from "./types"
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
   onProbe: () => Promise<unknown>
   onScan: () => Promise<unknown>
   onOpenSettings: () => void
+  username?: string | null
+  onSignOut?: () => void
   sort: SortState
   onSortChange: (sort: SortState) => void
 }
@@ -27,7 +29,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "serial",       label: "Serial Number" },
 ]
 
-export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan, onOpenSettings, sort, onSortChange }: Props) {
+export default function GridControls({ drives, selected, onSelectAll, onUnselectAll, onProbe, onScan, onOpenSettings, username, onSignOut, sort, onSortChange }: Props) {
   const [probing, setProbing] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
@@ -115,6 +117,12 @@ export default function GridControls({ drives, selected, onSelectAll, onUnselect
         <IconSettings size={13} />
         <span>Settings</span>
       </button>
+      {onSignOut && username && (
+        <button className="gc-btn" onClick={onSignOut} title={`Signed in as ${username} — sign out`}>
+          <IconLogout size={13} />
+          <span>Sign out</span>
+        </button>
+      )}
     </div>
   )
 }

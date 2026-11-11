@@ -21,7 +21,16 @@ Requires a Debian/Ubuntu (apt-based) host.
 2. Log out and back in (or run `newgrp drivecheck`) so the group membership
    from step 1 takes effect.
 
-3. Start the backend:
+3. Set the login password (the API refuses every request until one is set):
+
+   ```sh
+   backend/.venv/bin/python scripts/set_password.py
+   ```
+
+   This writes `data/auth.json` (owner-readable only). Re-run it any time to
+   change the password; that signs out every existing session.
+
+4. Start the backend:
 
    ```sh
    source backend/.venv/bin/activate
@@ -30,7 +39,7 @@ Requires a Debian/Ubuntu (apt-based) host.
 
    Flask runs on port 4343 (see `config.yaml`).
 
-4. Start the frontend dev server:
+5. Start the frontend dev server:
 
    ```sh
    cd frontend && npm run dev

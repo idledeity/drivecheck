@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { AuthContext } from './authContext'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Drive, Job, OperationInfo, Settings } from './types'
 
@@ -95,6 +96,30 @@ afterEach(() => {
 })
 
 describe('App', () => {
+  it('hands back to the login screen when a poll answers 401', async () => {
+    const expire = vi.fn()
+    router.fn.mockImplementation((url: string) =>
+      Promise.resolve(url === '/api/settings' ? fetchJsonResponse({ footer_signals: {} }) : fetchJsonResponse({ error: 'login required' }, 401)))
+    render(
+      <AuthContext.Provider value={{ username: 'admin', signOut: vi.fn(), expire }}>
+        <App />
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => expect(expire).toHaveBeenCalled())
+    expect(screen.queryByText(/Backend unavailable/)).not.toBeInTheDocument()
+  })
+
+  it('offers sign out next to Settings when signed in', async () => {
+    const signOut = vi.fn()
+    render(
+      <AuthContext.Provider value={{ username: 'admin', signOut, expire: vi.fn() }}>
+        <App />
+      </AuthContext.Provider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(signOut).toHaveBeenCalled()
+  })
+
   it('fetches settings, drives, and jobs on mount', async () => {
     render(<App />)
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/settings'))

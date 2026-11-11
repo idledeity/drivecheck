@@ -4,6 +4,7 @@ import DriveContextMenu from "./DriveContextMenu"
 import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
+import { useAuth } from "./authContext"
 import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
 
@@ -50,6 +51,7 @@ function sortDrives(drives: Drive[], sort: SortState, jobs: Job[]): Drive[] {
 }
 
 export default function App() {
+  const auth = useAuth()
   const [drives, setDrives] = useState<Drive[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [selected, setSelected] = useState<string[]>([])
@@ -83,22 +85,24 @@ export default function App() {
     else sessionStorage.removeItem("drivecheck.settingsOpen")
   }, [settingsOpen])
 
+  // The 2s polls double as the session check: a 401 (session expired, or the
+  // password was changed) hands control back to AuthGate's login screen.
   const loadDrives = () =>
     fetch("/api/drives")
       .then(r => {
+        if (r.status === 401) { auth.expire(); return }
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
+        return r.json().then(data => { setDrives(data); setError(null) })
       })
-      .then(data => { setDrives(data); setError(null) })
       .catch(() => setError("Backend unavailable — retrying…"))
 
   const loadJobs = () =>
     fetch("/api/jobs")
       .then(r => {
+        if (r.status === 401) { auth.expire(); return }
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
+        return r.json().then(setJobs)
       })
-      .then(setJobs)
       .catch(() => {})
 
   useEffect(() => {
@@ -244,6 +248,8 @@ export default function App() {
           onProbe={handleProbe}
           onScan={handleScan}
           onOpenSettings={() => setSettingsOpen(true)}
+          username={auth.username}
+          onSignOut={auth.signOut}
           sort={sort}
           onSortChange={setSort}
         />
