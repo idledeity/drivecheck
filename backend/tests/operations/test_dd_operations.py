@@ -20,6 +20,7 @@ from operations.catalog.dd_read_test import (
     _read_dd_outcome,
 )
 from operations.catalog.dd_write_test import DDWriteTestOperation
+from operations.operation import ReattachFailed
 
 DEVICE = "/dev/sdz"
 CAPACITY = 6_001_175_126_016  # not a multiple of 1 MiB, like real drives
@@ -205,3 +206,47 @@ def test_write_refuses_whole_device_when_capacity_unknown(monkeypatch):
     monkeypatch.setattr(dd_write_test, "_is_device_mounted", lambda _d: False)
     with pytest.raises(RuntimeError, match="capacity .* is unknown"):
         DDWriteTestOperation().run(_context(None), _WRITE_PARAMS)
+
+
+# ---------------------------------------------------------------------------
+# Finished while the backend was down — reattach() finds the process gone
+# ---------------------------------------------------------------------------
+
+_READ_PARAMS = {"block_size": 1048576, "count": 0, "skip": 0,
+                "conv_noerror": False, "conv_sync": False, "iflag_direct": False}
+
+
+def _reattach_data(log_path):
+    return {"pid": _dead_pid(), "log_path": str(log_path), "device": DEVICE}
+
+
+@pytest.mark.parametrize("op_cls,params,key", [
+    (DDReadTestOperation, _READ_PARAMS, "bytes_read"),
+    (DDWriteTestOperation, _WRITE_PARAMS, "bytes_written"),
+])
+def test_finished_during_downtime_recovers_pass(tmp_path, op_cls, params, key):
+    log = _write_log(tmp_path, PROGRESS + _summary(CAPACITY))
+    op = op_cls()
+    result = op.reattach(_context(CAPACITY), params, _reattach_data(log))
+    assert result == {key: CAPACITY, "device": DEVICE, "block_size": 1048576}
+    assert op.get_progress().message == "Done"
+
+
+@pytest.mark.parametrize("op_cls,params", [
+    (DDReadTestOperation, _READ_PARAMS),
+    (DDWriteTestOperation, _WRITE_PARAMS),
+])
+def test_finished_during_downtime_recovers_failure(tmp_path, op_cls, params):
+    log = _write_log(tmp_path, PROGRESS + "dd: error reading '/dev/sdz': Input/output error\n" + _summary(1000))
+    with pytest.raises(RuntimeError, match="Input/output error"):
+        op_cls().reattach(_context(CAPACITY), params, _reattach_data(log))
+
+
+@pytest.mark.parametrize("op_cls,params", [
+    (DDReadTestOperation, _READ_PARAMS),
+    (DDWriteTestOperation, _WRITE_PARAMS),
+])
+def test_killed_during_downtime_stays_interrupted(tmp_path, op_cls, params):
+    log = _write_log(tmp_path, PROGRESS)
+    with pytest.raises(ReattachFailed, match="stopped before finishing"):
+        op_cls().reattach(_context(CAPACITY), params, _reattach_data(log))

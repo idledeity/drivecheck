@@ -9,8 +9,10 @@ import subprocess
 
 import pytest
 
+from drives.drive_models import DriveContext, DriveDescriptor
 from operations.catalog import badblocks_write_test
 from operations.catalog.badblocks_write_test import BadblocksWriteTestOperation, _read_badblocks_outcome
+from operations.operation import ReattachFailed
 
 DEVICE = "/dev/sdz"
 BS = b"\b" * 40
@@ -126,3 +128,37 @@ def test_requested_passes_must_all_complete(tmp_path):
     op = _reattached(_write_log(tmp_path, HEADER + _pass(0)))
     with pytest.raises(RuntimeError, match="1 of 2 pass"):
         op._watch_and_wait(passes=2)
+
+
+# ---------------------------------------------------------------------------
+# Finished while the backend was down — reattach() finds the process gone
+# ---------------------------------------------------------------------------
+
+_CONTEXT = DriveContext(guid="g", descriptor=DriveDescriptor(device_name=DEVICE, access_type="sat", info_name=DEVICE))
+_PARAMS = {"block_size": 4096, "passes": 1}
+
+
+def _reattach_data(log_path):
+    proc = subprocess.Popen(["true"])
+    proc.wait()
+    return {"pid": proc.pid, "log_path": str(log_path), "device": DEVICE, "patterns_done": 0}
+
+
+def test_finished_clean_during_downtime_recovers_pass(tmp_path):
+    op = BadblocksWriteTestOperation()
+    result = op.reattach(_CONTEXT, _PARAMS, _reattach_data(_write_log(tmp_path, HEADER + _pass(0))))
+    assert result == {"device": DEVICE, "bad_blocks": 0, "passes": 1}
+    assert op.get_progress().message == "Done"
+
+
+def test_bad_blocks_found_before_downtime_kill_still_fails(tmp_path):
+    # Pass 1 reported bad blocks; badblocks was then killed during its repeat pass.
+    log = _write_log(tmp_path, HEADER + _pass(4) + _pattern("0xaa"))
+    with pytest.raises(RuntimeError, match="4 bad block"):
+        BadblocksWriteTestOperation().reattach(_CONTEXT, _PARAMS, _reattach_data(log))
+
+
+def test_killed_mid_pass_during_downtime_stays_interrupted(tmp_path):
+    log = _write_log(tmp_path, HEADER + _pattern("0xaa"))
+    with pytest.raises(ReattachFailed, match="stopped before finishing"):
+        BadblocksWriteTestOperation().reattach(_CONTEXT, _PARAMS, _reattach_data(log))

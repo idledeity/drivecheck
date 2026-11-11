@@ -192,6 +192,7 @@ class DDReadTestOperation(OperationBase):
         self._log_path: Path | None = None
         self._device: str | None = None
         self._cmd: list[str] | None = None
+        self._block_size: int = 0
         self._percent: float | None = 0.0
         self._message: str | None = "Queued"
 
@@ -232,6 +233,7 @@ class DDReadTestOperation(OperationBase):
 
         self._device = device
         self._cmd = cmd
+        self._block_size = block_size
         self._log_path = log_path
         self._message = "Starting"
         logger.info("starting dd read test on %s: %s", device, " ".join(cmd))
@@ -262,21 +264,28 @@ class DDReadTestOperation(OperationBase):
             raise ReattachFailed(f"incomplete reattach data: {e}") from e
 
         device = context.descriptor.device_name
-        if not _pid_matches(pid, device):
-            raise ReattachFailed(
-                f"dd process (pid {pid}) is no longer running or no longer matches device {device}"
-            )
-
         block_size = int(params["block_size"])
         count = int(params["count"])
         skip = int(params["skip"])
         capacity = context.traits.capacity_bytes
-
         total_bytes = _expected_bytes(block_size, count, skip, capacity)
 
-        self._pid = pid
         self._device = device
         self._log_path = log_path
+        self._block_size = block_size
+
+        if not _pid_matches(pid, device):
+            # dd is gone. If it ended while the backend was down, its log says how.
+            outcome = _read_dd_outcome(log_path)
+            if outcome.completed or outcome.errors:
+                logger.info("dd read test on %s finished while the backend was down; reading result from log", device)
+                return self._verdict(outcome, None, total_bytes)
+            raise ReattachFailed(
+                f"dd process (pid {pid}) is no longer running and its log shows no result — "
+                "it was stopped before finishing"
+            )
+
+        self._pid = pid
         self._message = "Resuming"
         logger.info("reattaching to dd read test on %s (pid %d)", device, pid)
 
@@ -287,7 +296,6 @@ class DDReadTestOperation(OperationBase):
 
     def _watch_and_wait(self, total_bytes: int | None, start_offset: int = 0, startup_timeout: float | None = None) -> dict:
         """Consume progress from the log file and wait for the dd process to exit."""
-        device = self._device
         bytes_read = 0
         last_line = ""
         is_alive = (lambda: Path(f"/proc/{self._pid}").exists()) if self._pid is not None else None
@@ -334,7 +342,10 @@ class DDReadTestOperation(OperationBase):
             raise OperationCancelled()
         # Decide from the whole log, not just the tail we watched: after a
         # reattach there is no exit code, and a killed dd must not pass.
-        outcome = _read_dd_outcome(self._log_path)
+        return self._verdict(_read_dd_outcome(self._log_path), returncode, total_bytes)
+
+    def _verdict(self, outcome: DDOutcome, returncode: int | None, total_bytes: int | None) -> dict:
+        """Turn a finished run's log outcome into the job result, or raise if it failed."""
         failure = _dd_failure(outcome, returncode, total_bytes)
         if failure:
             self._message = "Failed"
@@ -343,8 +354,8 @@ class DDReadTestOperation(OperationBase):
 
         self._percent = 100.0
         self._message = "Done"
-        logger.info("dd read test on %s completed: %d bytes read", device, bytes_read)
-        return {"bytes_read": bytes_read, "device": device, "block_size": int(self._cmd[3].split("=")[1]) if self._cmd else 0}
+        logger.info("dd read test on %s completed: %d bytes read", self._device, bytes_read)
+        return {"bytes_read": bytes_read, "device": self._device, "block_size": self._block_size}
 
     def _poll_until_done(self) -> int | None:
         """Poll /proc/<pid> until the process exits (used when no Popen object is available)."""

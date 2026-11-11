@@ -228,15 +228,25 @@ class BadblocksWriteTestOperation(OperationBase):
             raise ReattachFailed(f"incomplete reattach data: {e}") from e
 
         device = context.descriptor.device_name
-        if not _pid_matches(pid, device):
-            raise ReattachFailed(
-                f"badblocks process (pid {pid}) is no longer running or no longer matches device {device}"
-            )
-
         passes = int(params["passes"])
-        self._pid = pid
         self._device = device
         self._log_path = log_path
+
+        if not _pid_matches(pid, device):
+            # badblocks is gone. If it ended while the backend was down (or got
+            # far enough to report bad blocks), its log says how.
+            passes_done, bad_blocks = _read_badblocks_outcome(log_path)
+            if passes_done >= passes or bad_blocks > 0:
+                logger.info(
+                    "badblocks write test on %s finished while the backend was down; reading result from log", device
+                )
+                return self._verdict(None, passes)
+            raise ReattachFailed(
+                f"badblocks process (pid {pid}) is no longer running and its log shows no result — "
+                "it was stopped before finishing"
+            )
+
+        self._pid = pid
         self._patterns_done = patterns_done
         self._total_patterns = passes * _PATTERNS_PER_PASS
         self._message = "Resuming"
@@ -246,7 +256,6 @@ class BadblocksWriteTestOperation(OperationBase):
         return self._watch_and_wait(passes, start_offset=start_offset)
 
     def _watch_and_wait(self, passes: int, start_offset: int = 0, startup_timeout: float | None = None) -> dict:
-        device = self._device
         buf = b""
         is_alive = (lambda: Path(f"/proc/{self._pid}").exists()) if self._pid is not None else None
 
@@ -305,6 +314,11 @@ class BadblocksWriteTestOperation(OperationBase):
         # Decide from the whole log, not just the tail we watched: after a
         # reattach there is no exit code, and bad blocks reported before the
         # restart must still count.
+        return self._verdict(returncode, passes)
+
+    def _verdict(self, returncode: int | None, passes: int) -> dict:
+        """Judge a finished run from its whole log; return the result or raise if it failed."""
+        device = self._device
         passes_done, bad_blocks = _read_badblocks_outcome(self._log_path)
         if returncode not in (0, 1, None):
             self._message = "Failed"
