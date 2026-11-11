@@ -42,7 +42,7 @@ def _write_log(tmp_path, data: bytes):
     return path
 
 
-def _reattached(log_path, patterns_done=0):
+def _reattached(log_path, patterns_done=0, passes=1):
     proc = subprocess.Popen(["true"])
     proc.wait()
     op = BadblocksWriteTestOperation()
@@ -51,6 +51,7 @@ def _reattached(log_path, patterns_done=0):
     op._device = DEVICE
     op._log_path = log_path
     op._patterns_done = patterns_done
+    op._passes = passes
     return op
 
 
@@ -101,7 +102,7 @@ def test_outcome_missing_log(tmp_path):
 def test_reattached_killed_mid_pass_fails(tmp_path):
     op = _reattached(_write_log(tmp_path, HEADER + _pattern("0xaa")))
     with pytest.raises(RuntimeError, match="0 of 1 pass"):
-        op._watch_and_wait(passes=1)
+        op._watch_and_wait()
     assert op.get_progress().message == "Failed"
 
 
@@ -114,20 +115,20 @@ def test_reattached_bad_blocks_from_before_restart_still_fail(tmp_path):
     with open(path, "ab") as f:
         f.write(_pass(0))
     with pytest.raises(RuntimeError, match="5 bad block"):
-        op._watch_and_wait(passes=1, start_offset=len(log))
+        op._watch_and_wait(start_offset=len(log))
 
 
 def test_reattached_run_that_finished_clean_passes(tmp_path):
     op = _reattached(_write_log(tmp_path, HEADER + _pass(0)))
-    result = op._watch_and_wait(passes=1)
+    result = op._watch_and_wait()
     assert result == {"device": DEVICE, "bad_blocks": 0, "passes": 1}
     assert op.get_progress().message == "Done"
 
 
 def test_requested_passes_must_all_complete(tmp_path):
-    op = _reattached(_write_log(tmp_path, HEADER + _pass(0)))
+    op = _reattached(_write_log(tmp_path, HEADER + _pass(0)), passes=2)
     with pytest.raises(RuntimeError, match="1 of 2 pass"):
-        op._watch_and_wait(passes=2)
+        op._watch_and_wait()
 
 
 # ---------------------------------------------------------------------------
