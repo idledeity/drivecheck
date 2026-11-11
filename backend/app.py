@@ -157,6 +157,8 @@ def drives():
             "guid": ctx.guid,
             "device": ctx.descriptor.device_name,
             "info_name": ctx.descriptor.info_name,
+            # What dd/badblocks/shred target (e.g. /dev/sdb); None if unresolved.
+            "block_device": ctx.block_device_path,
             "serial": traits.serial,
             "manufacturer": traits.manufacturer,
             "manufacturer_short": traits.manufacturer_short,

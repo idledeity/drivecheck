@@ -1,0 +1,56 @@
+.confirm-card.dcf-card {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.confirm-card .dcf-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.dcf-icon { color: var(--re); flex-shrink: 0; }
+
+.dcf-targets {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  margin: 4px 0 10px;
+}
+.dcf-targets th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  padding: 0 8px 4px 0;
+}
+.dcf-targets td {
+  color: var(--t2);
+  padding: 4px 8px 4px 0;
+  border-top: 1px solid var(--bd2);
+  vertical-align: top;
+}
+.dcf-label { display: block; color: var(--t1); font-weight: 600; }
+.dcf-model { display: block; }
+.dcf-device { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+
+.dcf-typed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--t3);
+}
+.dcf-typed input {
+  width: 56px;
+  font-size: 12.5px;
+  color: var(--t1);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+}
+.dcf-typed input:focus { border-color: var(--re); }

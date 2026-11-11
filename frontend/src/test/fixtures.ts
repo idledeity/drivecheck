@@ -11,6 +11,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     guid: 'guid-1',
     device: '/dev/sda',
     info_name: '/dev/sda',
+    block_device: '/dev/sda',
     serial: 'SN123',
     manufacturer: 'Acme',
     manufacturer_short: 'Acme',

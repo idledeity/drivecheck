@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { IconPlayerPlay } from "@tabler/icons-react"
 import type { Drive, OperationInfo, ParamSpec } from "./types"
 import { StubTab } from "./WorkspacePanel"
+import DestructiveConfirmDialog from "./DestructiveConfirmDialog"
 import "./RunTaskTab.css"
 
 const CATEGORY_ORDER = ["Test", "Scan", "Maintenance", "Debug"]
@@ -17,6 +18,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
   const [running, setRunning] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     if (selected.length === 0) return
@@ -56,21 +58,31 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
       return (ai === -1 ? CATEGORY_ORDER.length : ai) - (bi === -1 ? CATEGORY_ORDER.length : bi)
     })
 
-  const driveNames = selected
+
+  const targets = selected
     .map(guid => drives.find(d => d.guid === guid))
-    .map(d => d ? (d.label ?? d.model ?? d.device) : null)
-    .filter((s): s is string => s !== null)
+    .filter((d): d is Drive => d !== undefined)
+  const driveNames = targets.map(d => d.label ?? d.model ?? d.device)
 
   const lockedSelected = activeOp?.destructive
     ? selected.filter(guid => drives.find(d => d.guid === guid)?.locked)
     : []
   const blockedByLock = lockedSelected.length > 0
 
-  const handleRun = () => {
+  const dispatch = () => {
     if (!activeOp || blockedByLock) return
+    setConfirming(false)
     setRunning(true)
     onRun(selected, activeOp.key, paramValues).finally(() => setRunning(false))
   }
+
+  // Destructive operations never dispatch straight from the Run button.
+  const handleRun = () => {
+    if (!activeOp || blockedByLock) return
+    if (activeOp.destructive) setConfirming(true)
+    else dispatch()
+  }
+
 
   return (
     <div className="run-task-tab">
@@ -114,6 +126,14 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
               <IconPlayerPlay size={14} />
               Run
             </button>
+            {confirming && activeOp.destructive && (
+              <DestructiveConfirmDialog
+                operation={activeOp}
+                targets={targets}
+                onConfirm={dispatch}
+                onCancel={() => setConfirming(false)}
+              />
+            )}
           </>
         )}
       </div>

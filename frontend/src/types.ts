@@ -149,6 +149,7 @@ export type Drive = {
   guid: string
   device: string
   info_name: string
+  block_device: string | null
   serial: string | null
   manufacturer: string | null
   manufacturer_short: string | null
