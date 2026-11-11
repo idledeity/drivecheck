@@ -6,6 +6,9 @@ a finished-looking status only passes when there is proof it belongs to the
 test this job started.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
 from drives.drive_models import DriveContext, DriveDescriptor, DriveTraits, DriveType
@@ -13,6 +16,7 @@ from drives.tools.smartctl import SmartctlResult
 from operations.catalog import smart_self_test_base
 from operations.catalog.smart_self_test_base import _log_has_new_entry
 from operations.catalog.smart_self_test_long import SmartSelfTestLongOperation
+from operations.catalog.smart_self_test_short import SmartSelfTestShortOperation
 
 DEVICE = "/dev/sdz"
 
@@ -177,3 +181,46 @@ def test_ata_late_registration_is_waited_for(smartctl_script):
     ])
     with pytest.raises(RuntimeError, match="read failure"):
         _run(DriveType.HDD)
+
+
+# ---------------------------------------------------------------------------
+# Real SAS responses — captured around a short self-test on a real drive
+# ---------------------------------------------------------------------------
+
+REAL_SAS = json.loads((Path(__file__).parent / "fixtures" / "smart_sas_short_selftest.json").read_text())
+REAL_START_HOURS = REAL_SAS["before_start"]["power_on_time"]["hours"]
+
+
+def _run_short():
+    op = SmartSelfTestShortOperation()
+    op._save_reattach_cb = lambda: None
+    return op, op.run(_context(DriveType.SAS), {})
+
+
+def test_real_sas_short_test_passes(smartctl_script):
+    smartctl_script.extend([REAL_SAS["before_start"], REAL_SAS["running"], REAL_SAS["running"], REAL_SAS["completed"]])
+    op, result = _run_short()
+    assert result == {"device": DEVICE, "test_type": "short", "result": "Completed"}
+    assert op.get_reattach_data() == {"start_hours": REAL_START_HOURS}
+
+
+def test_real_sas_drive_that_never_starts_the_test_fails(smartctl_script):
+    # Its newest entry is an old "Aborted"; nothing new ever appears.
+    smartctl_script.append(REAL_SAS["before_start"])
+    with pytest.raises(RuntimeError, match="could not confirm"):
+        _run_short()
+
+
+def test_real_sas_reattach_while_running_then_completes(smartctl_script):
+    smartctl_script.extend([REAL_SAS["running"], REAL_SAS["running"], REAL_SAS["completed"]])
+    op = SmartSelfTestShortOperation()
+    result = op.reattach(_context(DriveType.SAS), {}, {"start_hours": REAL_START_HOURS})
+    assert result["result"] == "Completed"
+
+
+def test_real_sas_finished_during_downtime_is_recovered(smartctl_script):
+    # The finished entry is stamped with the power-on-hours of the test's start.
+    smartctl_script.append(REAL_SAS["completed"])
+    op = SmartSelfTestShortOperation()
+    result = op.reattach(_context(DriveType.SAS), {}, {"start_hours": REAL_START_HOURS})
+    assert result["result"] == "Completed"
