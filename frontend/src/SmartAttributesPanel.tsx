@@ -28,7 +28,7 @@ function DriveHeader({ drive }: { drive?: Drive }) {
   return <DriveIdentity drive={drive} className="smart-drive-header" />
 }
 
-function DriveAttributes({ guid }: { guid: string }) {
+export function DriveAttributes({ guid }: { guid: string }) {
   const [snapshot, setSnapshot] = useState<RawSnapshot | null>(null)
   const [notFound, setNotFound] = useState(false)
 

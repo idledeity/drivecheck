@@ -40,9 +40,9 @@ describe('HealthTab', () => {
     expect(screen.getByText('No flagged signals')).toBeInTheDocument()
   })
 
-  it('switches to the SMART attributes sub-tab and fetches data for it', async () => {
+  it('fetches SMART data for selected drives when report tab is opened', async () => {
     render(<HealthTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
-    await userEvent.click(screen.getByRole('button', { name: 'SMART attributes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/raw/latest'))
   })
 

@@ -3,15 +3,14 @@ import type { Drive } from "./types"
 import { SIGNALS } from "./signals"
 import { formatCapacity, formatTimestamp } from "./format"
 import DriveIdentity from "./DriveIdentity"
-import SmartAttributesPanel from "./SmartAttributesPanel"
+import { DriveAttributes } from "./SmartAttributesPanel"
 import "./HealthTab.css"
 
-type SubTab = "overview" | "smart" | "report"
+type SubTab = "overview" | "report"
 
 const SUBTABS: { id: SubTab; label: string }[] = [
-  { id: "overview", label: "Overview"        },
-  { id: "smart",    label: "SMART attributes" },
-  { id: "report",   label: "Report"          },
+  { id: "overview", label: "Overview" },
+  { id: "report",   label: "Report"   },
 ]
 
 interface Props {
@@ -37,7 +36,6 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
       </nav>
       <div className="health-subtab-body">
         {subTab === "overview" && <OverviewPanel drives={drives} selectedGuids={selectedGuids} />}
-        {subTab === "smart"    && <SmartAttributesPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} />}
       </div>
     </div>
@@ -219,6 +217,9 @@ function DriveReport({ drive }: { drive: Drive }) {
           )
         })}
       </div>
+
+      <h4 className="rep-section-title">SMART attributes</h4>
+      <DriveAttributes guid={drive.guid} />
     </div>
   )
 }
