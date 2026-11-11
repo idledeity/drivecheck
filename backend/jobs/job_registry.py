@@ -29,7 +29,7 @@ from settings import cfg
 from database import db
 
 logger = logging.getLogger(__name__)
-from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
+from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed, validate_params
 from operations.operation_registry import OPERATIONS
 from drives.drive_models import DriveContext
 from jobs.job_models import Job, JobStatus
@@ -112,7 +112,8 @@ class JobRegistry:
     def create_jobs(self, guids: list[str], operation_key: str, params: dict) -> list[Job] | None:
         """Create one queued job per drive that supports the operation.
 
-        Returns None if operation_key is unknown. Drives that are unknown or
+        Returns None if operation_key is unknown; raises ParamError if params
+        don't fit the operation's ParamSpecs. Drives that are unknown or
         don't support the operation are silently skipped, so the returned
         list may be shorter than `guids` (or empty).
         """
@@ -121,8 +122,9 @@ class JobRegistry:
             logger.debug("create_jobs: unknown operation '%s'", operation_key)
             return None
 
-        merged_params = {p.name: p.default for p in op_cls.params}
-        merged_params.update(params)
+        # Raises ParamError before anything is queued: specs are the contract,
+        # not just UI hints, since these values reach the command line.
+        merged_params = validate_params(op_cls.params, params)
 
         created: list[Job] = []
         with self._lock:

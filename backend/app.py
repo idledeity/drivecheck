@@ -17,6 +17,7 @@ from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
+from operations.operation import ParamError
 from operations.operation_registry import OPERATIONS, discover as discover_operations
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
@@ -345,6 +346,8 @@ def create_jobs():
     params = body.get("params", {})
     if not guids or not operation:
         return jsonify({"error": "missing 'guids' or 'operation'"}), 400
+    if not isinstance(params, dict):
+        return jsonify({"error": "'params' must be an object"}), 400
 
     op_cls = OPERATIONS.get(operation)
     if op_cls is None:
@@ -358,7 +361,10 @@ def create_jobs():
                 "locked_guids": locked_guids,
             }), 423
 
-    jobs = job_registry.create_jobs(guids, operation, params)
+    try:
+        jobs = job_registry.create_jobs(guids, operation, params)
+    except ParamError as e:
+        return jsonify({"error": f"invalid parameter '{e.field}': {e.message}", "field": e.field}), 400
     if jobs is None:
         return jsonify({"error": "unknown operation"}), 404
     return jsonify([_job_to_dict(j) for j in jobs]), 201

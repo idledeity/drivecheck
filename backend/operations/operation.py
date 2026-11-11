@@ -40,13 +40,61 @@ class ReattachFailed(Exception):
 
 @dataclass
 class ParamSpec:
-    """Describes one configurable parameter for the Run Task form."""
+    """Describes one configurable parameter for the Run Task form.
+
+    Also the server-side contract (validate_params): "number" means an integer
+    (every one is a count, size or duration that ends up on a command line),
+    and min/max are enforced, not just hints for the form.
+    """
     name: str
     label: str
     type: str   # "number" | "string" | "boolean"
     default: object
     min: float | None = None
     max: float | None = None
+
+
+class ParamError(ValueError):
+    """A job param failed validation against its operation's ParamSpecs."""
+
+    def __init__(self, field: str, message: str):
+        super().__init__(f"{field}: {message}")
+        self.field = field
+        self.message = message
+
+
+def validate_params(specs: list[ParamSpec], params: dict) -> dict:
+    """Return params merged onto the specs' defaults, checked and coerced.
+
+    Raises ParamError for an unknown key, a value of the wrong type, or a
+    number outside min/max. Integral floats (4096.0) are accepted as ints;
+    booleans are never accepted as numbers.
+    """
+    by_name = {s.name: s for s in specs}
+    unknown = sorted(set(params) - set(by_name))
+    if unknown:
+        raise ParamError(unknown[0], "unknown parameter")
+
+    merged: dict = {}
+    for spec in specs:
+        value = params.get(spec.name, spec.default)
+        if spec.type == "boolean":
+            if not isinstance(value, bool):
+                raise ParamError(spec.name, "must be true or false")
+        elif spec.type == "number":
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ParamError(spec.name, "must be a whole number")
+            if spec.min is not None and value < spec.min:
+                raise ParamError(spec.name, f"must be at least {spec.min:g}")
+            if spec.max is not None and value > spec.max:
+                raise ParamError(spec.name, f"must be at most {spec.max:g}")
+        elif spec.type == "string":
+            if not isinstance(value, str):
+                raise ParamError(spec.name, "must be text")
+        merged[spec.name] = value
+    return merged
 
 
 @dataclass

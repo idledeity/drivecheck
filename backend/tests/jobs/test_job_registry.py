@@ -11,7 +11,7 @@ from drives.drive_models import DriveContext, DriveDescriptor
 from jobs import job_registry as job_registry_module
 from jobs.job_models import Job, JobStatus
 from jobs.job_registry import JobRegistry
-from operations.operation import OperationBase, OperationCancelled, ParamSpec
+from operations.operation import OperationBase, OperationCancelled, ParamError, ParamSpec
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ class _ControllableOperation(OperationBase):
     name = "Controllable"
     category = "Test"
     tool = "none"
-    params = []
+    params = [ParamSpec(name="fail", label="Fail", type="boolean", default=False)]
 
     instances: list["_ControllableOperation"] = []
     unsupported_guids: set[str] = set()
@@ -150,15 +150,25 @@ def test_create_jobs_skips_drive_that_does_not_support_operation():
 
 def test_create_jobs_merges_default_params_with_overrides(monkeypatch):
     class _ParamOperation(_ControllableOperation):
-        params = [ParamSpec(name="speed", label="Speed", type="number", default=5)]
+        params = [ParamSpec(name="speed", label="Speed", type="number", default=5),
+                  ParamSpec(name="fail", label="Fail", type="boolean", default=False)]
 
     monkeypatch.setattr(job_registry_module, "OPERATIONS", {"controllable": _ParamOperation})
     registry = _make_registry()
-    registry.create_jobs(["d1"], "controllable", {"extra": True})
+    registry.create_jobs(["d1"], "controllable", {"speed": 7.0})
     instance = _ControllableOperation.instances[0]
     instance.release()
     _wait_until(lambda: instance.params_seen is not None)
-    assert instance.params_seen == {"speed": 5, "extra": True}
+    assert instance.params_seen == {"speed": 7, "fail": False}
+
+
+def test_create_jobs_rejects_bad_params_before_queuing_anything():
+    registry = _make_registry()
+    with pytest.raises(ParamError) as exc:
+        registry.create_jobs(["d1", "d2"], "controllable", {"fail": "yes"})
+    assert exc.value.field == "fail"
+    assert registry.list_jobs() == []
+    assert _ControllableOperation.instances == []
 
 
 def test_create_jobs_dispatches_immediately_when_a_slot_is_free():
