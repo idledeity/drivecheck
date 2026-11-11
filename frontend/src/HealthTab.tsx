@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { Drive } from "./types"
-import { SIGNALS } from "./signals"
+import { REPORT_SIGNALS, formatSignal, signalLabel } from "./signals"
+import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
 import DriveIdentity from "./DriveIdentity"
 import { DriveAttributes } from "./SmartAttributesPanel"
@@ -74,7 +75,7 @@ function DriveOverview({ drive }: { drive: Drive }) {
   const liveTemp = drive.vitals.temp ?? drive.temp
 
   const flagged = Object.entries(drive.signal_flags ?? {})
-    .filter(([, sev]) => sev === "warn" || sev === "crit")
+    .filter(([key, sev]) => REPORT_SIGNALS.includes(key) && (sev === "warn" || sev === "crit"))
     .sort(([, a], [, b]) => (a === "crit" ? -1 : b === "crit" ? 1 : 0))
 
   return (
@@ -93,30 +94,17 @@ function DriveOverview({ drive }: { drive: Drive }) {
       </div>
 
       <div className="hov-stats">
-        <HealthStat
-          label="Temp"
-          value={liveTemp !== null ? `${liveTemp}°C` : "—"}
-          flag={drive.signal_flags?.temp}
-        />
-        <HealthStat
-          label="Power-on"
-          value={drive.power_on_hours !== null ? `${drive.power_on_hours.toLocaleString()}h` : "—"}
-          flag={drive.signal_flags?.power_on_hours}
-        />
+        <HealthStat drive={drive} signal="temp" value={liveTemp} />
+        <HealthStat drive={drive} signal="power_on_hours" value={drive.power_on_hours} />
       </div>
 
       {flagged.length > 0 ? (
         <div className="hov-flags">
-          {flagged.map(([key, sev]) => {
-            const desc = SIGNALS[key]
-            if (!desc) return null
-            const val = drive[key as keyof Drive]
-            return (
-              <span key={key} className={`hov-flag-chip ${sev}`}>
-                {desc.label}: {desc.format(val)}
-              </span>
-            )
-          })}
+          {flagged.map(([key, sev]) => (
+            <span key={key} className={`hov-flag-chip ${sev}`}>
+              {signalLabel(key)}: {formatSignal(key, drive[key as keyof Drive] as number | null)}
+            </span>
+          ))}
         </div>
       ) : score !== null ? (
         <p className="hov-no-flags">No flagged signals</p>
@@ -125,12 +113,11 @@ function DriveOverview({ drive }: { drive: Drive }) {
   )
 }
 
-function HealthStat({ label, value, flag }: { label: string; value: string; flag?: string }) {
-  const valueCls = flag === "crit" ? " crit" : flag === "warn" ? " warn" : ""
+function HealthStat({ drive, signal, value }: { drive: Drive; signal: string; value: number | null }) {
   return (
     <div className="hov-stat">
-      <div className="hov-stat-label">{label}</div>
-      <div className={`hov-stat-value${valueCls}`}>{value}</div>
+      <div className="hov-stat-label">{signalLabel(signal)}</div>
+      <SignalValue className="hov-stat-value" signal={signal} value={value} flag={drive.signal_flags?.[signal]} />
     </div>
   )
 }
@@ -204,18 +191,17 @@ function DriveReport({ drive }: { drive: Drive }) {
 
       <h4 className="rep-section-title">Signals</h4>
       <div className="rep-signals">
-        {Object.keys(SIGNALS).map(key => {
-          const desc = SIGNALS[key]
-          const val  = key === "temp" ? liveTemp : drive[key as keyof Drive]
-          const flag = drive.signal_flags?.[key]
-          const cls  = flag === "crit" ? " crit" : flag === "warn" ? " warn" : ""
-          return (
-            <div key={key} className="rep-signal-tile">
-              <div className="rep-signal-label">{desc.label}</div>
-              <div className={`rep-signal-value${cls}`}>{desc.format(val)}</div>
-            </div>
-          )
-        })}
+        {REPORT_SIGNALS.map(key => (
+          <div key={key} className="rep-signal-tile">
+            <div className="rep-signal-label">{signalLabel(key)}</div>
+            <SignalValue
+              className="rep-signal-value"
+              signal={key}
+              value={key === "temp" ? liveTemp : drive[key as keyof Drive] as number | null}
+              flag={drive.signal_flags?.[key]}
+            />
+          </div>
+        ))}
       </div>
 
       <h4 className="rep-section-title">SMART attributes</h4>
@@ -256,12 +242,11 @@ function buildReportText(drive: Drive): string {
     `SMART:  ${drive.smart_passed === true ? "Passed" : drive.smart_passed === false ? "Failed" : "—"}`,
     ``,
     `Signals:`,
-    ...Object.keys(SIGNALS).map(key => {
-      const desc = SIGNALS[key]
-      const val  = key === "temp" ? liveTemp : drive[key as keyof Drive]
+    ...REPORT_SIGNALS.map(key => {
+      const val  = key === "temp" ? liveTemp : drive[key as keyof Drive] as number | null
       const flag = drive.signal_flags?.[key]
       const tag  = flag && flag !== "ok" ? ` [${flag.toUpperCase()}]` : ""
-      return `  ${desc.label}: ${desc.format(val)}${tag}`
+      return `  ${signalLabel(key)}: ${formatSignal(key, val)}${tag}`
     }),
   ]
   return lines.filter(l => l !== null).join("\n")

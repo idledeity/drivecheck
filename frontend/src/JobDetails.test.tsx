@@ -174,10 +174,15 @@ const SAS_SIGNALS = {
   power_on_hours: 51327, temp: 33, reallocated: 1028, pending: null, uncorrected: 0,
   crc_errors: null, reallocated_events: null, load_unload_cycles: 3272, smart_passed: false,
 }
+// The backend's flags for SAS_SIGNALS (analysis.health.score_signals).
+const SAS_FLAGS = {
+  reallocated: 'warn', pending: 'ok', uncorrected: 'ok', crc_errors: 'ok', power_on_hours: 'warn',
+  load_unload_cycles: 'ok', temp: 'ok', smart_passed: 'crit',
+} as const
 
 function snapshot(overrides: Partial<JobSmartSnapshot> = {}): JobSmartSnapshot {
   return {
-    snapshot_id: 41, captured_at: '2026-11-11T01:11:18Z', signals: SAS_SIGNALS,
+    snapshot_id: 41, captured_at: '2026-11-11T01:11:18Z', signals: SAS_SIGNALS, signal_flags: SAS_FLAGS,
     health: { health_pct: 40, health_status: 'Failing' }, reused: false, ...overrides,
   }
 }
@@ -212,11 +217,22 @@ describe('JobSmartPanel', () => {
     expect(screen.getByText('No error counters increased during this run')).toBeInTheDocument()
   })
 
-  it('marks values that are bad in themselves even when unchanged', () => {
+  it('colours values by their flags even when unchanged, like the drive card', () => {
     render(<JobSmartPanel job={makeJob({ status: 'completed', smart: smart(snapshot(), snapshot()) })} />)
-    const statusCells = within(row('SMART status')).getAllByText('Failed')
-    expect(statusCells.every(c => c.classList.contains('job-smart-bad'))).toBe(true)
-    expect(within(row('Health score')).getAllByText('40 · Failing')[0]).toHaveClass('job-smart-bad')
+    for (const cell of within(row('SMART status')).getAllByText('Failed')) expect(cell).toHaveClass('sig-crit')
+    for (const cell of within(row('Power-on hours')).getAllByText('51,327h')) expect(cell).toHaveClass('sig-warn')
+    for (const cell of within(row('Reallocated sectors')).getAllByText('1,028')) expect(cell).toHaveClass('sig-warn')
+    for (const cell of within(row('Temperature')).getAllByText('33°C')) {
+      expect(cell).not.toHaveClass('sig-warn')
+      expect(cell).not.toHaveClass('sig-crit')
+    }
+    expect(within(row('Health score')).getAllByText('40 · Failing')[0]).toHaveClass('sig-crit')
+  })
+
+  it('leaves values uncoloured for a snapshot without flags', () => {
+    const unflagged = snapshot({ signal_flags: undefined })
+    render(<JobSmartPanel job={makeJob({ status: 'completed', smart: smart(unflagged, unflagged) })} />)
+    expect(within(row('Power-on hours')).getAllByText('51,327h')[0]).not.toHaveClass('sig-warn')
   })
 
   it('calls out counters that got worse, with the change', () => {

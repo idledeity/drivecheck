@@ -75,8 +75,6 @@
   font-weight: 600;
   color: var(--t2);
 }
-.hov-stat-value.warn { color: var(--wa); }
-.hov-stat-value.crit { color: var(--re); }
 
 .hov-flags {
   display: flex;
@@ -164,8 +162,6 @@
   font-weight: 600;
   color: var(--t2);
 }
-.rep-signal-value.warn { color: var(--wa); }
-.rep-signal-value.crit { color: var(--re); }
 
 /* ── Sub-tab nav ── */
 .health-subtabs {

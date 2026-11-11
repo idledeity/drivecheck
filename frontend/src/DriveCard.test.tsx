@@ -214,7 +214,7 @@ describe('footer signals', () => {
 
   it('flags a stat as crit based on signal_flags', () => {
     renderCard({ drive: makeDrive({ reallocated: 5, signal_flags: { reallocated: 'crit' } }) })
-    expect(screen.getByText('5').closest('.dc-stat-value')).toHaveClass('crit')
+    expect(screen.getByText('5')).toHaveClass('dc-stat-value', 'sig-crit')
   })
 
   it('renders read/write throughput', () => {

@@ -89,6 +89,7 @@ export type JobSmartSnapshot = {
   snapshot_id?: number
   captured_at: string
   signals?: SmartSignals
+  signal_flags?: Record<string, "ok" | "warn" | "crit">  // same thresholds as Drive.signal_flags
   health?: { health_pct: number | null; health_status: string | null }
   reused?: boolean
   error?: string

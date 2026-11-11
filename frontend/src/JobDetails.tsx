@@ -1,5 +1,7 @@
 import type { Job, JobSmartSnapshot, JobStatus, SmartChange } from "./types"
 import { formatDuration, formatTimestamp, humanizeKey, jobResultText } from "./format"
+import { healthSeverity, severityClass, signalName } from "./signals"
+import SignalValue from "./SignalValue"
 import "./JobDetails.css"
 
 // Every job shows the same common properties (status, result, times, device)
@@ -143,21 +145,10 @@ export function JobDetails({ job }: { job: Job }) {
 // ---------------------------------------------------------------------------
 
 // Rows in reading order: the verdict and error counters first, wear after.
-const SMART_ROWS: {
-  key: string
-  label: string
-  format: (v: number | boolean) => string
-  bad?: (v: number | boolean) => boolean  // a value that is bad in itself, changed or not
-}[] = [
-  { key: "smart_passed",       label: "SMART status",        format: v => (v ? "Passed" : "Failed"), bad: v => v === false },
-  { key: "reallocated",        label: "Reallocated sectors", format: v => v.toLocaleString() },
-  { key: "pending",            label: "Pending sectors",     format: v => v.toLocaleString() },
-  { key: "uncorrected",        label: "Uncorrected errors",  format: v => v.toLocaleString() },
-  { key: "crc_errors",         label: "CRC errors",          format: v => v.toLocaleString() },
-  { key: "reallocated_events", label: "Reallocation events", format: v => v.toLocaleString() },
-  { key: "power_on_hours",     label: "Power-on hours",      format: v => `${v.toLocaleString()}h` },
-  { key: "load_unload_cycles", label: "Load/unload cycles",  format: v => v.toLocaleString() },
-  { key: "temp",               label: "Temperature",         format: v => `${v}°C` },
+// Labels, formats and severity colours come from the shared signal registry.
+const SMART_ROWS = [
+  "smart_passed", "reallocated", "pending", "uncorrected", "crc_errors",
+  "reallocated_events", "power_on_hours", "load_unload_cycles", "temp",
 ]
 
 function formatChange(change: SmartChange | undefined): string {
@@ -180,8 +171,8 @@ function SnapshotNote({ label, snapshot, pending }: { label: string; snapshot: J
 function HealthCell({ snapshot }: { snapshot: JobSmartSnapshot | null }) {
   const health = snapshot?.health
   if (!health || health.health_pct === null) return <td>—</td>
-  const tone = health.health_status === "Failing" ? "job-smart-bad" : health.health_status === "Degraded" ? "job-smart-warn" : undefined
-  return <td className={tone}>{health.health_pct} · {health.health_status}</td>
+  const severity = healthSeverity(health.health_status)
+  return <td><span className={`sig-value ${severityClass(severity)}`}>{health.health_pct} · {health.health_status}</span></td>
 }
 
 export function JobSmartPanel({ job }: { job: Job }) {
@@ -198,25 +189,22 @@ export function JobSmartPanel({ job }: { job: Job }) {
   }
 
   const worsened = new Set(comparison?.worsened ?? [])
-  const cell = (side: JobSmartSnapshot | null, row: (typeof SMART_ROWS)[number]) => {
-    const v = side?.signals?.[row.key]
-    if (v === null || v === undefined) return <td>—</td>
-    return <td className={row.bad?.(v) ? "job-smart-bad" : undefined}>{row.format(v)}</td>
-  }
-  const rows = SMART_ROWS.filter(row => {
+  const cell = (side: JobSmartSnapshot | null, key: string) => (
+    <td><SignalValue signal={key} value={side?.signals?.[key]} flag={side?.signal_flags?.[key]} /></td>
+  )
+  const rows = SMART_ROWS.filter(key => {
     // Skip signals this drive type doesn't report on either side (e.g. pending on SAS).
-    const b = before?.signals?.[row.key]
-    const a = after?.signals?.[row.key]
+    const b = before?.signals?.[key]
+    const a = after?.signals?.[key]
     return (b !== null && b !== undefined) || (a !== null && a !== undefined)
   })
-  // Label by key, not by filtering SMART_ROWS: a counter the table doesn't
-  // list must still be named rather than silently dropped from the verdict.
-  const signalLabel = (key: string) => SMART_ROWS.find(r => r.key === key)?.label ?? humanizeKey(key)
+  // Name by key (signalName humanizes unknown keys): a counter the table
+  // doesn't list must still be named rather than silently dropped from the verdict.
   const worsenedLabels = (comparison?.worsened ?? []).map(key => {
     const change = formatChange(comparison?.changes[key])
-    return change ? `${signalLabel(key)} ${change}` : signalLabel(key)
+    return change ? `${signalName(key)} ${change}` : signalName(key)
   })
-  const uncomparedLabels = (comparison?.uncompared ?? []).map(signalLabel)
+  const uncomparedLabels = (comparison?.uncompared ?? []).map(signalName)
 
   return (
     <section className="job-detail-section">
@@ -243,12 +231,12 @@ export function JobSmartPanel({ job }: { job: Job }) {
             <HealthCell snapshot={after} />
             <td />
           </tr>
-          {rows.map(row => (
-            <tr key={row.key} className={worsened.has(row.key) ? "job-smart-row-worse" : undefined}>
-              <td>{row.label}</td>
-              {cell(before, row)}
-              {cell(after, row)}
-              <td>{formatChange(comparison?.changes[row.key])}</td>
+          {rows.map(key => (
+            <tr key={key} className={worsened.has(key) ? "job-smart-row-worse" : undefined}>
+              <td>{signalName(key)}</td>
+              {cell(before, key)}
+              {cell(after, key)}
+              <td>{formatChange(comparison?.changes[key])}</td>
             </tr>
           ))}
         </tbody>

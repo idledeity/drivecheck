@@ -1,0 +1,4 @@
+/* Severity colours for drive signal values (see SignalValue / severityClass).
+   Two classes, so these win over any single-class view style setting a base colour. */
+.sig-value.sig-warn { color: var(--wa); }
+.sig-value.sig-crit { color: var(--re); }

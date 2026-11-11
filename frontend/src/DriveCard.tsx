@@ -3,6 +3,7 @@ import { createPortal } from "react-dom"
 import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
+import SignalValue from "./SignalValue"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
@@ -385,16 +386,16 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {sigKeys.map(key => {
             const desc = SIGNALS[key]
             if (!desc) return null
-            const val = drive[key as keyof Drive]
-            const flag = drive.signal_flags?.[key]
             return (
-              <Stat
-                key={key}
-                label={desc.label}
-                value={desc.format(val)}
-                warn={flag === "warn"}
-                crit={flag === "crit"}
-              />
+              <div key={key} className="dc-stat">
+                <div className="dc-stat-label">{desc.label}</div>
+                <SignalValue
+                  className="dc-stat-value"
+                  signal={key}
+                  value={drive[key as keyof Drive] as number | boolean | null}
+                  flag={drive.signal_flags?.[key]}
+                />
+              </div>
             )
           })}
         </div>
@@ -403,16 +404,6 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           <div className="dc-io-row wr">{formatThroughput(io.write_bytes_per_sec)}<IconArrowDown size={9} /></div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function Stat({ label, value, warn, crit }: { label: string; value: string | number; warn?: boolean; crit?: boolean }) {
-  const cls = crit ? " crit" : warn ? " warn" : ""
-  return (
-    <div className="dc-stat">
-      <div className="dc-stat-label">{label}</div>
-      <div className={`dc-stat-value${cls}`}>{value}</div>
     </div>
   )
 }

@@ -78,9 +78,6 @@
 /* Neutral on purpose: unchanged counters say nothing about whether the drive is healthy. */
 .job-smart-same  { color: var(--t3); background: var(--bb); }
 
-.job-smart-table td.job-smart-bad  { color: var(--re); }
-.job-smart-table td.job-smart-warn { color: var(--wa); }
-
 .job-smart-table {
   border-collapse: collapse;
   font-size: 10.5px;
