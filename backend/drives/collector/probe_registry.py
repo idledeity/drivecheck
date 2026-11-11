@@ -376,8 +376,10 @@ Runs as part of collector.scan_probes to discover attached drives.
 from drives.drive_models import DriveDescriptor
 
 
-def run() -> list[DriveDescriptor]:
+def run() -> list[DriveDescriptor] | None:
     # TODO: implement — return one DriveDescriptor per drive this probe finds.
+    # If the scan itself failed, raise (or return None) rather than returning
+    # []: an empty list means "no drives", and every drive would be removed.
     return []
 ''',
     "traits": '''"""

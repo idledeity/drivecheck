@@ -144,3 +144,128 @@ def test_capture_smart_reports_a_probe_failure_instead_of_raising(monkeypatch):
     summary = collector.capture_smart("g1")
     assert summary["error"] == "device vanished"
     assert "captured_at" in summary
+
+
+# --- Discovery: identity checks on known paths, failed scans ----------------
+
+class _Bays:
+    """Fake scan + traits probes over a mutable {device_name: serial} map."""
+
+    def __init__(self, **bays):
+        self.bays = dict(bays)
+        self.scan_fails = False
+        self.unreadable: set[str] = set()
+
+    def scan_probe(self):
+        def run():
+            if self.scan_fails:
+                raise RuntimeError("smartctl --scan-open timed out")
+            return [DriveDescriptor(f"/dev/{name}", "sat", f"/dev/{name}") for name in self.bays]
+        return SimpleNamespace(run=run, __name__="fake_scan")
+
+    def traits_probe(self):
+        def run(descriptor):
+            name = descriptor.device_name.removeprefix("/dev/")
+            if name in self.unreadable:
+                return DriveTraits()
+            return DriveTraits(serial=self.bays[name], model="Fake")
+        return SimpleNamespace(run=run)
+
+
+def _collector_over(monkeypatch, bays: _Bays):
+    db.init()
+    from drives.collector import drive_collector
+    # lsblk stand-in: a serial's block device is whichever bay holds it now.
+    monkeypatch.setattr(drive_collector, "resolve_block_device",
+                        lambda serial: next((n for n, s in bays.bays.items() if s == serial), None))
+    collector = _make_collector()
+    collector._scan_probes = [bays.scan_probe()]
+    collector._traits_probes = [bays.traits_probe()]
+    return collector
+
+
+def _by_serial(collector):
+    return {s.traits.serial: s for s in collector.get_drive_states()}
+
+
+def test_a_drive_swapped_into_a_known_bay_gets_its_own_identity(monkeypatch):
+    bays = _Bays(sdb="SER-A")
+    collector = _collector_over(monkeypatch, bays)
+    collector._run_scan(0)
+    old = _by_serial(collector)["SER-A"]
+    collector.set_drive_locked(old.context.guid, True)
+
+    bays.bays["sdb"] = "SER-B"
+    collector._run_scan(1)
+
+    states = _by_serial(collector)
+    assert set(states) == {"SER-B"}
+    new = states["SER-B"]
+    assert new.context.guid != old.context.guid
+    assert new.locked is False
+    assert new.context.descriptor.device_name == "/dev/sdb"
+
+
+def test_an_unreadable_serial_on_a_known_bay_keeps_the_drive(monkeypatch):
+    bays = _Bays(sdb="SER-A")
+    collector = _collector_over(monkeypatch, bays)
+    collector._run_scan(0)
+    guid = _by_serial(collector)["SER-A"].context.guid
+
+    bays.unreadable.add("sdb")
+    collector._run_scan(1)
+
+    assert [s.context.guid for s in collector.get_drive_states()] == [guid]
+
+
+def test_drives_trading_bays_keep_their_identities_and_follow_their_paths(monkeypatch):
+    bays = _Bays(sdb="SER-A", sdc="SER-B")
+    collector = _collector_over(monkeypatch, bays)
+    collector._run_scan(0)
+    guids = {serial: s.context.guid for serial, s in _by_serial(collector).items()}
+
+    bays.bays = {"sdb": "SER-B", "sdc": "SER-A"}
+    collector._run_scan(1)
+
+    states = _by_serial(collector)
+    assert {serial: s.context.guid for serial, s in states.items()} == guids
+    for serial, bay in (("SER-A", "sdc"), ("SER-B", "sdb")):
+        state = states[serial]
+        assert [d.device_name for d in state.attachment.descriptors] == [f"/dev/{bay}"]
+        assert state.context.descriptor.device_name == f"/dev/{bay}"
+        assert state.attachment.block_device == bay
+
+
+def test_a_failed_scan_leaves_the_registry_unchanged(monkeypatch):
+    bays = _Bays(sdb="SER-A", sdc="SER-B")
+    collector = _collector_over(monkeypatch, bays)
+    collector._run_scan(0)
+    before = {s.context.guid for s in collector.get_drive_states()}
+
+    bays.scan_fails = True
+    assert collector._run_scan(1) is False
+    assert {s.context.guid for s in collector.get_drive_states()} == before
+
+    collector._scan_probes = [SimpleNamespace(run=lambda: None, __name__="none_scan")]
+    assert collector._run_scan(2) is False
+    assert {s.context.guid for s in collector.get_drive_states()} == before
+
+
+def test_a_failed_first_scan_still_counts_as_scanned(monkeypatch):
+    bays = _Bays(sdb="SER-A")
+    bays.scan_fails = True
+    collector = _collector_over(monkeypatch, bays)
+    collector._tick()
+    assert collector._scanned.is_set()
+    assert collector.get_drive_states() == []
+
+
+def test_smartctl_scan_probe_raises_on_a_timed_out_scan(monkeypatch):
+    import pytest
+    from drives.collector.probes.scan import smartctl_scan
+    monkeypatch.setattr(smartctl_scan.smartctl, "scan", lambda: {})
+    with pytest.raises(RuntimeError):
+        smartctl_scan.run()
+    # Real shape of an empty-but-successful scan: no drives, no error.
+    monkeypatch.setattr(smartctl_scan.smartctl, "scan", lambda: {"smartctl": {"exit_status": 0}, "devices": []})
+    assert smartctl_scan.run() == []

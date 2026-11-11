@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 def run() -> list[DriveDescriptor]:
     data = smartctl.scan()
+    # Real output always carries the "smartctl" block, even with no drives; {}
+    # means the call timed out. Raise so the collector keeps its drive list
+    # rather than reading a failed scan as "every drive was removed".
+    if "smartctl" not in data:
+        raise RuntimeError("smartctl --scan-open returned no output (timed out?)")
     descriptors = []
     for dev in data.get("devices", []):
         descriptors.append(DriveDescriptor(

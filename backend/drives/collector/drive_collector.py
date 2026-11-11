@@ -21,7 +21,10 @@ Discovery is split from steady-state polling:
     on all candidates, groups by GUID, scores by data completeness, and picks
     the best access path. All paths are stored in DriveState.attachment.descriptors.
   - Known descriptors (already in attachment.descriptors of an existing state)
-    just confirm the drive is still present — no re-probing needed.
+    have their serial re-read to confirm the same drive is still there. A
+    different serial means a swap: the path is detached and rediscovered.
+  - A failed scan (a scan probe raising or returning None) skips reconciliation,
+    so it can't be mistaken for every drive having been removed.
   - Gone drives (GUIDs absent from the scan) are removed from the registry.
 """
 
@@ -371,12 +374,13 @@ class Collector:
 
         if now >= self._scan_due:
             with ProbeTimeout(self._probe_timeout):
-                self._run_scan(now)
+                scanned = self._run_scan(now)
             self._scan_due = now + self._scan_interval
             self._scanned.set()
-            with self._lock:
-                n = len(self._drive_states)
-            logger.info("scan complete: %d drive(s)", n)
+            if scanned:
+                with self._lock:
+                    n = len(self._drive_states)
+                logger.info("scan complete: %d drive(s)", n)
 
         if self._prune_due is None:
             last_pruned_at = db.get_last_pruned_at()
@@ -474,11 +478,26 @@ class Collector:
         n = len(guids)
         self._phase_fractions = {guid: i / n for i, guid in enumerate(guids)} if n else {}
 
-    def _run_scan(self, now: float) -> None:
+    def _run_scan(self, now: float) -> bool:
+        """Run the scan probes and reconcile the registry against what they found.
+
+        A probe that raises or returns None failed to scan, which is not the same
+        as finding no drives: reconciliation is skipped for this tick so the
+        registry stays as it was. Returns whether the scan succeeded.
+        """
         descriptors = []
         for probe in self._scan_probes:
-            descriptors.extend(probe.run())
+            try:
+                found = probe.run()
+            except Exception as e:
+                logger.warning("scan probe %s failed, keeping the current drive list: %s", probe.__name__, e)
+                return False
+            if found is None:
+                logger.warning("scan probe %s failed, keeping the current drive list", probe.__name__)
+                return False
+            descriptors.extend(found)
         self._reconcile_descriptors(descriptors, now)
+        return True
 
     def _run_telemetry(self, state: DriveState, now: float) -> DriveSnapshot:
         """Run the telemetry probe chain for a drive, score its health, and record
@@ -575,23 +594,41 @@ class Collector:
         db.record_vitals(state.context.guid, vitals.captured_at.isoformat(), vitals.temp, vitals.temp_source, vitals.io)
 
     def _reconcile_descriptors(self, descriptors: list[DriveDescriptor], now: float) -> None:
-        """Partition scan results into known/unknown, discover new drives, and remove gone ones."""
+        """Partition scan results into known/unknown, discover new drives, and remove gone ones.
+
+        A known access path is only trusted after its serial is re-read: a
+        different drive hot-swapped into the same bay shows up at the same
+        (device_name, access_type), and must not inherit the old drive's GUID,
+        label, lock or history. A mismatch detaches the path from the old drive
+        and sends it through discovery like any new one.
+        """
         with self._lock:
-            known_keys: dict[tuple[str, str], str] = {
-                (d.device_name, d.access_type): guid
-                for guid, state in self._drive_states.items()
+            known_keys: dict[tuple[str, str], DriveState] = {
+                (d.device_name, d.access_type): state
+                for state in self._drive_states.values()
                 for d in state.attachment.descriptors
             }
 
         matched_guids: set[str] = set()
-        unknown: list[DriveDescriptor] = []
+        unknown: list[tuple[DriveDescriptor, DriveTraits]] = []
 
         for d in descriptors:
-            key = (d.device_name, d.access_type)
-            if key in known_keys:
-                matched_guids.add(known_keys[key])
-            else:
-                unknown.append(d)
+            state = known_keys.get((d.device_name, d.access_type))
+            if state is None:
+                unknown.append((d, self._run_traits_chain(d, DriveTraits())))
+                continue
+            traits = self._reread_traits(d)
+            # No serial back (a failed read, or a drive that never reports one)
+            # can't prove a swap, so the path stays with the drive it belongs to.
+            if traits is None or traits.serial is None or traits.serial == state.traits.serial:
+                matched_guids.add(state.context.guid)
+                continue
+            logger.warning(
+                "serial on %s (%s) changed from %s to %s: treating it as a different drive",
+                d.device_name, d.access_type, state.traits.serial or "none", traits.serial,
+            )
+            self._detach_descriptor(state, d)
+            unknown.append((d, traits))
 
         if unknown:
             logger.debug("reconcile: %d unknown descriptor(s) to discover", len(unknown))
@@ -600,13 +637,45 @@ class Collector:
         self._remove_gone_drives(matched_guids)
         self._recompute_phase_fractions()
 
-    def _discover(self, descriptors: list[DriveDescriptor], matched_guids: set[str], now: float) -> None:
-        """Run traits on unknown descriptors, deduplicate by GUID, and create/update states."""
-        probed: list[tuple[DriveDescriptor, DriveTraits, str]] = []
-        for d in descriptors:
-            traits = self._run_traits_chain(d, DriveTraits())
-            guid = _assign_guid(traits, d)
-            probed.append((d, traits, guid))
+    def _reread_traits(self, descriptor: DriveDescriptor) -> DriveTraits | None:
+        """Re-run the traits chain for a known path, or None if a probe raised."""
+        try:
+            return self._run_traits_chain(descriptor, DriveTraits())
+        except Exception as e:
+            logger.warning("could not re-read traits on %s, assuming the same drive: %s", descriptor.device_name, e)
+            return None
+
+    def _detach_descriptor(self, state: DriveState, descriptor: DriveDescriptor) -> None:
+        """Remove an access path that now leads to a different drive from state."""
+        key = (descriptor.device_name, descriptor.access_type)
+        with self._lock:
+            state.attachment.descriptors = [
+                d for d in state.attachment.descriptors if (d.device_name, d.access_type) != key
+            ]
+            state.attachment.active_index = 0
+            self._sync_primary(state)
+
+    def _sync_primary(self, state: DriveState) -> None:
+        """Point context.descriptor at the attachment's active path and re-resolve
+        the block device, after a drive's paths changed. Caller holds self._lock.
+
+        With no paths left the context keeps its last descriptor: the drive is
+        about to be removed as absent from the scan.
+        """
+        primary = state.attachment.primary_descriptor
+        if primary is None:
+            return
+        state.context.descriptor = primary
+        state.attachment.block_device = resolve_block_device(state.traits.serial)
+
+    def _discover(
+        self,
+        candidates: list[tuple[DriveDescriptor, DriveTraits]],
+        matched_guids: set[str],
+        now: float,
+    ) -> None:
+        """Deduplicate probed descriptors by GUID and create/update states."""
+        probed = [(d, traits, _assign_guid(traits, d)) for d, traits in candidates]
 
         # Group by GUID — multiple descriptors may resolve to the same physical drive
         groups: dict[str, list[tuple[DriveDescriptor, DriveTraits]]] = {}
@@ -676,10 +745,16 @@ class Collector:
 
     def _append_descriptors(self, state: DriveState, descriptors: list[DriveDescriptor]) -> None:
         """Add any descriptors not already recorded to a drive's attachment."""
+        had_paths = bool(state.attachment.descriptors)
         existing = {(d.device_name, d.access_type) for d in state.attachment.descriptors}
         for d in descriptors:
             if (d.device_name, d.access_type) not in existing:
                 state.attachment.descriptors.append(d)
+        # A drive that just lost all its paths (e.g. moved to another bay in the
+        # same scan) needs its context and block device pointed at the new one.
+        if not had_paths:
+            state.attachment.active_index = 0
+            self._sync_primary(state)
 
     def _remove_gone_drives(self, matched_guids: set[str]) -> None:
         """Remove drives from the registry that were absent from the latest scan."""
@@ -691,7 +766,7 @@ class Collector:
                     "drive removed: %s %s (%s)",
                     state.traits.model or "unknown model",
                     state.traits.serial or "no serial",
-                    state.attachment.primary_descriptor.device_name,
+                    state.context.descriptor.device_name,
                 )
                 del self._drive_states[g]
                 self._schedules.pop(g, None)
