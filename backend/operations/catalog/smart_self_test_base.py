@@ -158,11 +158,12 @@ class SmartSelfTestOperation(OperationBase):
         # Check if a test is currently in progress.
         in_progress, current_poh = self._in_progress_status(data, drive_type)
         if in_progress:
-            # current_poh comes from table[0].lifetime_hours, which ATA drives report
-            # as 0 ("NOW") while a test is running — the real value isn't stamped until
-            # the test completes.  If current_poh is a real non-zero value that doesn't
-            # match, a different test is definitely running; if it's 0/None we can't
-            # verify but accept it rather than failing a valid reattach.
+            # current_poh comes from the in-progress log entry. Some ATA drives report
+            # it as 0 ("NOW") until the test completes; others (seen on a Seagate Exos
+            # X16) stamp the real hours at start; SAS entries carry none while running.
+            # If it is a real non-zero value that doesn't match, a different test is
+            # running; if it's 0/None we can't verify but accept it rather than
+            # failing a valid reattach.
             if current_poh and current_poh != poh_expected:
                 raise ReattachFailed(
                     f"a different self-test is now in progress on {device} "
@@ -279,11 +280,12 @@ class SmartSelfTestOperation(OperationBase):
     def _extract_start_hours(self, data: dict, drive_type: DriveType) -> int | None:
         """Read the current power-on-hours to use as a reattach discriminator.
 
-        For ATA drives, the self-test log entry shows "NOW" (JSON: lifetime_hours=0)
-        while the test is in progress — the actual hour value is only stamped once
-        the test completes.  Using the top-level power_on_time.hours avoids that
-        problem: it's always populated and equals what the completed log entry will
-        show for lifetime_hours (the drive uses the same moment's hours for both).
+        Some ATA drives show the in-progress log entry as "NOW" (JSON:
+        lifetime_hours=0) until the test completes, and SAS in-progress entries
+        carry no hours at all, so the log can't be relied on at start. The
+        top-level power_on_time.hours is always populated, and on the drives
+        observed (SAS and ATA short tests) the completed entry is stamped with
+        that same start-time value.
         """
         return data.get("power_on_time", {}).get("hours")
 

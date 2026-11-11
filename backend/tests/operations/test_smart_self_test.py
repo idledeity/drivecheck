@@ -224,3 +224,47 @@ def test_real_sas_finished_during_downtime_is_recovered(smartctl_script):
     op = SmartSelfTestShortOperation()
     result = op.reattach(_context(DriveType.SAS), {}, {"start_hours": REAL_START_HOURS})
     assert result["result"] == "Completed"
+
+
+# ---------------------------------------------------------------------------
+# Real ATA responses — captured around a short self-test on a real SATA drive
+# ---------------------------------------------------------------------------
+
+REAL_ATA = json.loads((Path(__file__).parent / "fixtures" / "smart_ata_short_selftest.json").read_text())
+REAL_ATA_START_HOURS = REAL_ATA["before_start"]["power_on_time"]["hours"]
+
+
+def _run_short_ata():
+    op = SmartSelfTestShortOperation()
+    op._save_reattach_cb = lambda: None
+    return op, op.run(_context(DriveType.HDD), {})
+
+
+def test_real_ata_short_test_passes_with_percent_progress(smartctl_script):
+    smartctl_script.extend([REAL_ATA["before_start"], REAL_ATA["running"], REAL_ATA["running_later"], REAL_ATA["completed"]])
+    op, result = _run_short_ata()
+    assert "without error" in result["result"]
+    assert op.get_reattach_data() == {"start_hours": REAL_ATA_START_HOURS}
+
+
+def test_real_ata_stale_completed_status_is_not_taken_as_the_result(smartctl_script):
+    # Before the start this drive already reads "completed without error",
+    # with an empty self-test log. If the test never registers, that must not pass.
+    smartctl_script.append(REAL_ATA["before_start"])
+    with pytest.raises(RuntimeError, match="could not confirm"):
+        _run_short_ata()
+
+
+def test_real_ata_reattach_while_running_then_completes(smartctl_script):
+    # The in-progress log entry carries real lifetime_hours (not 0/"NOW") on this drive.
+    smartctl_script.extend([REAL_ATA["running_later"], REAL_ATA["completed"]])
+    op = SmartSelfTestShortOperation()
+    result = op.reattach(_context(DriveType.HDD), {}, {"start_hours": REAL_ATA_START_HOURS})
+    assert "without error" in result["result"]
+
+
+def test_real_ata_finished_during_downtime_is_recovered(smartctl_script):
+    smartctl_script.append(REAL_ATA["completed"])
+    op = SmartSelfTestShortOperation()
+    result = op.reattach(_context(DriveType.HDD), {}, {"start_hours": REAL_ATA_START_HOURS})
+    assert result["result"] == "Completed without error"

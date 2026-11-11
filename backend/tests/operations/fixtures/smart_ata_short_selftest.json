@@ -1,0 +1,269 @@
+{
+ "_source": "smartctl -j -a on a real SATA drive (Seagate Exos X16, via SAT) around `smartctl -t short`, 2026-11-11",
+ "before_start": {
+  "device": {
+   "name": "/dev/sde",
+   "info_name": "/dev/sde [SAT]",
+   "type": "sat",
+   "protocol": "ATA"
+  },
+  "ata_smart_data": {
+   "offline_data_collection": {
+    "status": {
+     "value": 130,
+     "string": "was completed without error",
+     "passed": true
+    },
+    "completion_seconds": 567
+   },
+   "self_test": {
+    "status": {
+     "value": 0,
+     "string": "completed without error",
+     "passed": true
+    },
+    "polling_minutes": {
+     "short": 1,
+     "extended": 1286,
+     "conveyance": 2
+    }
+   },
+   "capabilities": {
+    "values": [
+     123,
+     3
+    ],
+    "exec_offline_immediate_supported": true,
+    "offline_is_aborted_upon_new_cmd": false,
+    "offline_surface_scan_supported": true,
+    "self_tests_supported": true,
+    "conveyance_self_test_supported": true,
+    "selective_self_test_supported": true,
+    "attribute_autosave_enabled": true,
+    "error_logging_supported": true,
+    "gp_logging_supported": true
+   }
+  },
+  "power_on_time": {
+   "hours": 20513
+  },
+  "ata_smart_self_test_log": {
+   "standard": {
+    "revision": 1,
+    "count": 0
+   }
+  }
+ },
+ "running": {
+  "device": {
+   "name": "/dev/sde",
+   "info_name": "/dev/sde [SAT]",
+   "type": "sat",
+   "protocol": "ATA"
+  },
+  "ata_smart_data": {
+   "offline_data_collection": {
+    "status": {
+     "value": 130,
+     "string": "was completed without error",
+     "passed": true
+    },
+    "completion_seconds": 567
+   },
+   "self_test": {
+    "status": {
+     "value": 249,
+     "string": "in progress, 90% remaining",
+     "remaining_percent": 90
+    },
+    "polling_minutes": {
+     "short": 1,
+     "extended": 1286,
+     "conveyance": 2
+    }
+   },
+   "capabilities": {
+    "values": [
+     123,
+     3
+    ],
+    "exec_offline_immediate_supported": true,
+    "offline_is_aborted_upon_new_cmd": false,
+    "offline_surface_scan_supported": true,
+    "self_tests_supported": true,
+    "conveyance_self_test_supported": true,
+    "selective_self_test_supported": true,
+    "attribute_autosave_enabled": true,
+    "error_logging_supported": true,
+    "gp_logging_supported": true
+   }
+  },
+  "power_on_time": {
+   "hours": 20513
+  },
+  "ata_smart_self_test_log": {
+   "standard": {
+    "revision": 1,
+    "table": [
+     {
+      "type": {
+       "value": 1,
+       "string": "Short offline"
+      },
+      "status": {
+       "value": 249,
+       "string": "Self-test routine in progress",
+       "remaining_percent": 90,
+       "passed": true
+      },
+      "lifetime_hours": 20513
+     }
+    ],
+    "count": 1,
+    "error_count_total": 0,
+    "error_count_outdated": 0
+   }
+  }
+ },
+ "running_later": {
+  "device": {
+   "name": "/dev/sde",
+   "info_name": "/dev/sde [SAT]",
+   "type": "sat",
+   "protocol": "ATA"
+  },
+  "ata_smart_data": {
+   "offline_data_collection": {
+    "status": {
+     "value": 130,
+     "string": "was completed without error",
+     "passed": true
+    },
+    "completion_seconds": 567
+   },
+   "self_test": {
+    "status": {
+     "value": 244,
+     "string": "in progress, 40% remaining",
+     "remaining_percent": 40
+    },
+    "polling_minutes": {
+     "short": 1,
+     "extended": 1286,
+     "conveyance": 2
+    }
+   },
+   "capabilities": {
+    "values": [
+     123,
+     3
+    ],
+    "exec_offline_immediate_supported": true,
+    "offline_is_aborted_upon_new_cmd": false,
+    "offline_surface_scan_supported": true,
+    "self_tests_supported": true,
+    "conveyance_self_test_supported": true,
+    "selective_self_test_supported": true,
+    "attribute_autosave_enabled": true,
+    "error_logging_supported": true,
+    "gp_logging_supported": true
+   }
+  },
+  "power_on_time": {
+   "hours": 20513
+  },
+  "ata_smart_self_test_log": {
+   "standard": {
+    "revision": 1,
+    "table": [
+     {
+      "type": {
+       "value": 1,
+       "string": "Short offline"
+      },
+      "status": {
+       "value": 244,
+       "string": "Self-test routine in progress",
+       "remaining_percent": 40,
+       "passed": true
+      },
+      "lifetime_hours": 20513
+     }
+    ],
+    "count": 1,
+    "error_count_total": 0,
+    "error_count_outdated": 0
+   }
+  }
+ },
+ "completed": {
+  "device": {
+   "name": "/dev/sde",
+   "info_name": "/dev/sde [SAT]",
+   "type": "sat",
+   "protocol": "ATA"
+  },
+  "ata_smart_data": {
+   "offline_data_collection": {
+    "status": {
+     "value": 130,
+     "string": "was completed without error",
+     "passed": true
+    },
+    "completion_seconds": 567
+   },
+   "self_test": {
+    "status": {
+     "value": 0,
+     "string": "completed without error",
+     "passed": true
+    },
+    "polling_minutes": {
+     "short": 1,
+     "extended": 1286,
+     "conveyance": 2
+    }
+   },
+   "capabilities": {
+    "values": [
+     123,
+     3
+    ],
+    "exec_offline_immediate_supported": true,
+    "offline_is_aborted_upon_new_cmd": false,
+    "offline_surface_scan_supported": true,
+    "self_tests_supported": true,
+    "conveyance_self_test_supported": true,
+    "selective_self_test_supported": true,
+    "attribute_autosave_enabled": true,
+    "error_logging_supported": true,
+    "gp_logging_supported": true
+   }
+  },
+  "power_on_time": {
+   "hours": 20513
+  },
+  "ata_smart_self_test_log": {
+   "standard": {
+    "revision": 1,
+    "table": [
+     {
+      "type": {
+       "value": 1,
+       "string": "Short offline"
+      },
+      "status": {
+       "value": 0,
+       "string": "Completed without error",
+       "passed": true
+      },
+      "lifetime_hours": 20513
+     }
+    ],
+    "count": 1,
+    "error_count_total": 0,
+    "error_count_outdated": 0
+   }
+  }
+ }
+}
