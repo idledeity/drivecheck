@@ -81,3 +81,9 @@ def test_every_operation_accepts_its_own_defaults():
     for key, op_cls in OPERATIONS.items():
         defaults = {p.name: p.default for p in op_cls.params}
         assert validate_params(op_cls.params, {}) == defaults, key
+
+
+def test_every_operation_param_has_a_tooltip():
+    discover()
+    missing = [f"{key}.{p.name}" for key, op_cls in OPERATIONS.items() for p in op_cls.params if not p.tooltip]
+    assert missing == []

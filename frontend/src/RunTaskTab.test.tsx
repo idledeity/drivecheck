@@ -185,4 +185,43 @@ describe('RunTaskTab', () => {
       expect(onRun).toHaveBeenCalled()
     })
   })
+
+  describe('param tooltips', () => {
+    const WITH_TIPS: OperationInfo = {
+      ...SLEEP_DEBUG,
+      params: [
+        { name: 'duration', label: 'Duration (seconds)', type: 'number', default: 10, min: 1, max: 120, tooltip: 'How long the job runs.' },
+        { name: 'fail', label: 'Fail partway through', type: 'boolean', default: false, min: null, max: null, tooltip: 'Fail halfway.' },
+      ],
+    }
+
+    async function renderTips() {
+      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([WITH_TIPS]))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Duration (seconds)')).toBeInTheDocument())
+    }
+
+    it('shows a param tooltip on hover', async () => {
+      await renderTips()
+      expect(screen.queryByText('How long the job runs.')).not.toBeInTheDocument()
+      await userEvent.hover(screen.getByLabelText('About Duration (seconds)'))
+      expect(screen.getByText('How long the job runs.')).toBeInTheDocument()
+      await userEvent.unhover(screen.getByLabelText('About Duration (seconds)'))
+      expect(screen.queryByText('How long the job runs.')).not.toBeInTheDocument()
+    })
+
+    it("tapping a boolean param's tooltip doesn't toggle its checkbox", async () => {
+      await renderTips()
+      await userEvent.click(screen.getByLabelText('About Fail partway through'))
+      expect(screen.getByText('Fail halfway.')).toBeInTheDocument()
+      expect(screen.getByRole('checkbox')).not.toBeChecked()
+    })
+
+    it('shows no icon for a param without a tooltip', async () => {
+      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Block size')).toBeInTheDocument())
+      expect(screen.queryByLabelText(/^About /)).not.toBeInTheDocument()
+    })
+  })
 })

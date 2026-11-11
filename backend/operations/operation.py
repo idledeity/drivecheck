@@ -52,6 +52,7 @@ class ParamSpec:
     default: object
     min: float | None = None
     max: float | None = None
+    tooltip: str | None = None  # longer explanation, shown on hover in the Run Task form
 
 
 class ParamError(ValueError):

@@ -23,11 +23,16 @@ class DDWriteTestOperation(DDOperation):
     verb = "written"
     summary_verb = "Wrote"
     params = [
-        ParamSpec(name="block_size",   label="Block size (bytes)",        type="number",  default=1048576, min=4096, max=16777216),
-        ParamSpec(name="count",        label="Block count (0 = all)",     type="number",  default=0, min=0),
-        ParamSpec(name="skip",         label="Skip blocks from start",    type="number",  default=0, min=0),
-        ParamSpec(name="conv_fsync",   label="Sync to disk when done",    type="boolean", default=True),
-        ParamSpec(name="oflag_direct", label="Direct I/O (bypass cache)", type="boolean", default=False),
+        ParamSpec(name="block_size",   label="Block size (bytes)",        type="number",  default=1048576, min=4096, max=16777216,
+                  tooltip="How much dd writes per request (bs=). Larger blocks are usually faster."),
+        ParamSpec(name="count",        label="Block count (0 = all)",     type="number",  default=0, min=0,
+                  tooltip="Number of blocks to write. 0 writes from the start offset to the exact end of the drive."),
+        ParamSpec(name="skip",         label="Skip blocks from start",    type="number",  default=0, min=0,
+                  tooltip="Blocks to leave untouched at the start of the drive before writing (seek=), in units of the block size."),
+        ParamSpec(name="conv_fsync",   label="Sync to disk when done",    type="boolean", default=True,
+                  tooltip="Flush everything to the drive before dd exits (conv=fsync), so the run only passes once the data is physically written, not just cached."),
+        ParamSpec(name="oflag_direct", label="Direct I/O (bypass cache)", type="boolean", default=False,
+                  tooltip="Write with O_DIRECT, bypassing the page cache (oflag=direct), so the reported speed is the drive's own rather than RAM's."),
     ]
 
     def _build_command(self, context: DriveContext, params: dict) -> list[str]:

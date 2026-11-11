@@ -86,8 +86,10 @@ class SecureEraseOperation(LoggedProcessOperation):
     program = "shred"
     destructive = True
     params = [
-        ParamSpec(name="passes",    label="Random overwrite passes", type="number",  default=1, min=1, max=7),
-        ParamSpec(name="zero_fill", label="Final zero-fill pass",    type="boolean", default=True),
+        ParamSpec(name="passes",    label="Random overwrite passes", type="number",  default=1, min=1, max=7,
+                  tooltip="Number of passes of random data shred writes over the whole drive (--iterations). One pass is enough for modern drives; more passes only add time."),
+        ParamSpec(name="zero_fill", label="Final zero-fill pass",    type="boolean", default=True,
+                  tooltip="After the random passes, overwrite the drive once more with zeros (--zero), leaving it blank rather than full of noise."),
     ]
 
     def __init__(self):

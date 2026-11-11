@@ -101,8 +101,10 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
     program = "badblocks"
     destructive = True
     params = [
-        ParamSpec(name="block_size", label="Block size (bytes)",  type="number",  default=4096, min=512, max=65536),
-        ParamSpec(name="passes",     label="Write/read passes",   type="number",  default=1, min=1, max=4),
+        ParamSpec(name="block_size", label="Block size (bytes)",  type="number",  default=4096, min=512, max=65536,
+                  tooltip="Block size badblocks tests in (-b). Match the drive's physical sector size (often 4096) for accurate bad-block numbers; larger sizes are also needed on very large drives, where badblocks can't count that many small blocks."),
+        ParamSpec(name="passes",     label="Write/read passes",   type="number",  default=1, min=1, max=4,
+                  tooltip="How many times to repeat the full test (-p). Each pass writes and reads back four patterns (0xaa, 0x55, 0xff, 0x00) over the whole drive, so a pass takes roughly eight full-drive passes of time."),
     ]
 
     def __init__(self):

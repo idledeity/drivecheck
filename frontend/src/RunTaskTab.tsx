@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
-import { IconPlayerPlay } from "@tabler/icons-react"
+import { IconInfoCircle, IconPlayerPlay } from "@tabler/icons-react"
 import type { Drive, OperationInfo, ParamSpec } from "./types"
 import { StubTab } from "./WorkspacePanel"
 import DestructiveConfirmDialog from "./DestructiveConfirmDialog"
+import HoverReveal from "./HoverReveal"
 import "./RunTaskTab.css"
 
 const CATEGORY_ORDER = ["Test", "Scan", "Maintenance", "Debug"]
@@ -151,6 +152,7 @@ function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: unknown
           onChange={e => onChange(e.target.checked)}
         />
         {spec.label}
+        <ParamTooltip spec={spec} />
       </label>
     )
   }
@@ -158,7 +160,7 @@ function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: unknown
   if (spec.type === "number") {
     return (
       <label className="rt-param">
-        <span className="rt-param-label">{spec.label}</span>
+        <span className="rt-param-label">{spec.label}<ParamTooltip spec={spec} /></span>
         <input
           type="number"
           value={value as number}
@@ -172,12 +174,21 @@ function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: unknown
 
   return (
     <label className="rt-param">
-      <span className="rt-param-label">{spec.label}</span>
+      <span className="rt-param-label">{spec.label}<ParamTooltip spec={spec} /></span>
       <input
         type="text"
         value={value as string}
         onChange={e => onChange(e.target.value)}
       />
     </label>
+  )
+}
+
+function ParamTooltip({ spec }: { spec: ParamSpec }) {
+  if (!spec.tooltip) return null
+  return (
+    <HoverReveal text={spec.tooltip}>
+      <IconInfoCircle size={12} className="cfg-tooltip-icon" aria-label={`About ${spec.label}`} />
+    </HoverReveal>
   )
 }

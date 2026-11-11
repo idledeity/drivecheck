@@ -134,6 +134,7 @@ export type ParamSpec = {
   default: unknown
   min: number | null
   max: number | null
+  tooltip?: string | null
 }
 
 export type OperationInfo = {

@@ -1,0 +1,33 @@
+.cfg-tooltip-anchor {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cfg-tooltip-icon {
+  color: var(--t4);
+  cursor: help;
+}
+.cfg-tooltip-anchor:hover .cfg-tooltip-icon { color: var(--t1); }
+
+.cfg-tooltip-bubble {
+  position: fixed;
+  background: var(--bi);
+  color: var(--t1);
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  width: max-content;
+  /* Wide enough for a few lines of explanation, never wider than the screen
+     (kept in step with MAX_WIDTH in HoverReveal.tsx). */
+  max-width: min(360px, calc(100vw - 24px));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 1000;
+}
+.cfg-tooltip-bubble-above { transform: translate(-50%, -100%); }
+.cfg-tooltip-bubble-below { transform: translate(-50%, 0); }
+.cfg-tooltip-bubble-mono  { font-family: ui-monospace, Consolas, monospace; }
