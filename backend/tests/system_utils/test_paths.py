@@ -4,11 +4,16 @@ from settings import cfg
 from system_utils import paths
 
 
+# Captured at import, before conftest's session-wide stray_data_dir backstop
+# replaces paths.data_dir — this file tests the real implementation.
+_REAL_DATA_DIR = paths.data_dir
+
+
 @pytest.fixture(autouse=True)
-def isolated_data_dir():
-    """Shadow conftest's autouse paths.data_dir monkeypatch — this file tests
-    the real implementation, so it must not be stubbed out."""
-    return None
+def isolated_data_dir(monkeypatch):
+    """Shadow conftest's autouse paths.data_dir monkeypatch and restore the real
+    implementation for these tests. They only compute paths, never write."""
+    monkeypatch.setattr(paths, "data_dir", _REAL_DATA_DIR)
 
 
 @pytest.fixture(autouse=True)
