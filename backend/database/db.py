@@ -102,7 +102,11 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at     TEXT NOT NULL,
     started_at     TEXT,
     finished_at    TEXT,
-    reattach_json  TEXT
+    reattach_json  TEXT,
+    -- Condensed SMART summaries around the run (see Job.smart_before/smart_after);
+    -- each one's snapshot_id references the full report in drive_raw_snapshots.
+    smart_before_json TEXT,
+    smart_after_json  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
@@ -148,6 +152,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     job_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     if "reattach_json" not in job_cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN reattach_json TEXT")
+    for col in ("smart_before_json", "smart_after_json"):
+        if col not in job_cols:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +285,14 @@ def record_raw_snapshot(guid: str, captured_at: str, probe: str, raw_json: str) 
         return cursor.lastrowid
 
 
+def get_raw_snapshot(snapshot_id: int) -> sqlite3.Row | None:
+    """Return one raw snapshot row by id, or None if it doesn't exist (e.g. pruned)."""
+    logger.debug("looking up raw snapshot %s", snapshot_id)
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute("SELECT * FROM drive_raw_snapshots WHERE id = ?", (snapshot_id,)).fetchone()
+
+
 def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
     """Return the most recent raw snapshot for a drive, or None if none recorded yet."""
     logger.debug("looking up latest raw snapshot for drive %s", guid)
@@ -296,12 +311,32 @@ def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
 _HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals", "drive_raw_snapshots")
 
 
-def prune_history(cutoff_iso: str) -> None:
-    """Delete time-series rows captured before cutoff_iso (ISO 8601 string)."""
-    logger.info("pruning history older than %s from %s", cutoff_iso, ", ".join(_HISTORY_TABLES))
+# Raw snapshots a job's SMART summary points at (see Job.smart_before/smart_after).
+_JOB_SNAPSHOT_IDS = """
+    SELECT json_extract(smart_before_json, '$.snapshot_id') FROM jobs
+     WHERE json_extract(smart_before_json, '$.snapshot_id') IS NOT NULL
+    UNION
+    SELECT json_extract(smart_after_json, '$.snapshot_id') FROM jobs
+     WHERE json_extract(smart_after_json, '$.snapshot_id') IS NOT NULL
+"""
+
+
+def prune_history(cutoff_iso: str, keep_job_snapshots: bool = True) -> None:
+    """Delete time-series rows captured before cutoff_iso (ISO 8601 string).
+
+    With keep_job_snapshots, raw snapshots referenced by a job are kept past
+    the cutoff, so a job's full before/after SMART reports don't expire.
+    """
+    logger.info(
+        "pruning history older than %s from %s%s", cutoff_iso, ", ".join(_HISTORY_TABLES),
+        " (keeping snapshots referenced by jobs)" if keep_job_snapshots else "",
+    )
     with _connection() as conn:
         for table in _HISTORY_TABLES:
-            deleted = conn.execute(f"DELETE FROM {table} WHERE captured_at < ?", (cutoff_iso,)).rowcount
+            sql = f"DELETE FROM {table} WHERE captured_at < ?"
+            if table == "drive_raw_snapshots" and keep_job_snapshots:
+                sql += f" AND id NOT IN ({_JOB_SNAPSHOT_IDS})"
+            deleted = conn.execute(sql, (cutoff_iso,)).rowcount
             logger.debug("pruned %d row(s) from %s", deleted, table)
 
 
@@ -339,8 +374,8 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
             INSERT OR REPLACE INTO jobs (
                 id, drive_guid, operation, category, params_json, status,
                 result_json, error, created_at, started_at, finished_at,
-                reattach_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reattach_json, smart_before_json, smart_after_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id, job.drive_guid, job.operation, job.category,
@@ -351,6 +386,8 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 job.started_at.isoformat() if job.started_at else None,
                 job.finished_at.isoformat() if job.finished_at else None,
                 json.dumps(reattach_data) if reattach_data is not None else None,
+                json.dumps(job.smart_before) if job.smart_before is not None else None,
+                json.dumps(job.smart_after) if job.smart_after is not None else None,
             ),
         )
 
@@ -368,7 +405,7 @@ def get_active_jobs() -> list[sqlite3.Row]:
 
 
 def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:
-    """Return a drive's terminal jobs, most recent first."""
+    """Return a drive's jobs, most recent first."""
     logger.debug("looking up job history for drive %s (limit=%d)", guid, limit)
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
@@ -376,3 +413,16 @@ def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:
             "SELECT * FROM jobs WHERE drive_guid = ? ORDER BY created_at DESC LIMIT ?",
             (guid, limit),
         ).fetchall()
+
+
+def get_job_smart(job_id: str) -> tuple[dict | None, dict | None] | None:
+    """Return a job's (smart_before, smart_after) summaries, or None if no such job.
+    Each summary's snapshot_id points at the full report in drive_raw_snapshots."""
+    logger.debug("looking up SMART snapshots for job %s", job_id[:8])
+    with _connection() as conn:
+        row = conn.execute(
+            "SELECT smart_before_json, smart_after_json FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return tuple(json.loads(v) if v else None for v in row)

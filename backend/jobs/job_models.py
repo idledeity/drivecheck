@@ -35,3 +35,10 @@ class Job:
     created_at: datetime = field(default_factory=datetime.now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    # Condensed SMART snapshots from just before the operation starts and just
+    # after it ends (any outcome), so a run's effect on the drive can be compared.
+    # Each is DriveCollector.capture_smart()'s summary: snapshot_id (the full
+    # report in drive_raw_snapshots), captured_at, signals, health, reused — or
+    # {"captured_at", "error"} if the capture failed.
+    smart_before: dict | None = None
+    smart_after: dict | None = None

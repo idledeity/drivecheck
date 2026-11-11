@@ -1,12 +1,15 @@
+import json
+import sqlite3
 import threading
 import time
+from datetime import datetime
 
 import pytest
 
 from database import db
 from drives.drive_models import DriveContext, DriveDescriptor
 from jobs import job_registry as job_registry_module
-from jobs.job_models import JobStatus
+from jobs.job_models import Job, JobStatus
 from jobs.job_registry import JobRegistry
 from operations.operation import OperationBase, OperationCancelled, ParamSpec
 
@@ -245,3 +248,124 @@ def test_get_progress_extrapolates_eta_from_percent_and_elapsed():
     assert progress.eta_seconds >= 0
     _ControllableOperation.instances[0].release()
     _wait_until(lambda: job.status == JobStatus.COMPLETED)
+
+
+# ---------------------------------------------------------------------------
+# SMART snapshots around a run
+# ---------------------------------------------------------------------------
+
+class _SmartRecorder:
+    """Stands in for DriveCollector.capture_smart, numbering each capture."""
+
+    def __init__(self, fail_on: int | None = None):
+        self.calls: list[str] = []
+        self.max_ages: list[float] = []
+        self._fail_on = fail_on
+
+    def __call__(self, guid, max_age):
+        self.calls.append(guid)
+        self.max_ages.append(max_age)
+        if self._fail_on == len(self.calls):
+            raise RuntimeError("smartctl went away")
+        return {"captured_at": f"t{len(self.calls)}", "signals": {"reallocated": len(self.calls) - 1}}
+
+
+def _make_smart_registry(recorder, guids=("d1",)):
+    contexts = {g: _context(g) for g in guids}
+    return JobRegistry(max_parallel=None, get_context=contexts.get, capture_smart=recorder)
+
+
+def _job_row(job_id):
+    with db._connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+
+
+def test_smart_before_is_taken_and_saved_before_the_operation_runs():
+    recorder = _SmartRecorder()
+    registry = _make_smart_registry(recorder)
+    [job] = registry.create_jobs(["d1"], "controllable", {})
+    op = _ControllableOperation.instances[0]
+    assert op.started.wait(2)
+    assert recorder.calls == ["d1"]
+    assert json.loads(_job_row(job.id)["smart_before_json"]) == {"captured_at": "t1", "signals": {"reallocated": 0}}
+    op.release()
+    _wait_until(lambda: job.status == JobStatus.COMPLETED)
+
+
+def test_smart_after_is_taken_once_the_run_ends_and_saved_with_it():
+    recorder = _SmartRecorder()
+    registry = _make_smart_registry(recorder)
+    [job] = registry.create_jobs(["d1"], "controllable", {})
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: _job_row(job.id)["status"] == JobStatus.COMPLETED.value)
+    row = _job_row(job.id)
+    assert json.loads(row["smart_after_json"]) == {"captured_at": "t2", "signals": {"reallocated": 1}}
+    assert json.loads(row["smart_before_json"])["captured_at"] == "t1"
+
+
+def test_before_may_reuse_a_recent_snapshot_but_after_never_does():
+    recorder = _SmartRecorder()
+    registry = _make_smart_registry(recorder)
+    [job] = registry.create_jobs(["d1"], "controllable", {})
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: _job_row(job.id)["status"] == JobStatus.COMPLETED.value)
+    assert recorder.max_ages == [300, 0]  # jobs.smart_snapshot_reuse_seconds default, then always new
+
+
+def test_smart_after_is_taken_for_a_failed_run_too():
+    recorder = _SmartRecorder()
+    registry = _make_smart_registry(recorder)
+    [job] = registry.create_jobs(["d1"], "controllable", {"fail": True})
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: _job_row(job.id)["status"] == JobStatus.FAILED.value)
+    assert json.loads(_job_row(job.id)["smart_after_json"])["captured_at"] == "t2"
+
+
+def test_a_failed_snapshot_is_recorded_and_does_not_fail_the_job():
+    recorder = _SmartRecorder(fail_on=1)
+    registry = _make_smart_registry(recorder)
+    [job] = registry.create_jobs(["d1"], "controllable", {})
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: _job_row(job.id)["status"] == JobStatus.COMPLETED.value)
+    before = json.loads(_job_row(job.id)["smart_before_json"])
+    assert before["error"] == "smartctl went away"
+
+
+def test_no_snapshots_without_a_capture_function():
+    registry = _make_registry(guids=("d1",))
+    [job] = registry.create_jobs(["d1"], "controllable", {})
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: _job_row(job.id)["status"] == JobStatus.COMPLETED.value)
+    row = _job_row(job.id)
+    assert row["smart_before_json"] is None and row["smart_after_json"] is None
+
+
+def _saved_running_job(job_id, smart_before):
+    db.record_job(Job(
+        id=job_id, drive_guid="d1", operation="controllable", category="Test", params={},
+        status=JobStatus.RUNNING, started_at=datetime.now(), smart_before=smart_before,
+    ), {"pid": 1})
+
+
+def test_recovery_keeps_the_saved_before_snapshot_and_does_not_retake_it():
+    # The fake operation can't reattach, so the job ends INTERRUPTED — what
+    # matters here is that the pre-restart snapshot survives that path.
+    _saved_running_job("job-r", {"captured_at": "before-restart", "signals": {"reallocated": 0}})
+    recorder = _SmartRecorder()
+    registry = _make_smart_registry(recorder)
+    registry.recover()
+    _wait_until(lambda: _job_row("job-r")["status"] == JobStatus.INTERRUPTED.value)
+    row = _job_row("job-r")
+    assert json.loads(row["smart_before_json"])["captured_at"] == "before-restart"
+    assert json.loads(row["smart_after_json"])["captured_at"] == "t1"  # only the after was taken
+    assert recorder.calls == ["d1"]
+
+
+def test_marking_a_missing_drive_interrupted_keeps_the_before_snapshot():
+    _saved_running_job("job-m", {"captured_at": "before-restart", "signals": {}})
+    registry = JobRegistry(max_parallel=None, get_context=lambda _g: None, capture_smart=_SmartRecorder())
+    registry.recover()
+    row = _job_row("job-m")
+    assert row["status"] == JobStatus.INTERRUPTED.value
+    assert json.loads(row["smart_before_json"])["captured_at"] == "before-restart"

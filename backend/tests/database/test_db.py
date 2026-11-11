@@ -142,3 +142,72 @@ def test_get_job_history_respects_limit_and_ordering():
         ))
     history = db.get_job_history("guid-1", limit=2)
     assert [row["id"] for row in history] == ["job-2", "job-1"]
+
+
+# ---------------------------------------------------------------------------
+# Job SMART snapshots
+# ---------------------------------------------------------------------------
+
+_BEFORE = {"snapshot_id": 7, "captured_at": "2026-01-01T00:00:00", "signals": {"reallocated": 0},
+           "health": {"health_pct": 100, "health_status": "Healthy"}, "reused": False}
+_AFTER_FAILED = {"captured_at": "2026-01-01T05:00:00", "error": "smartctl timed out"}
+
+
+def _job_with_snapshots(before=_BEFORE, after=_AFTER_FAILED, job_id="job-s"):
+    return Job(
+        id=job_id, drive_guid="guid-1", operation="dd_read_test", category="Scan", params={},
+        status=JobStatus.COMPLETED, created_at=datetime(2026, 1, 1),
+        smart_before=before, smart_after=after,
+    )
+
+
+def test_get_job_smart_returns_the_summaries():
+    db.record_job(_job_with_snapshots())
+    assert db.get_job_smart("job-s") == (_BEFORE, _AFTER_FAILED)
+    assert db.get_job_smart("no-such-job") is None
+
+
+def test_job_history_rows_carry_the_summaries():
+    db.record_job(_job_with_snapshots())
+    [row] = db.get_job_history("guid-1")
+    assert row["smart_before_json"] is not None and row["smart_after_json"] is not None
+
+
+def test_get_raw_snapshot_by_id():
+    snapshot_id = db.record_raw_snapshot("guid-1", "2026-01-01T00:00:00", "smartctl_telemetry", '{"a": 1}')
+    assert db.get_raw_snapshot(snapshot_id)["raw_json"] == '{"a": 1}'
+    assert db.get_raw_snapshot(snapshot_id + 1000) is None
+
+
+def _old_snapshots():
+    """Two raw snapshots past the cutoff; only the first is referenced by a job."""
+    referenced = db.record_raw_snapshot("guid-1", "2025-01-01T00:00:00", "smartctl_telemetry", "{}")
+    unreferenced = db.record_raw_snapshot("guid-1", "2025-01-02T00:00:00", "smartctl_telemetry", "{}")
+    db.record_job(_job_with_snapshots(before={**_BEFORE, "snapshot_id": referenced}, after=None))
+    return referenced, unreferenced
+
+
+def test_prune_keeps_snapshots_referenced_by_jobs():
+    referenced, unreferenced = _old_snapshots()
+    db.prune_history("2026-01-01T00:00:00", keep_job_snapshots=True)
+    assert db.get_raw_snapshot(referenced) is not None
+    assert db.get_raw_snapshot(unreferenced) is None
+
+
+def test_prune_can_let_job_snapshots_expire_with_the_rest():
+    referenced, unreferenced = _old_snapshots()
+    db.prune_history("2026-01-01T00:00:00", keep_job_snapshots=False)
+    assert db.get_raw_snapshot(referenced) is None
+    assert db.get_raw_snapshot(unreferenced) is None
+    assert db.get_job_smart("job-s")[0]["signals"] == {"reallocated": 0}  # condensed values survive
+
+
+def test_migration_adds_snapshot_columns_to_an_existing_jobs_table(isolated_data_dir):
+    with db._connection() as conn:
+        conn.execute("DROP TABLE jobs")
+        conn.execute("""CREATE TABLE jobs (id TEXT PRIMARY KEY, drive_guid TEXT NOT NULL, operation TEXT NOT NULL,
+                        category TEXT NOT NULL, params_json TEXT NOT NULL, status TEXT NOT NULL, result_json TEXT,
+                        error TEXT, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, reattach_json TEXT)""")
+    db.init()
+    db.record_job(_job_with_snapshots())
+    assert db.get_job_smart("job-s") == (_BEFORE, _AFTER_FAILED)

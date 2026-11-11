@@ -68,6 +68,14 @@ cfg.register("collector.keep_history_days",
     section="Collector", description="Days of time-series history to retain before pruning.",
     min=1, max=3650, restart_required=True,
 )
+cfg.register("collector.keep_job_snapshots",
+    default=True, type="bool", label="Keep job SMART snapshots",
+    section="Collector",
+    description="Keep the full SMART reports taken before and after each job past the history "
+                "retention window. Off: they are pruned with the rest of the history (the job keeps "
+                "its condensed before/after values either way).",
+    restart_required=False,
+)
 cfg.register("collector.max_workers",
     default=4, type="int", label="Worker threads",
     section="Collector", description="Thread pool size for per-drive channel polling.",
@@ -174,6 +182,9 @@ class Collector:
         self._keep_history_days = keep_history_days
         self._probe_timeout = probe_timeout
         self._drive_states: dict[str, DriveState] = {}
+        # Latest saved raw snapshot summary per drive (scheduled or forced), so a
+        # job can reuse a recent one instead of forcing a poll (see capture_smart).
+        self._latest_snapshots: dict[str, dict] = {}
         self._phase_fractions: dict[str, float] = {}
         self._scan_due: float = time.time()
         # Initialized lazily on the first tick, from db.get_last_pruned_at() — db.init()
@@ -246,6 +257,41 @@ class Collector:
         with self._lock:
             state = self._drive_states.get(guid)
             return state.context if state else None
+
+    def capture_smart(self, guid: str, max_age_seconds: float = 0) -> dict | None:
+        """Return a SMART snapshot summary for a drive, for recording on a job.
+
+        Reuses the drive's latest saved snapshot if it is at most max_age_seconds
+        old (e.g. the previous queued job's "after"); otherwise forces a telemetry
+        poll — the same path as a scheduled one, so it also lands in the signal
+        history and refreshes the live state — and saves its raw report.
+
+        Returns {snapshot_id, captured_at, signals, health, reused}, where
+        snapshot_id references the full report in drive_raw_snapshots. Returns
+        None if the drive is unknown. A failed poll comes back as
+        {"captured_at", "error"} rather than raising, so a failed capture never
+        fails the job it belongs to.
+        """
+        with self._lock:
+            state = self._drive_states.get(guid)
+            latest = self._latest_snapshots.get(guid)
+        if state is None:
+            logger.debug("capture_smart: unknown drive %s", guid)
+            return None
+        if max_age_seconds > 0 and latest is not None:
+            age = datetime.now() - datetime.fromisoformat(latest["captured_at"])
+            if age.total_seconds() <= max_age_seconds:
+                logger.debug("capture_smart: reusing snapshot %s for %s (%.0fs old)",
+                             latest["snapshot_id"], guid, age.total_seconds())
+                return {**latest, "reused": True}
+        try:
+            with ProbeTimeout(self._probe_timeout):
+                snapshot = self._run_telemetry(state, time.time())
+            summary = self._save_snapshot(state, snapshot)
+        except Exception as e:
+            logger.warning("SMART capture for %s failed: %s", state.context.descriptor.info_name, e)
+            return {"captured_at": datetime.now().isoformat(), "error": str(e) or type(e).__name__}
+        return {**summary, "reused": False}
 
     def set_drive_label(self, guid: str, label: str | None) -> bool:
         """Update a drive's user-assigned label. Returns False if the drive is unknown."""
@@ -340,7 +386,7 @@ class Collector:
 
         if now >= self._prune_due:
             cutoff = datetime.fromtimestamp(now - self._keep_history_days * 86400).isoformat()
-            db.prune_history(cutoff)
+            db.prune_history(cutoff, keep_job_snapshots=cfg.get("collector.keep_job_snapshots"))
             db.set_last_pruned_at(datetime.fromtimestamp(now).isoformat())
             self._prune_due = now + _PRUNE_INTERVAL
 
@@ -432,7 +478,7 @@ class Collector:
             descriptors.extend(probe.run())
         self._reconcile_descriptors(descriptors, now)
 
-    def _run_telemetry(self, state: DriveState, now: float) -> None:
+    def _run_telemetry(self, state: DriveState, now: float) -> DriveSnapshot:
         """Run the telemetry probe chain for a drive and record signals + heartbeat."""
         snapshot = DriveSnapshot()
         for probe in self._telemetry_probes:
@@ -443,6 +489,7 @@ class Collector:
         captured_at = snapshot.telemetry.last_polled_at.isoformat()
         db.record_signals(state.context.guid, captured_at, asdict(snapshot.telemetry.signals))
         db.record_heartbeat(state.context.guid, captured_at, snapshot.telemetry.signals.temp)
+        return snapshot
 
     def _run_snapshot(self, state: DriveState, now: float) -> None:
         """Persist the most recent telemetry run's raw probe output, if any."""
@@ -455,10 +502,24 @@ class Collector:
                 with self._lock:
                     self._schedules[state.context.guid]["snapshot"] = now + 5
             return
-        captured_at = state.snapshot.telemetry.last_polled_at.isoformat()
-        db.record_raw_snapshot(
-            state.context.guid, captured_at, "smartctl_telemetry", json.dumps(state.snapshot.extras)
+        self._save_snapshot(state, state.snapshot)
+
+    def _save_snapshot(self, state: DriveState, snapshot: DriveSnapshot) -> dict:
+        """Persist a telemetry run's raw report and remember it as the drive's
+        latest snapshot (see capture_smart). Returns its summary."""
+        captured_at = snapshot.telemetry.last_polled_at.isoformat()
+        snapshot_id = db.record_raw_snapshot(
+            state.context.guid, captured_at, "smartctl_telemetry", json.dumps(snapshot.extras)
         )
+        summary = {
+            "snapshot_id": snapshot_id,
+            "captured_at": captured_at,
+            "signals": asdict(snapshot.telemetry.signals),
+            "health": {"health_pct": snapshot.health.health_pct, "health_status": snapshot.health.health_status},
+        }
+        with self._lock:
+            self._latest_snapshots[state.context.guid] = summary
+        return summary
 
     def _run_traits_chain(self, descriptor: DriveDescriptor, base: DriveTraits) -> DriveTraits:
         """Run the traits probe chain against descriptor, merging results onto base.

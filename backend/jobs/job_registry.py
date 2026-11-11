@@ -46,10 +46,33 @@ cfg.register("jobs.max_parallel",
 )
 
 
+def _json_or_none(text: str | None):
+    return json.loads(text) if text else None
+
+
+cfg.register("jobs.smart_snapshot_reuse_seconds",
+    default=300, type="int", label="SMART snapshot reuse window",
+    section="Jobs",
+    description="Seconds a drive's latest saved SMART snapshot counts as fresh enough to be a job's "
+                "\"before\" snapshot instead of taking a new one — e.g. the previous queued job's "
+                "\"after\". 0 always takes a new one. The \"after\" snapshot is always new.",
+    min=0, max=86400, restart_required=False,
+)
+
+
 class JobRegistry:
-    def __init__(self, max_parallel: int | None, get_context: Callable[[str], DriveContext | None]):
+    def __init__(
+        self,
+        max_parallel: int | None,
+        get_context: Callable[[str], DriveContext | None],
+        capture_smart: Callable[[str, float], dict | None] | None = None,
+    ):
         self._max_parallel = max_parallel or None  # treat 0 the same as None/missing
         self._get_context = get_context
+        # Returns a SMART snapshot summary for a drive, reusing a saved one up to
+        # max_age seconds old (DriveCollector.capture_smart). Called just before
+        # and just after each run; None disables snapshots.
+        self._capture_smart = capture_smart
         self._jobs: dict[str, Job] = {}
         self._instances: dict[str, OperationBase] = {}
         self._pending: list[str] = []     # job ids, FIFO
@@ -59,13 +82,17 @@ class JobRegistry:
         self._shutting_down = False
 
     @classmethod
-    def from_config(cls, get_context: Callable[[str], DriveContext | None]) -> "JobRegistry":
+    def from_config(
+        cls,
+        get_context: Callable[[str], DriveContext | None],
+        capture_smart: Callable[[str, float], dict | None] | None = None,
+    ) -> "JobRegistry":
         """Construct a JobRegistry from the registered jobs.max_parallel cfg value.
 
         restart_required — there's no live on_changed path, so reading it
         once here at startup is sufficient.
         """
-        return cls(max_parallel=cfg.get("jobs.max_parallel"), get_context=get_context)
+        return cls(max_parallel=cfg.get("jobs.max_parallel"), get_context=get_context, capture_smart=capture_smart)
 
     # ---------------------------------------------------------------------------
     # Public API
@@ -144,6 +171,7 @@ class JobRegistry:
                     row["category"], row["params_json"],
                     row["created_at"], row["started_at"],
                     "Unexpected error during recovery",
+                    smart_before_json=row["smart_before_json"],
                 )
                 interrupted_immediately += 1
 
@@ -220,6 +248,23 @@ class JobRegistry:
     # Internal helpers
     # ---------------------------------------------------------------------------
 
+    def _snapshot(self, job: Job, when: str) -> dict | None:
+        """Take a SMART snapshot for a job. Never raises: a failed capture is
+        recorded as {"captured_at", "error"} so it can't fail the job itself."""
+        if self._capture_smart is None:
+            return None
+        # "after" must reflect the run, so it is always new; "before" may reuse a
+        # recent one (typically the previous queued job's "after").
+        max_age = cfg.get("jobs.smart_snapshot_reuse_seconds") if when == "before" else 0
+        try:
+            snapshot = self._capture_smart(job.drive_guid, max_age)
+        except Exception as e:
+            logger.warning("job %s: SMART snapshot %s the run failed: %s", job.id[:8], when, e)
+            return {"captured_at": datetime.now().isoformat(), "error": str(e) or type(e).__name__}
+        logger.debug("job %s: SMART snapshot %s the run: %s", job.id[:8], when,
+                     "reused" if (snapshot or {}).get("reused") else "taken")
+        return snapshot
+
     def _prepare_instance(self, instance: OperationBase, job: Job) -> None:
         """Wire job-id and the reattach-persist callback onto a fresh operation instance."""
         instance._job_id = job.id
@@ -264,6 +309,10 @@ class JobRegistry:
         try:
             if context is None:
                 raise RuntimeError("drive no longer present")
+            if reattach_data is None and job.smart_before is None:
+                # Not on reattach: the snapshot from before the restart is already saved.
+                job.smart_before = self._snapshot(job, "before")
+                db.record_job(job, instance.get_reattach_data())
             if reattach_data is not None:
                 job.result = instance.reattach(context, job.params, reattach_data)
             else:
@@ -282,6 +331,8 @@ class JobRegistry:
             job.error = str(e)
             logger.warning("job %s failed: %s — %s", job.id[:8], job.operation, e)
         job.finished_at = datetime.now()
+        if context is not None and not self._shutting_down:
+            job.smart_after = self._snapshot(job, "after")
 
         with self._lock:
             self._running.discard(job.drive_guid)
@@ -302,6 +353,7 @@ class JobRegistry:
                 row["category"], row["params_json"],
                 row["created_at"], row["started_at"],
                 f"Operation '{row['operation']}' is no longer available",
+                smart_before_json=row["smart_before_json"],
             )
             return
 
@@ -313,6 +365,7 @@ class JobRegistry:
                 row["category"], row["params_json"],
                 row["created_at"], row["started_at"],
                 "Drive not present after restart",
+                smart_before_json=row["smart_before_json"],
             )
             return
 
@@ -325,6 +378,7 @@ class JobRegistry:
             status=JobStatus(row["status"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+            smart_before=_json_or_none(row["smart_before_json"]),
         )
 
         instance = op_cls()
@@ -357,6 +411,7 @@ class JobRegistry:
         created_at_iso: str,
         started_at_iso: str | None,
         error_message: str,
+        smart_before_json: str | None = None,
     ) -> None:
         """Write an INTERRUPTED terminal record for a job that can't be reconstructed."""
         job = Job(
@@ -370,5 +425,6 @@ class JobRegistry:
             created_at=datetime.fromisoformat(created_at_iso),
             started_at=datetime.fromisoformat(started_at_iso) if started_at_iso else None,
             finished_at=datetime.now(),
+            smart_before=_json_or_none(smart_before_json),
         )
         db.record_job(job)

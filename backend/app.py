@@ -20,6 +20,7 @@ from drives.collector import probe_registry
 from operations.operation_registry import OPERATIONS, discover as discover_operations
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
+from analysis.smart_delta import compare_signals
 from database import db
 from settings import user_settings
 
@@ -56,13 +57,26 @@ discover_operations()
 probe_registry.discover()
 
 collector = Collector.from_config()
-job_registry = JobRegistry.from_config(get_context=collector.get_drive_context)
+job_registry = JobRegistry.from_config(
+    get_context=collector.get_drive_context,
+    capture_smart=collector.capture_smart,
+)
 
 app = Flask(__name__)
 # Generous for a single probe file plus multipart overhead — no other
 # endpoint needs a request body anywhere near this size. Flask returns 413
 # automatically for anything larger, before the body is even fully read.
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
+
+
+def _smart_summary(before: dict | None, after: dict | None) -> dict:
+    """A job's condensed before/after SMART summaries plus their comparison.
+    The full reports are fetched separately via GET /api/jobs/<id>/smart."""
+    return {
+        "before": before,
+        "after": after,
+        "comparison": compare_signals((before or {}).get("signals"), (after or {}).get("signals")),
+    }
 
 
 def _job_to_dict(job):
@@ -81,6 +95,7 @@ def _job_to_dict(job):
         "created_at": job.created_at.isoformat(),
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "smart": _smart_summary(job.smart_before, job.smart_after),
     }
 
 
@@ -255,7 +270,12 @@ def _history_row_to_dict(row):
         "created_at": row["created_at"],
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
+        "smart": _smart_summary(_json_or_none(row["smart_before_json"]), _json_or_none(row["smart_after_json"])),
     }
+
+
+def _json_or_none(text):
+    return json.loads(text) if text else None
 
 
 @app.route("/api/jobs/history")
@@ -293,6 +313,30 @@ def create_jobs():
     if jobs is None:
         return jsonify({"error": "unknown operation"}), 404
     return jsonify([_job_to_dict(j) for j in jobs]), 201
+
+
+def _full_report(summary: dict | None) -> dict | None:
+    """The full raw SMART report a summary points at, or None if there is none
+    (capture failed) or it was pruned (collector.keep_job_snapshots off)."""
+    snapshot_id = (summary or {}).get("snapshot_id")
+    if snapshot_id is None:
+        return None
+    row = db.get_raw_snapshot(snapshot_id)
+    return json.loads(row["raw_json"]) if row else None
+
+
+@app.route("/api/jobs/<job_id>/smart")
+def job_smart(job_id):
+    """A job's before/after SMART summaries, comparison, and full reports
+    (smart_attributes, self_test_log, raw smartctl -a JSON)."""
+    summaries = db.get_job_smart(job_id)
+    if summaries is None:
+        return jsonify({"error": "unknown job"}), 404
+    before, after = summaries
+    return jsonify({
+        **_smart_summary(before, after),
+        "reports": {"before": _full_report(before), "after": _full_report(after)},
+    })
 
 
 @app.route("/api/jobs/<job_id>/cancel", methods=["POST"])
