@@ -47,7 +47,7 @@ def _write_log(tmp_path, data: bytes):
     return path
 
 
-def _reattached(log_path, patterns_done=0, passes=1):
+def _reattached(log_path, passes=1):
     proc = subprocess.Popen(["true"])
     proc.wait()
     op = BadblocksWriteTestOperation()
@@ -55,7 +55,6 @@ def _reattached(log_path, patterns_done=0, passes=1):
     op._pid = proc.pid
     op._device = DEVICE
     op._log_path = log_path
-    op._patterns_done = patterns_done
     op._passes = passes
     return op
 
@@ -116,7 +115,7 @@ def test_reattached_bad_blocks_from_before_restart_still_fail(tmp_path):
     # pass 2 after it. Only the clean pass is in the tail we watched.
     log = HEADER + _pass(5)
     path = _write_log(tmp_path, log)
-    op = _reattached(path, patterns_done=4)
+    op = _reattached(path)
     with open(path, "ab") as f:
         f.write(_pass(0))
     with pytest.raises(RuntimeError, match="5 bad block"):
@@ -147,7 +146,7 @@ _PARAMS = {"block_size": 4096, "passes": 1}
 def _reattach_data(log_path):
     proc = subprocess.Popen(["true"])
     proc.wait()
-    return {"pid": proc.pid, "log_path": str(log_path), "device": DEVICE, "patterns_done": 0}
+    return {"pid": proc.pid, "log_path": str(log_path), "device": DEVICE}
 
 
 def test_finished_clean_during_downtime_recovers_pass(tmp_path):
@@ -193,3 +192,68 @@ def test_real_badblocks_run_on_a_clean_file_passes(tmp_path, monkeypatch):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, previous)
     assert result == {"device": str(img), "bad_blocks": 0, "passes": 1}
+
+
+# ---------------------------------------------------------------------------
+# Progress — fed the real log, so the phase structure is badblocks' own
+# ---------------------------------------------------------------------------
+
+# Log up to "25.33% done" in the 0x55 write phase (the 3rd of 8 phases).
+_P55 = _pattern("0x55")
+MID_0X55_WRITE = HEADER + _pattern("0xaa") + _P55[:_P55.index(b"25.33% done") + len(b"25.33% done")]
+
+def _progress_while_feeding(op, data: bytes, chunk_size: int) -> list[float]:
+    seen = []
+    for i in range(0, len(data), chunk_size):
+        op._on_log_bytes(data[i:i + chunk_size])
+        if op._percent is not None:
+            seen.append(op._percent)
+    return seen
+
+
+def test_progress_rises_steadily_through_all_eight_phases():
+    op = BadblocksWriteTestOperation()
+    seen = _progress_while_feeding(op, REAL_LOG, chunk_size=40)
+    assert seen == sorted(seen), "progress went backwards"
+    assert seen[-1] > 85  # last phase reached 94.67%: (7 * 100 + 94.67) / 8
+    assert seen[-1] <= 99.0
+    assert op._phases_started == 8
+
+
+def test_progress_is_the_same_however_the_log_is_chunked():
+    whole = BadblocksWriteTestOperation()
+    whole._on_log_bytes(REAL_LOG)
+    bytewise = BadblocksWriteTestOperation()
+    _progress_while_feeding(bytewise, REAL_LOG, chunk_size=1)
+    assert (bytewise._percent, bytewise._message) == (whole._percent, whole._message)
+
+
+def test_progress_message_names_pass_pattern_and_phase():
+    op = BadblocksWriteTestOperation()
+    op._on_log_bytes(MID_0X55_WRITE)
+    # 0x55's write phase is the 3rd phase: 2 done + 25.33% of the 3rd, over 8.
+    assert op._message == "pass 1/1 · 0x55 write · 25.3%"
+    assert op._percent == round((2 * 100 + 25.33) / 8, 1)
+
+
+def test_progress_counts_across_passes():
+    op = BadblocksWriteTestOperation()
+    op._passes = 2
+    op._on_log_bytes(HEADER + _pass(0) + _pattern("0xaa")[:200])
+    assert op._message.startswith("pass 2/2 · 0xaa write")
+    assert 50 <= op._percent < 60
+
+
+def test_progress_marks_repeat_passes_and_stays_below_100():
+    op = BadblocksWriteTestOperation()
+    op._on_log_bytes(HEADER + _pass(3) + _pass(0))  # -p 1 repeated after finding bad blocks
+    assert op._message.startswith("pass 2 (repeat after bad blocks)")
+    assert op._percent == 99.0
+
+
+def test_reattach_rebuilds_progress_from_the_whole_log(tmp_path):
+    path = _write_log(tmp_path, MID_0X55_WRITE)
+    op = BadblocksWriteTestOperation()
+    op._log_path = path
+    op._restore_reattach_data({})
+    assert op._message == "pass 1/1 · 0x55 write · 25.3%"

@@ -36,18 +36,23 @@ from pathlib import Path
 
 from drives.drive_models import DriveContext
 from operations.logged_process import LoggedProcessOperation
-from operations.operation import ParamSpec, ReattachFailed
+from operations.operation import ParamSpec
 
 logger = logging.getLogger(__name__)
 
-# Matches "X.XX% done" anywhere in the raw byte buffer (including amid \b sequences)
-_PERCENT_RE = re.compile(rb"(\d+\.\d+)% done")
-# Matches the current pattern name, e.g. "Testing with pattern 0xaa:"
-_PATTERN_RE = re.compile(rb"Testing with pattern (0x[0-9a-fA-F]+):")
+# Progress events, in the order badblocks prints them. Each pass has 8 phases
+# (write + read/compare for each of 4 patterns) and each phase counts 0-100%.
+_PROGRESS_EVENT_RE = re.compile(
+    rb"Testing with pattern (?P<pattern>0x[0-9a-fA-F]+):"   # write phase starts
+    rb"|(?P<readback>Reading and comparing:)"               # read/compare phase starts
+    rb"|(?P<pct>\d+\.\d+)% done"                            # progress within the phase
+)
 # Matches "Pass completed, N bad blocks found." on stderr at end of each pass
 _DONE_RE = re.compile(rb"Pass completed,\s+(\d+) bad block")
 
-_PATTERNS_PER_PASS = 4  # badblocks -w cycles through 4 patterns per pass
+_PHASES_PER_PASS = 8  # 4 patterns × (write + read/compare)
+# Longest event text; a chunk tail this long may hold an event split across reads.
+_EVENT_CARRY_BYTES = 64
 
 _SBIN_PATH = "/usr/sbin:/usr/local/sbin:/sbin"
 
@@ -103,14 +108,14 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
     def __init__(self):
         super().__init__()
         self._passes = 1
-        self._patterns_done = 0
-        self._total_patterns = _PATTERNS_PER_PASS
+        self._phases_started = 0
+        self._phase_pct = 0.0
+        self._phase_label = ""      # e.g. "0x55 write" | "0x55 read-back"
         self._current_pattern: str | None = None
-        self._progress_buf = b""
+        self._progress_carry = b""
 
     def _configure(self, context: DriveContext, params: dict) -> None:
         self._passes = int(params["passes"])
-        self._total_patterns = self._passes * _PATTERNS_PER_PASS
 
     def _build_command(self, context: DriveContext, params: dict) -> list[str]:
         return [
@@ -125,37 +130,53 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
         ]
 
     def _on_log_bytes(self, chunk: bytes) -> None:
-        buf = self._progress_buf + chunk
+        """Track the current phase and its percentage from badblocks' progress output.
 
-        for m in _PATTERN_RE.finditer(buf):
-            self._current_pattern = m.group(1).decode("ascii")
+        Events are handled in order; the unmatched tail after the last one is
+        carried into the next chunk so an event split across reads is seen once.
+        """
+        buf = self._progress_carry + chunk
+        last_end = 0
+        for m in _PROGRESS_EVENT_RE.finditer(buf):
+            last_end = m.end()
+            if m.group("pattern"):
+                self._current_pattern = m.group("pattern").decode("ascii")
+                self._start_phase("write")
+            elif m.group("readback"):
+                self._start_phase("read-back")
+            else:
+                self._phase_pct = float(m.group("pct"))
+        self._progress_carry = buf[max(last_end, len(buf) - _EVENT_CARRY_BYTES):]
+        if self._phases_started:
+            self._update_progress()
 
-        last_pct = None
-        for m in _PERCENT_RE.finditer(buf):
-            last_pct = float(m.group(1))
-        if last_pct is not None:
-            global_pct = (self._patterns_done * 100 + last_pct) / self._total_patterns
-            self._percent = round(global_pct, 1)
-            pattern_label = f"pattern {self._current_pattern}: " if self._current_pattern else ""
-            self._message = f"{pattern_label}{last_pct:.2f}% done"
+    def _start_phase(self, kind: str) -> None:
+        self._phases_started += 1
+        self._phase_pct = 0.0
+        self._phase_label = f"{self._current_pattern or '?'} {kind}"
 
-        m = _DONE_RE.search(buf)
-        if m:
-            self._patterns_done += _PATTERNS_PER_PASS
-            self._save_reattach()
-            buf = buf[m.end():]
-        elif len(buf) > 16384:
-            buf = buf[-8192:]
-        self._progress_buf = buf
-
-    def _extra_reattach_data(self) -> dict:
-        return {"patterns_done": self._patterns_done}
+    def _update_progress(self) -> None:
+        phases_done = self._phases_started - 1
+        total_phases = self._passes * _PHASES_PER_PASS
+        # Capped below 100 until the verdict: badblocks repeats passes after
+        # finding bad blocks (-p), so it can run past the requested count.
+        self._percent = round(min(99.0, (phases_done * 100 + self._phase_pct) / total_phases), 1)
+        current_pass = phases_done // _PHASES_PER_PASS + 1
+        pass_label = (
+            f"pass {current_pass}/{self._passes}" if current_pass <= self._passes
+            else f"pass {current_pass} (repeat after bad blocks)"
+        )
+        self._message = f"{pass_label} · {self._phase_label} · {self._phase_pct:.1f}%"
 
     def _restore_reattach_data(self, reattach_data: dict) -> None:
+        # Rebuild the progress position from everything logged so far; the base
+        # class then follows only what is written after the restart.
         try:
-            self._patterns_done = int(reattach_data.get("patterns_done", 0))
-        except (TypeError, ValueError) as e:
-            raise ReattachFailed(f"incomplete reattach data: {e}") from e
+            with open(self._log_path, "rb") as f:
+                while chunk := f.read(1 << 20):
+                    self._on_log_bytes(chunk)
+        except OSError:
+            pass
 
     def _finished_in_log(self) -> bool:
         # Finished all requested passes, or got far enough to report bad blocks
