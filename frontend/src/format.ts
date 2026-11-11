@@ -1,3 +1,5 @@
+import type { Job } from "./types"
+
 export function formatCapacity(bytes: number | null): string {
   if (bytes === null) return "—"
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(0)} TB`
@@ -49,4 +51,16 @@ export function formatTimestamp(isoTimestamp: string): string {
 export function humanizeKey(key: string): string {
   const words = key.replace(/_/g, " ")
   return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+// The one-line outcome shown as "Result" for every job.
+export function jobResultText(job: Job): string {
+  switch (job.status) {
+    case "completed":   return job.summary ?? "Completed"
+    case "failed":      return job.error ?? "Failed"
+    case "interrupted": return job.error ?? "Interrupted by a backend restart"
+    case "cancelled":   return "Cancelled before it finished"
+    case "running":     return job.progress.message ?? "In progress"
+    case "queued":      return "Waiting to start"
+  }
 }

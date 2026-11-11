@@ -94,6 +94,11 @@ class SecureEraseOperation(LoggedProcessOperation):
         super().__init__()
         self._total_passes = 1
 
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        passes = result["total_passes"]
+        return f"Erased in {passes} pass{'es' if passes != 1 else ''}"
+
     def _configure(self, context: DriveContext, params: dict) -> None:
         self._total_passes = int(params["passes"]) + (1 if bool(params["zero_fill"]) else 0)
 

@@ -15,12 +15,16 @@ WORSENING_COUNTERS = ("reallocated", "pending", "uncorrected", "crc_errors", "re
 
 
 def compare_signals(before: dict | None, after: dict | None) -> dict | None:
-    """Return {"changes": {signal: {"before", "after", "change"}}, "worsened": [...]}.
+    """Return {"changes": {signal: {"before", "after", "change"}}, "worsened": [...],
+    "uncompared": [...]}.
 
     `changes` lists every signal present in either snapshot; `change` is
     after - before for numeric signals with both values, else None. `worsened`
     names the error counters that increased, plus "smart_passed" if SMART's
-    overall verdict went from passed to failed. None if either snapshot is missing.
+    overall verdict went from passed to failed. `uncompared` names the error
+    counters reported in only one snapshot: they can't be said to have held
+    steady, so callers must not report a clean run for them. None if either
+    snapshot is missing.
     """
     if not before or not after:
         return None
@@ -36,4 +40,9 @@ def compare_signals(before: dict | None, after: dict | None) -> dict | None:
     ]
     if before.get("smart_passed") is True and after.get("smart_passed") is False:
         worsened.append("smart_passed")
-    return {"changes": changes, "worsened": worsened}
+    uncompared = [
+        name for name in WORSENING_COUNTERS
+        if name in changes and changes[name]["change"] is None
+        and (changes[name]["before"] is not None or changes[name]["after"] is not None)
+    ]
+    return {"changes": changes, "worsened": worsened, "uncompared": uncompared}

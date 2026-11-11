@@ -114,6 +114,11 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
         self._current_pattern: str | None = None
         self._progress_carry = b""
 
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        passes = result["passes"]
+        return f"No bad blocks found in {passes} pass{'es' if passes != 1 else ''}"
+
     def _configure(self, context: DriveContext, params: dict) -> None:
         self._passes = int(params["passes"])
 

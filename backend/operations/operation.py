@@ -14,6 +14,14 @@ from typing import Callable
 from drives.drive_models import DriveContext
 
 
+def format_bytes(n: int) -> str:
+    """Decimal byte size as drive vendors (and dd) report it, e.g. 6.0 TB."""
+    for unit, size in (("TB", 1e12), ("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
+        if n >= size:
+            return f"{n / size:.1f} {unit}"
+    return f"{n} B"
+
+
 class OperationCancelled(Exception):
     """Raised by an operation's run() when cancellation is requested mid-execution."""
 
@@ -73,6 +81,14 @@ class OperationBase(ABC):
         Raise OperationCancelled if cancel() was called mid-run; any other
         exception marks the job as failed with str(exception) as the error.
         """
+
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        """One-line, human-readable outcome of a completed run, from its result
+        dict — the "Result" shown for every job, whatever the operation.
+        Classmethod so stored results of past jobs can be summarized too.
+        Default: none (the UI falls back to the job status)."""
+        return None
 
     def get_progress(self) -> OperationProgress:
         """Return current progress, assembled from get_percent()/get_message()/

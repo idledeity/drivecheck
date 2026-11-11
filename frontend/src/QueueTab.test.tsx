@@ -60,9 +60,9 @@ describe('JobRow', () => {
 
   it('expands to show job details when clicked', async () => {
     render(<JobRow job={makeJob({ category: 'Scan' })} drive={undefined} onCancel={vi.fn()} />)
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
     await userEvent.click(screen.getByText('Full Read Test'))
-    expect(screen.getByText('Category')).toBeInTheDocument()
+    expect(screen.getByText('Result')).toBeInTheDocument()
   })
 
   it('falls back to the raw guid when the drive is unknown', () => {

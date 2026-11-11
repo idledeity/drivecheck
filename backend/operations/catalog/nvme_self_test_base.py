@@ -212,6 +212,12 @@ class NvmeSelfTestOperation(OperationBase):
             "start_hours": self._start_hours,
         }
 
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        # Drives word it differently: "Completed" (SAS), "completed without error" (ATA).
+        text = result["result"]
+        return f"Self-test: {text[:1].upper()}{text[1:]}"
+
     def get_progress(self) -> OperationProgress:
         return OperationProgress(percent=self._percent, message=self._message)
 

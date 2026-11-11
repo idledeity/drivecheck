@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { formatDuration, formatRelativeTime } from "./format"
-import { JobDetailRows } from "./JobDetails"
+import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
 import { StubTab } from "./WorkspacePanel"
 import DriveIdentity from "./DriveIdentity"
@@ -136,7 +136,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
       {(job.status === "failed" || job.status === "interrupted") && job.error && <div className="queue-error">{job.error}</div>}
       {expanded && (
         <div className="queue-details">
-          <JobDetailRows job={job} />
+          <JobDetails job={job} />
         </div>
       )}
     </div>

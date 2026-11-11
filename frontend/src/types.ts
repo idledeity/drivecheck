@@ -72,6 +72,41 @@ export type OperationProgress = {
   eta_seconds: number | null
 }
 
+// One job setting (param), labelled like the Run Task form. label is null if
+// the operation or param is no longer known — fall back to the raw name.
+export type JobSetting = {
+  name: string
+  label: string | null
+  value: unknown
+}
+
+export type SmartSignals = Record<string, number | boolean | null>
+
+// One side (before/after) of a job's condensed SMART snapshot. snapshot_id
+// points at the full report (GET /api/jobs/<id>/smart). A failed capture has
+// only captured_at + error.
+export type JobSmartSnapshot = {
+  snapshot_id?: number
+  captured_at: string
+  signals?: SmartSignals
+  health?: { health_pct: number | null; health_status: string | null }
+  reused?: boolean
+  error?: string
+}
+
+export type SmartChange = {
+  before: number | boolean | null
+  after: number | boolean | null
+  change: number | null
+}
+
+export type JobSmart = {
+  before: JobSmartSnapshot | null
+  after: JobSmartSnapshot | null
+  // uncompared: error counters reported in only one snapshot, so not known to be unchanged
+  comparison: { changes: Record<string, SmartChange>; worsened: string[]; uncompared: string[] } | null
+}
+
 export type Job = {
   id: string
   drive_guid: string
@@ -82,10 +117,13 @@ export type Job = {
   status: JobStatus
   progress: OperationProgress
   result: Record<string, unknown> | null
+  summary: string | null        // operation's one-line outcome, completed jobs only
+  settings: JobSetting[]
   error: string | null
   created_at: string
   started_at: string | null
   finished_at: string | null
+  smart: JobSmart
 }
 
 export type ParamSpec = {

@@ -22,6 +22,7 @@ from pathlib import Path
 
 from drives.drive_models import DriveContext
 from operations.logged_process import LoggedProcessOperation
+from operations.operation import format_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,11 @@ class DDOperation(LoggedProcessOperation):
 
     result_key: str     # "bytes_read" | "bytes_written"
     verb: str           # "read" | "written", for the log line
+    summary_verb: str   # "Read" | "Wrote", for summarize()
+
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        return f"{cls.summary_verb} {format_bytes(result[cls.result_key])} with no errors"
 
     def __init__(self):
         super().__init__()

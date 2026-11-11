@@ -15,6 +15,7 @@ def test_unchanged_run_has_nothing_worsened():
     after = {**BEFORE, "power_on_hours": 20534, "temp": 38}
     result = compare_signals(BEFORE, after)
     assert result["worsened"] == []
+    assert result["uncompared"] == []  # load_unload_cycles isn't an error counter; null on both sides is fine
     assert result["changes"]["power_on_hours"] == {"before": 20512, "after": 20534, "change": 22}
     assert result["changes"]["load_unload_cycles"] == {"before": None, "after": None, "change": None}
 
@@ -39,3 +40,10 @@ def test_counter_appearing_only_after_has_no_change():
     result = compare_signals({"reallocated": None}, {"reallocated": 3})
     assert result["changes"]["reallocated"]["change"] is None
     assert result["worsened"] == []
+    assert result["uncompared"] == ["reallocated"]
+
+
+def test_counter_missing_after_is_uncompared():
+    result = compare_signals(BEFORE, {**BEFORE, "pending": None})
+    assert result["worsened"] == []
+    assert result["uncompared"] == ["pending"]

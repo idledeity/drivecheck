@@ -57,6 +57,10 @@ class DebugSleepOperation(OperationBase):
         self._message = "Done"
         return {"slept_seconds": duration}
 
+    @classmethod
+    def summarize(cls, result: dict) -> str | None:
+        return f"Slept {result['slept_seconds']:g}s"
+
     def get_percent(self) -> float | None:
         return self._percent
 

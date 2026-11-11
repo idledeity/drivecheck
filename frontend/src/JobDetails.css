@@ -1,16 +1,156 @@
+/* Two columns on wide cards (properties/settings/details | SMART), one when narrow. */
+.job-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 28px;
+}
+
+.job-details-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.job-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.job-detail-heading {
+  margin: 0 0 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t5);
+}
+
 .job-detail-row {
   display: flex;
   gap: 8px;
   font-size: 10.5px;
+  line-height: 1.35;
 }
 
 .job-detail-label {
   color: var(--t4);
   flex-shrink: 0;
-  width: 70px;
+  width: 84px;
+}
+
+/* The full view has room for the operations' own setting labels on one line. */
+.job-details .job-detail-label {
+  width: 190px;
 }
 
 .job-detail-value {
   color: var(--t2);
   overflow-wrap: anywhere;
+}
+
+.job-detail-empty {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--t5);
+}
+
+.job-status-completed   { color: var(--gnb); }
+.job-status-failed      { color: var(--re); }
+.job-status-interrupted { color: var(--wa); }
+.job-status-cancelled   { color: var(--t4); }
+.job-status-running     { color: var(--cy); }
+.job-status-queued      { color: var(--t3); }
+
+/* SMART before/after */
+
+.job-smart-verdict {
+  font-size: 10.5px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  line-height: 1.35;
+}
+
+.job-smart-worse { color: var(--re); background: var(--rbg); }
+.job-smart-unknown { color: var(--wa); background: var(--bb); }
+/* Neutral on purpose: unchanged counters say nothing about whether the drive is healthy. */
+.job-smart-same  { color: var(--t3); background: var(--bb); }
+
+.job-smart-table td.job-smart-bad  { color: var(--re); }
+.job-smart-table td.job-smart-warn { color: var(--wa); }
+
+.job-smart-table {
+  border-collapse: collapse;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+  max-width: 460px;
+}
+
+.job-smart-table th {
+  text-align: right;
+  font-weight: 600;
+  font-size: 9.5px;
+  color: var(--t5);
+  padding: 0 0 3px 12px;
+}
+
+.job-smart-table td {
+  text-align: right;
+  color: var(--t2);
+  padding: 1px 0 1px 12px;
+  white-space: nowrap;
+}
+
+.job-smart-table td:first-child {
+  text-align: left;
+  color: var(--t4);
+  padding-left: 0;
+}
+
+.job-smart-table tbody tr + tr td {
+  border-top: 1px solid var(--bb);
+}
+
+.job-smart-row-worse td,
+.job-smart-row-worse td:first-child {
+  color: var(--re);
+}
+
+.job-smart-note {
+  font-size: 10px;
+  color: var(--t5);
+  line-height: 1.35;
+}
+
+.job-smart-note:first-of-type {
+  margin-top: 4px;
+}
+
+.job-smart-note-error {
+  color: var(--wa);
+}
+
+.job-smart-link {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--cy);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.job-smart-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .job-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .job-details .job-detail-label {
+    width: 128px;
+  }
 }

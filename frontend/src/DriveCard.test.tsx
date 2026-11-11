@@ -229,19 +229,21 @@ describe('footer signals', () => {
 
 describe('popovers (click-only / no-hover device)', () => {
   it('opens the task popover on click and shows job details', async () => {
-    renderCard({ job: makeJob({ status: 'running', category: 'Scan' }) })
+    renderCard({ job: makeJob({
+      status: 'running', settings: [{ name: 'passes', label: 'Write/read passes', value: 1 }],
+    }) })
     await userEvent.click(document.querySelector('.dc-tz')!)
-    await waitFor(() => expect(screen.getByText('Category')).toBeInTheDocument())
-    expect(screen.getByText('Scan')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument())
+    expect(screen.getByText('Write/read passes')).toBeInTheDocument()
   })
 
   it('toggles the task popover closed on a second click', async () => {
     renderCard({ job: makeJob({ status: 'running' }) })
     const tz = document.querySelector('.dc-tz')!
     await userEvent.click(tz)
-    await waitFor(() => expect(screen.getByText('Category')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument())
     await userEvent.click(tz)
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
   it('opens the queued popover from the pill, independent of the task popover', async () => {
@@ -251,22 +253,22 @@ describe('popovers (click-only / no-hover device)', () => {
     })
     await userEvent.click(screen.getByText('1 queued'))
     await waitFor(() => expect(screen.getByText('Sleep (debug)')).toBeInTheDocument())
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
   it('closes the popover on an outside click', async () => {
     renderCard({ job: makeJob({ status: 'running' }) })
     await userEvent.click(document.querySelector('.dc-tz')!)
-    await waitFor(() => expect(screen.getByText('Category')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument())
 
     await userEvent.click(document.body)
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
   it('does not open a popover for a queued (not running) job from a plain click', async () => {
     renderCard({ job: makeJob({ status: 'queued', category: 'Scan' }) })
     await userEvent.click(document.querySelector('.dc-tz')!)
-    await waitFor(() => expect(screen.getByText('Category')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument())
   })
 })
 
@@ -280,13 +282,13 @@ describe('popovers (hover-capable device)', () => {
     renderCard({ job: makeJob({ status: 'running', category: 'Scan' }) })
     const tz = document.querySelector('.dc-tz')!
     fireEvent.mouseEnter(tz, { clientX: 10, clientY: 10 })
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
 
     // The hover-intent timer's setPopover() fires outside any React event
     // handler, so React doesn't know to batch/flush it unless the timer
     // advance itself is wrapped in act().
     await act(async () => { await vi.advanceTimersByTimeAsync(400) })
-    expect(screen.getByText('Category')).toBeInTheDocument()
+    expect(screen.getByText('Result')).toBeInTheDocument()
   })
 
   it('closes the popover on mouse leave', async () => {
@@ -294,10 +296,10 @@ describe('popovers (hover-capable device)', () => {
     const tz = document.querySelector('.dc-tz')!
     fireEvent.mouseEnter(tz, { clientX: 10, clientY: 10 })
     await act(async () => { await vi.advanceTimersByTimeAsync(400) })
-    expect(screen.getByText('Category')).toBeInTheDocument()
+    expect(screen.getByText('Result')).toBeInTheDocument()
 
     fireEvent.mouseLeave(tz)
-    expect(screen.queryByText('Category')).not.toBeInTheDocument()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
   it('clicking the card while hover-capable just selects it, not the popover', async () => {

@@ -58,10 +58,13 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
     status: 'queued',
     progress: { percent: null, message: null, eta_seconds: null },
     result: null,
+    summary: null,
+    settings: [],
     error: null,
     created_at: '2026-01-01T00:00:00Z',
     started_at: null,
     finished_at: null,
+    smart: { before: null, after: null, comparison: null },
     ...overrides,
   }
 }

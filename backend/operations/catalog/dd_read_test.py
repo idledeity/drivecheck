@@ -16,6 +16,7 @@ class DDReadTestOperation(DDOperation):
     name = "Read Test (dd)"
     result_key = "bytes_read"
     verb = "read"
+    summary_verb = "Read"
     params = [
         ParamSpec(name="block_size",   label="Block size (bytes)",           type="number",  default=1048576, min=4096, max=16777216),
         ParamSpec(name="count",        label="Block count (0 = all)",        type="number",  default=0, min=0),

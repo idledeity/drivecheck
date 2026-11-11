@@ -79,6 +79,29 @@ def _smart_summary(before: dict | None, after: dict | None) -> dict:
     }
 
 
+def _job_summary(operation: str, status: str, result: dict | None) -> str | None:
+    """The operation's one-line outcome for a completed job (see OperationBase.summarize).
+    None for other statuses — the UI shows the error or status there instead."""
+    op_cls = OPERATIONS.get(operation)
+    if op_cls is None or status != JobStatus.COMPLETED.value or not result:
+        return None
+    try:
+        return op_cls.summarize(result)
+    except Exception:
+        # Typically a result stored by an older version of the operation. Catch
+        # everything: one unreadable row must not fail the whole jobs/history list.
+        logger.warning("could not summarize %s result %r", operation, result, exc_info=True)
+        return None
+
+
+def _job_settings(operation: str, params: dict) -> list[dict]:
+    """A job's params as {name, label, value}, labelled like the Run Task form
+    (label None if the operation or param is no longer known)."""
+    op_cls = OPERATIONS.get(operation)
+    labels = {p.name: p.label for p in op_cls.params} if op_cls else {}
+    return [{"name": k, "label": labels.get(k), "value": v} for k, v in params.items()]
+
+
 def _job_to_dict(job):
     progress = job_registry.get_progress(job.id) if job.status == JobStatus.RUNNING else None
     return {
@@ -91,6 +114,8 @@ def _job_to_dict(job):
         "status": job.status.value,
         "progress": asdict(progress) if progress else {"percent": None, "message": None, "eta_seconds": None},
         "result": job.result,
+        "summary": _job_summary(job.operation, job.status.value, job.result),
+        "settings": _job_settings(job.operation, job.params),
         "error": job.error,
         "created_at": job.created_at.isoformat(),
         "started_at": job.started_at.isoformat() if job.started_at else None,
@@ -265,7 +290,9 @@ def _history_row_to_dict(row):
         # Terminal jobs have no live progress — shape matches _job_to_dict's
         # own fallback so the frontend can reuse the same Job type/rendering.
         "progress": {"percent": None, "message": None, "eta_seconds": None},
-        "result": json.loads(row["result_json"]) if row["result_json"] else None,
+        "result": _json_or_none(row["result_json"]),
+        "summary": _job_summary(row["operation"], row["status"], _json_or_none(row["result_json"])),
+        "settings": _job_settings(row["operation"], json.loads(row["params_json"])),
         "error": row["error"],
         "created_at": row["created_at"],
         "started_at": row["started_at"],
