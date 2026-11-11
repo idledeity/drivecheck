@@ -9,7 +9,10 @@ export default defineConfig({
     open: false,
     // Proxy API calls to Flask during development
     proxy: {
-      '/api': 'http://localhost:4343',
+      // changeOrigin off: forward the browser's own Host header, so the
+      // backend's cross-origin write check (system_utils/origin_guard.py) sees
+      // Origin and Host agree, as they do for the page that made the request.
+      '/api': { target: 'http://localhost:4343', changeOrigin: false },
     },
   },
   test: {

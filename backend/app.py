@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
+from system_utils import origin_guard
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
 from operations.operation import ParamError
@@ -71,6 +72,15 @@ app = Flask(__name__)
 # endpoint needs a request body anywhere near this size. Flask returns 413
 # automatically for anything larger, before the body is even fully read.
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
+# Refuse POST/PUT/PATCH/DELETE from other sites' pages. JSON routes also use
+# request.get_json() without force=True, so a body that isn't
+# application/json gets a 415 instead of being parsed anyway.
+origin_guard.install(app)
+
+
+@app.errorhandler(415)
+def _unsupported_media_type(_e):
+    return jsonify({"error": "request body must be JSON (Content-Type: application/json)"}), 415
 
 
 def _with_judgements(snapshot: dict | None) -> dict | None:
@@ -204,7 +214,7 @@ def drives():
 
 @app.route("/api/drives/<guid>", methods=["PATCH"])
 def patch_drive(guid):
-    body = request.get_json(force=True) or {}
+    body = request.get_json() or {}
     if "label" not in body and "locked" not in body:
         return jsonify({"error": "missing 'label' or 'locked'"}), 400
 
@@ -250,8 +260,11 @@ def get_settings():
 
 @app.route("/api/settings", methods=["PATCH"])
 def patch_settings():
+    updates = request.get_json()
+    if not isinstance(updates, dict):
+        return jsonify({"error": "body must be a JSON object"}), 400
     current = user_settings.load()
-    current.update(request.get_json(force=True))
+    current.update(updates)
     user_settings.save(current)
     return jsonify(current)
 
@@ -340,7 +353,7 @@ def job_history():
 
 @app.route("/api/jobs", methods=["POST"])
 def create_jobs():
-    body = request.get_json(force=True) or {}
+    body = request.get_json() or {}
     guids = body.get("guids")
     operation = body.get("operation")
     params = body.get("params", {})
@@ -429,7 +442,7 @@ def template_probe():
     `name`, into the custom probes directory — gives a new custom probe
     the right run() signature from the start, instead of discovering a
     mismatch only after it's been written by hand."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json() or {}
     category, name = data.get("category", ""), data.get("name", "")
     template = probe_registry.PROBE_TEMPLATES.get(category, "")
     try:
@@ -474,7 +487,7 @@ def put_probe_source():
     """Overwrite a custom probe's source in place — same name and category,
     only the content changes. Native probes and not-yet-existing paths are
     rejected, both as a 400, since neither is a valid edit target."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json() or {}
     category, path, content = data.get("category", ""), data.get("path", ""), data.get("content", "")
     name = probe_registry.custom_probe_name(category, path)
     if name is None:
@@ -513,7 +526,7 @@ def download_probe_source():
 
 @app.route("/api/config", methods=["PATCH"])
 def patch_config():
-    updates = request.get_json(force=True) or {}
+    updates = request.get_json() or {}
     try:
         restart_required = cfg.set_many(updates)
     except (KeyError, ValueError) as e:
