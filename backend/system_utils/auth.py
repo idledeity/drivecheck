@@ -149,12 +149,15 @@ _throttle = _Throttle()
 # Flask wiring
 # ---------------------------------------------------------------------------
 
-def install(app: Flask) -> None:
-    """Configure sessions on app, guard /api/*, and add the /api/auth routes."""
+def install(app: Flask, *, secure_cookie: bool = True) -> None:
+    """Configure sessions on app, guard /api/*, and add the /api/auth routes.
+    secure_cookie marks the session cookie HTTPS-only; pass False only when
+    the browser reaches the app over plain HTTP, or it can't sign in."""
     app.secret_key = _secret_key()
     app.config.update(
         SESSION_COOKIE_NAME="drivecheck_session",
         SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=secure_cookie,
         SESSION_COOKIE_SAMESITE="Strict",
         PERMANENT_SESSION_LIFETIME=SESSION_LIFETIME,
     )

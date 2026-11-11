@@ -45,7 +45,19 @@ Requires a Debian/Ubuntu (apt-based) host.
    cd frontend && npm run dev
    ```
 
-   Open `http://<host-ip>:5173` — API requests are proxied to the backend.
+   Open `https://<host-ip>:5173` — API requests are proxied to the backend.
+
+Both servers use HTTPS. On first start the backend creates a self-signed
+certificate in `data/tls/` (valid for `localhost`, the host name and its LAN
+address), so each browser warns once before you continue to the site. To
+avoid the warning, point `server.tls_cert` and `server.tls_key` in
+`config.yaml` at a certificate your browsers trust, for example one from
+[mkcert](https://github.com/FiloSottile/mkcert). Set `server.https: false`
+only behind a reverse proxy that handles HTTPS. Without HTTPS, the password
+and session cookie cross the network unencrypted.
+
+If the host's address changes, delete `data/tls/` and restart to get a
+certificate for the new address.
 
 A VS Code workspace is included (`.vscode/`) with launch configs and tasks
 for running/debugging both the backend and frontend together.

@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
-from system_utils import auth, origin_guard
+from system_utils import auth, origin_guard, tls
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
 from operations.operation import ParamError
@@ -76,8 +76,9 @@ app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 # request.get_json() without force=True, so a body that isn't
 # application/json gets a 415 instead of being parsed anyway.
 origin_guard.install(app)
-# Every other /api route needs a signed-in session; adds /api/auth/*.
-auth.install(app)
+# Every other /api route needs a signed-in session; adds /api/auth/*. Over
+# HTTPS the session cookie is marked Secure, so it never travels unencrypted.
+auth.install(app, secure_cookie=tls.enabled())
 
 
 @app.errorhandler(415)
@@ -627,10 +628,18 @@ if __name__ == "__main__":
 
     host = cfg.get("server.host")
     port = args.port if args.port is not None else cfg.get("server.port")
+    try:
+        ssl_context = tls.certificate_files()
+    except tls.TlsConfigError as e:
+        logger.error("can't start with HTTPS: %s", e)
+        sys.exit(1)
+    scheme = "https" if ssl_context else "http"
 
     if args.reload:
         # Reloader mode forks a child process and can't use the make_server path.
-        app.run(host=host, port=port, debug=cfg.get("server.debug"), use_reloader=True)
+        app.run(host=host, port=port, debug=cfg.get("server.debug"), use_reloader=True,
+                ssl_context=ssl_context)
     else:
-        _server = make_server(host, port, app, threaded=True)
+        _server = make_server(host, port, app, threaded=True, ssl_context=ssl_context)
+        logger.info("serving on %s://%s:%d", scheme, host, port)
         _server.serve_forever()

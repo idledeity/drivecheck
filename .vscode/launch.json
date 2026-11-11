@@ -47,8 +47,8 @@
       "preLaunchTask": "Start All",
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "Running on http://127.0.0.1:(\\d+)",
-        "uriFormat": "http://127.0.0.1:5173/%s"
+        "pattern": "serving on (https?)://",
+        "uriFormat": "%s://127.0.0.1:5173/"
       }
     }
   ]

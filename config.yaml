@@ -46,3 +46,6 @@ server:
   host: 127.0.0.1
   port: 4343
   debug: false
+  https: true        # false only behind a reverse proxy that handles HTTPS
+  tls_cert:          # PEM files; empty = self-signed cert in <data dir>/tls/
+  tls_key:

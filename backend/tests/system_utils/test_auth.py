@@ -136,3 +136,17 @@ def test_a_broken_credentials_file_locks_rather_than_opens(client, tmp_path):
     (tmp_path / "auth.json").write_text("{not json")
     assert client.get("/api/thing").status_code == 401
     assert client.get("/api/auth/status").get_json()["configured"] is False
+
+
+def test_session_cookie_is_https_only_by_default(client):
+    auth.save_credentials("admin", "correct horse")
+    cookie = _login(client).headers["Set-Cookie"]
+    assert "Secure" in cookie
+
+
+def test_session_cookie_can_be_sent_over_plain_http():
+    app = Flask(__name__)
+    auth.install(app, secure_cookie=False)
+    auth.save_credentials("admin", "correct horse")
+    cookie = _login(app.test_client()).headers["Set-Cookie"]
+    assert "Secure" not in cookie
