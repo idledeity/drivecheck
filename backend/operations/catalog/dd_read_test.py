@@ -26,6 +26,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ParamSpec, ReattachFailed
@@ -109,6 +110,68 @@ def _pid_matches(pid: int, device: str) -> bool:
     return argv0 == "dd" and any(device_bytes in a for a in args)
 
 
+def _expected_bytes(block_size: int, count: int, skip: int, capacity: int | None) -> int | None:
+    """Bytes a dd run should copy: `count` blocks (clipped to the device end), or
+    everything from the skip offset to the end. None if it can't be known."""
+    remaining = max(0, capacity - skip * block_size) if capacity else None
+    if count > 0:
+        requested = count * block_size
+        return min(requested, remaining) if remaining is not None else requested
+    return remaining
+
+
+_RECORDS_OUT_RE = re.compile(r"^\d+\+\d+ records out$")
+
+
+@dataclass
+class DDOutcome:
+    """What dd's log says about how the run ended."""
+    completed: bool             # dd printed its final records/bytes summary
+    bytes_copied: int | None    # from the final summary (None if not completed)
+    errors: list[str]           # "dd: ..." error lines, in order
+
+
+def _read_dd_outcome(path: Path) -> DDOutcome:
+    """Parse a whole dd log file for its final summary and any error lines.
+
+    The final summary is a "N+M records out" line followed by "N bytes ... copied".
+    Progress lines look like the bytes line too, so only one that follows the
+    last "records out" counts. A process that was killed never prints it.
+    """
+    try:
+        text = path.read_bytes().decode("utf-8", errors="replace")
+    except OSError:
+        return DDOutcome(completed=False, bytes_copied=None, errors=[])
+    lines = [ln.strip() for ln in re.split(r"[\r\n]", text) if ln.strip()]
+    errors = [ln for ln in lines if ln.startswith("dd: ") and not ln.startswith("dd: warning")]
+    last_out = max((i for i, ln in enumerate(lines) if _RECORDS_OUT_RE.match(ln)), default=None)
+    if last_out is None:
+        return DDOutcome(completed=False, bytes_copied=None, errors=errors)
+    for ln in lines[last_out + 1:]:
+        match = _PROGRESS_RE.match(ln)
+        if match:
+            return DDOutcome(completed=True, bytes_copied=int(match.group(1)), errors=errors)
+    return DDOutcome(completed=False, bytes_copied=None, errors=errors)
+
+
+def _dd_failure(outcome: DDOutcome, returncode: int | None, expected_bytes: int | None) -> str | None:
+    """Return why a finished dd run did not pass, or None if it passed.
+
+    returncode is None when the job was reattached after a restart (no Popen to
+    wait on) — then the log is the only evidence, so a missing summary fails.
+    """
+    if outcome.errors:
+        more = f" (+{len(outcome.errors) - 1} more)" if len(outcome.errors) > 1 else ""
+        return outcome.errors[0] + more
+    if returncode not in (0, None):
+        return f"dd exited with code {returncode}"
+    if not outcome.completed:
+        return "dd exited without printing its final summary — the run did not finish (process killed?)"
+    if expected_bytes is not None and outcome.bytes_copied != expected_bytes:
+        return f"dd stopped early: {outcome.bytes_copied} of {expected_bytes} bytes copied"
+    return None
+
+
 class DDReadTestOperation(OperationBase):
     name = "Read Test (dd)"
     category = "Scan"
@@ -162,12 +225,7 @@ class DDReadTestOperation(OperationBase):
         if params["iflag_direct"]:
             cmd.append("iflag=direct")
 
-        if count > 0:
-            total_bytes: int | None = count * block_size
-        elif capacity:
-            total_bytes = max(0, capacity - skip * block_size)
-        else:
-            total_bytes = None
+        total_bytes = _expected_bytes(block_size, count, skip, capacity)
 
         log_path = self._job_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,12 +272,7 @@ class DDReadTestOperation(OperationBase):
         skip = int(params["skip"])
         capacity = context.traits.capacity_bytes
 
-        if count > 0:
-            total_bytes: int | None = count * block_size
-        elif capacity:
-            total_bytes = max(0, capacity - skip * block_size)
-        else:
-            total_bytes = None
+        total_bytes = _expected_bytes(block_size, count, skip, capacity)
 
         self._pid = pid
         self._device = device
@@ -279,9 +332,14 @@ class DDReadTestOperation(OperationBase):
         if self._cancel_event.is_set():
             self._message = "Cancelled"
             raise OperationCancelled()
-        if returncode != 0 and returncode is not None:
+        # Decide from the whole log, not just the tail we watched: after a
+        # reattach there is no exit code, and a killed dd must not pass.
+        outcome = _read_dd_outcome(self._log_path)
+        failure = _dd_failure(outcome, returncode, total_bytes)
+        if failure:
             self._message = "Failed"
-            raise RuntimeError(last_line or f"dd exited with code {returncode}")
+            raise RuntimeError(failure)
+        bytes_read = outcome.bytes_copied or 0
 
         self._percent = 100.0
         self._message = "Done"

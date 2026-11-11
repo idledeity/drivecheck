@@ -24,7 +24,13 @@ import time
 from pathlib import Path
 
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ParamSpec, ReattachFailed
-from operations.catalog.dd_read_test import _iter_log_lines, _pid_matches
+from operations.catalog.dd_read_test import (
+    _dd_failure,
+    _expected_bytes,
+    _iter_log_lines,
+    _pid_matches,
+    _read_dd_outcome,
+)
 from drives.drive_models import DriveContext
 from system_utils import paths
 
@@ -89,9 +95,20 @@ class DDWriteTestOperation(OperationBase):
                 f"{device} is currently mounted — unmount all partitions before running a write test"
             )
 
-        cmd = ["dd", "if=/dev/zero", f"of={device}", f"bs={block_size}", "status=progress"]
-        if count > 0:
-            cmd.append(f"count={count}")
+        total_bytes = _expected_bytes(block_size, count, skip, capacity)
+        if total_bytes is None:
+            self._message = "Failed"
+            raise RuntimeError(
+                f"capacity of {device} is unknown — set an explicit block count for the write test"
+            )
+
+        # Stop on the exact last byte (count in bytes via iflag=count_bytes) rather
+        # than running into the end of the device: hitting the end makes dd exit 1
+        # with "No space left on device" and skip conv=fsync.
+        cmd = [
+            "dd", "if=/dev/zero", f"of={device}", f"bs={block_size}",
+            f"count={total_bytes}", "iflag=count_bytes", "status=progress",
+        ]
         if skip > 0:
             cmd.append(f"seek={skip}")
         conv_parts = []
@@ -101,13 +118,6 @@ class DDWriteTestOperation(OperationBase):
             cmd.append(f"conv={','.join(conv_parts)}")
         if params["oflag_direct"]:
             cmd.append("oflag=direct")
-
-        if count > 0:
-            total_bytes: int | None = count * block_size
-        elif capacity:
-            total_bytes = max(0, capacity - skip * block_size)
-        else:
-            total_bytes = None
 
         log_path = self._job_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,12 +162,7 @@ class DDWriteTestOperation(OperationBase):
         skip = int(params["skip"])
         capacity = context.traits.capacity_bytes
 
-        if count > 0:
-            total_bytes: int | None = count * block_size
-        elif capacity:
-            total_bytes = max(0, capacity - skip * block_size)
-        else:
-            total_bytes = None
+        total_bytes = _expected_bytes(block_size, count, skip, capacity)
 
         self._pid = pid
         self._device = device
@@ -213,9 +218,14 @@ class DDWriteTestOperation(OperationBase):
         if self._cancel_event.is_set():
             self._message = "Cancelled"
             raise OperationCancelled()
-        if returncode != 0 and returncode is not None:
+        # Decide from the whole log, not just the tail we watched: after a
+        # reattach there is no exit code, and a killed dd must not pass.
+        outcome = _read_dd_outcome(self._log_path)
+        failure = _dd_failure(outcome, returncode, total_bytes)
+        if failure:
             self._message = "Failed"
-            raise RuntimeError(last_line or f"dd exited with code {returncode}")
+            raise RuntimeError(failure)
+        bytes_written = outcome.bytes_copied or 0
 
         self._percent = 100.0
         self._message = "Done"

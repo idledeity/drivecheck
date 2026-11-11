@@ -116,6 +116,33 @@ def _iter_raw_chunks(
             yield chunk
 
 
+def _read_badblocks_outcome(path: Path) -> tuple[int, int]:
+    """Scan a whole badblocks log; return (passes completed, bad blocks found).
+
+    Each finished pass prints "Pass completed, N bad blocks found." where N is
+    the blocks newly found in that pass, so they are summed. The log can be
+    tens of MB (backspace progress for days), so it is streamed: each chunk is
+    searched together with a short tail of the previous one, starting after the
+    last match so a line split across chunks is found exactly once.
+    """
+    passes = 0
+    bad_blocks = 0
+    carry = b""
+    try:
+        with open(path, "rb") as f:
+            while chunk := f.read(1 << 20):
+                buf = carry + chunk
+                last_end = 0
+                for m in _DONE_RE.finditer(buf):
+                    passes += 1
+                    bad_blocks += int(m.group(1))
+                    last_end = m.end()
+                carry = buf[max(last_end, len(buf) - 256):]
+    except OSError:
+        pass
+    return passes, bad_blocks
+
+
 class BadblocksWriteTestOperation(OperationBase):
     name = "Bad Block Scan (badblocks)"
     category = "Scan"
@@ -220,7 +247,6 @@ class BadblocksWriteTestOperation(OperationBase):
 
     def _watch_and_wait(self, passes: int, start_offset: int = 0, startup_timeout: float | None = None) -> dict:
         device = self._device
-        bad_blocks = 0
         buf = b""
         is_alive = (lambda: Path(f"/proc/{self._pid}").exists()) if self._pid is not None else None
 
@@ -252,7 +278,6 @@ class BadblocksWriteTestOperation(OperationBase):
 
                 m = _DONE_RE.search(buf)
                 if m:
-                    bad_blocks += int(m.group(1))
                     self._patterns_done += _PATTERNS_PER_PASS
                     self._save_reattach()
                     buf = buf[m.end():]
@@ -277,11 +302,21 @@ class BadblocksWriteTestOperation(OperationBase):
         if self._cancel_event.is_set():
             self._message = "Cancelled"
             raise OperationCancelled()
+        # Decide from the whole log, not just the tail we watched: after a
+        # reattach there is no exit code, and bad blocks reported before the
+        # restart must still count.
+        passes_done, bad_blocks = _read_badblocks_outcome(self._log_path)
         if returncode not in (0, 1, None):
             self._message = "Failed"
             raise RuntimeError(f"badblocks exited with code {returncode}")
 
         self._percent = 100.0
+        if bad_blocks == 0 and passes_done < passes:
+            self._message = "Failed"
+            raise RuntimeError(
+                f"badblocks exited after {passes_done} of {passes} pass(es) — "
+                "the run did not finish (process killed?)"
+            )
         if bad_blocks > 0:
             self._message = f"Done — {bad_blocks} bad block(s) found"
             logger.warning("badblocks write test on %s: %d bad block(s) found", device, bad_blocks)
