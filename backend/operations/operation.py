@@ -72,6 +72,10 @@ class OperationBase(ABC):
     tool: str
     params: list[ParamSpec] = []
     destructive: bool = False   # True if the operation writes to or erases the drive
+    # Keys this operation was registered under before (its module was renamed
+    # or merged). Job rows store the key, so lookups of these still resolve to
+    # it; listings only show the current key.
+    former_keys: tuple[str, ...] = ()
 
     @staticmethod
     @abstractmethod

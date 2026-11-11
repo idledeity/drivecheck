@@ -10,7 +10,6 @@ from operations.catalog.badblocks_write_test import BadblocksWriteTestOperation
 from operations.catalog.dd_read_test import DDReadTestOperation
 from operations.catalog.dd_write_test import DDWriteTestOperation
 from operations.catalog.debug.debug_sleep import DebugSleepOperation
-from operations.catalog.nvme_self_test_short import NvmeSelfTestShortOperation
 from operations.catalog.secure_erase import SecureEraseOperation
 from operations.catalog.smart_self_test_short import SmartSelfTestShortOperation
 from operations.operation import OperationBase, format_bytes
@@ -29,7 +28,7 @@ from operations.operation import OperationBase, format_bytes
      "Self-test: Completed"),
     (SmartSelfTestShortOperation, {"device": "/dev/sde", "test_type": "short", "result": "completed without error"},
      "Self-test: Completed without error"),
-    (NvmeSelfTestShortOperation, {"device": "/dev/nvme0", "test_type": "short", "result": "Completed without error"},
+    (SmartSelfTestShortOperation, {"device": "/dev/nvme0", "test_type": "short", "result": "Completed without error"},
      "Self-test: Completed without error"),
     (DebugSleepOperation, {"slept_seconds": 40.0}, "Slept 40s"),
 ])

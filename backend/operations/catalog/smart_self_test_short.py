@@ -12,3 +12,4 @@ from operations.catalog.smart_self_test_base import SmartSelfTestOperation
 class SmartSelfTestShortOperation(SmartSelfTestOperation):
     name = "SMART Self-Test (Short)"
     test_type = SelfTestType.SHORT
+    former_keys = ("nvme_self_test_short",)  # NVMe had its own operation before

@@ -13,3 +13,4 @@ from operations.catalog.smart_self_test_base import SmartSelfTestOperation
 class SmartSelfTestLongOperation(SmartSelfTestOperation):
     name = "SMART Self-Test (Extended)"
     test_type = SelfTestType.LONG
+    former_keys = ("nvme_self_test_long",)  # NVMe had its own operation before

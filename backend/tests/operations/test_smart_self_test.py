@@ -15,6 +15,7 @@ from drives.drive_models import DriveContext, DriveDescriptor, DriveTraits, Driv
 from drives.tools.smartctl import SmartctlResult
 from operations.catalog import smart_self_test_base
 from operations.catalog.smart_self_test_base import _log_has_new_entry
+from operations.catalog.smart_self_test_conveyance import SmartSelfTestConveyanceOperation
 from operations.catalog.smart_self_test_long import SmartSelfTestLongOperation
 from operations.catalog.smart_self_test_short import SmartSelfTestShortOperation
 
@@ -89,6 +90,29 @@ def _run(drive_type):
     op = SmartSelfTestLongOperation()
     op._save_reattach_cb = lambda: None
     return op, op.run(_context(drive_type), {})
+
+
+# ---------------------------------------------------------------------------
+# Which drives offer which test
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("drive_type,short_long,conveyance", [
+    (DriveType.HDD, True, True),
+    (DriveType.SSD, True, True),
+    (DriveType.SAS, True, False),
+    (DriveType.NVME, True, False),
+])
+def test_supported_tests_follow_the_drive_interface(drive_type, short_long, conveyance):
+    context = _context(drive_type)
+    assert SmartSelfTestShortOperation.supports(context) is short_long
+    assert SmartSelfTestLongOperation.supports(context) is short_long
+    assert SmartSelfTestConveyanceOperation.supports(context) is conveyance
+
+
+def test_drives_without_self_test_support_get_none():
+    unsupported = [t for t in DriveType if t not in (DriveType.HDD, DriveType.SSD, DriveType.SAS, DriveType.NVME)]
+    for drive_type in unsupported:
+        assert not SmartSelfTestShortOperation.supports(_context(drive_type))
 
 
 # ---------------------------------------------------------------------------

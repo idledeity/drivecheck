@@ -11,7 +11,10 @@ def isolated_registry_state(monkeypatch):
     other code imports directly — snapshot both so this file can't leak
     state into tests that run before or after it."""
     monkeypatch.setattr(cfg, "_values", dict(cfg._values))
-    monkeypatch.setattr(operation_registry, "OPERATIONS", dict(operation_registry.OPERATIONS))
+    snapshot = operation_registry._OperationTable()
+    snapshot.update(operation_registry.OPERATIONS)
+    snapshot.aliases = dict(operation_registry.OPERATIONS.aliases)
+    monkeypatch.setattr(operation_registry, "OPERATIONS", snapshot)
 
 
 def test_discover_finds_non_debug_operations():
@@ -54,3 +57,17 @@ def test_discovered_operations_are_operation_base_subclasses():
     operation_registry.discover()
     for op_cls in operation_registry.OPERATIONS.values():
         assert issubclass(op_cls, OperationBase)
+
+
+def test_former_keys_resolve_but_are_not_listed():
+    # NVMe self-tests were their own operations before they merged into the
+    # SMART ones; job rows and history still carry the old keys.
+    cfg.set("jobs.enable_debug_operations", False)
+    operation_registry.discover()
+    ops = operation_registry.OPERATIONS
+    assert ops.get("nvme_self_test_short") is ops["smart_self_test_short"]
+    assert ops["nvme_self_test_long"] is ops["smart_self_test_long"]
+    assert "nvme_self_test_short" not in list(ops)
+    assert ops.get("no_such_operation") is None
+    with pytest.raises(KeyError):
+        ops["no_such_operation"]

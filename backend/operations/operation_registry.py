@@ -13,6 +13,10 @@ needed. Shared base classes (e.g. one operation family with a common run()
 split across short/long variants) can live in the same directory too, as
 long as they leave at least one abstractmethod unimplemented —
 inspect.isabstract() excludes them from discovery.
+
+Renaming or merging a module changes its key. Job rows store the key, so the
+operation lists its old ones in `former_keys` and lookups of them still
+resolve (see _OperationTable).
 """
 
 import importlib
@@ -31,7 +35,28 @@ cfg.register("jobs.enable_debug_operations",
     restart_required=True,
 )
 
-OPERATIONS: dict[str, type[OperationBase]] = {}
+class _OperationTable(dict):
+    """Operations by key. get() and [] also resolve former keys, so job rows
+    and history from before a rename still find their operation; iterating
+    lists current keys only, so former ones are never offered for new jobs."""
+
+    def __init__(self):
+        super().__init__()
+        self.aliases: dict[str, str] = {}
+
+    def __missing__(self, key: str) -> type[OperationBase]:
+        if key in self.aliases:
+            return self[self.aliases[key]]
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+OPERATIONS: _OperationTable = _OperationTable()
 
 
 def discover() -> None:
@@ -61,6 +86,7 @@ def discover() -> None:
 
     OPERATIONS.clear()
     OPERATIONS.update(found)
+    OPERATIONS.aliases = {old: key for key, op_cls in found.items() for old in op_cls.former_keys}
 
     logger.info(
         "%d operation(s) loaded: %s",
