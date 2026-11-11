@@ -1,4 +1,5 @@
 import atexit
+import functools
 import json
 import logging
 import os
@@ -439,7 +440,21 @@ def probe_status():
     return jsonify(collector.probe_warnings)
 
 
+def _probe_editing_required(view):
+    """403 unless collector.allow_probe_editing is on: writing a probe file
+    makes the backend import and run it. The flag is file_only, so a session
+    can't turn it on through PATCH /api/config."""
+    @functools.wraps(view)
+    def guarded(*args, **kwargs):
+        if not probe_registry.editing_allowed():
+            return jsonify({"error": "probe editing is off: set collector.allow_probe_editing "
+                                     "to true in config.yaml and restart"}), 403
+        return view(*args, **kwargs)
+    return guarded
+
+
 @app.route("/api/probes/template", methods=["POST"])
+@_probe_editing_required
 def template_probe():
     """Write a correctly-shaped stub probe file for `category`, named
     `name`, into the custom probes directory — gives a new custom probe
@@ -457,6 +472,7 @@ def template_probe():
 
 
 @app.route("/api/probes/upload", methods=["POST"])
+@_probe_editing_required
 def upload_probe():
     """Save a posted .py file as a new custom probe for `category` — same
     write-then-validate-then-clean-up-on-failure path as the template
@@ -486,6 +502,7 @@ def get_probe_source():
 
 
 @app.route("/api/probes/source", methods=["PUT"])
+@_probe_editing_required
 def put_probe_source():
     """Overwrite a custom probe's source in place — same name and category,
     only the content changes. Native probes and not-yet-existing paths are
@@ -504,6 +521,7 @@ def put_probe_source():
 
 
 @app.route("/api/probes/source", methods=["DELETE"])
+@_probe_editing_required
 def delete_probe_source():
     category, path = request.args.get("category", ""), request.args.get("path", "")
     try:

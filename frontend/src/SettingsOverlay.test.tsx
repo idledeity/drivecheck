@@ -20,9 +20,16 @@ function makeConfigProp(overrides: Partial<ConfigProp> = {}): ConfigProp {
     max: 65535,
     choices: null,
     restart_required: true,
+    file_only: false,
     ...overrides,
   }
 }
+
+// What the backend serves for collector.allow_probe_editing when it's on.
+const PROBE_EDITING_ON = makeConfigProp({
+  key: 'collector.allow_probe_editing', label: 'Probe editing', section: 'Collector',
+  type: 'bool', value: true, default: false, min: null, max: null, file_only: true,
+})
 
 function makeLogRecord(overrides: Partial<LogRecord> = {}): LogRecord {
   return {
@@ -58,27 +65,32 @@ function makeFetchRouter() {
     putSourceStatus: 200,
     deleteSourceResponse: null as ConfigProp[] | { error: string } | null,
     deleteSourceStatus: 200,
+    // When true, every config-props response also carries
+    // collector.allow_probe_editing = true, as the real backend's do.
+    probeEditing: false,
   }
+  const withFlag = <T,>(body: T): T | ConfigProp[] =>
+    state.probeEditing && Array.isArray(body) ? [...body, PROBE_EDITING_ON] : body
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
-    if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.configProps))
+    if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(withFlag(state.configProps)))
     if (url === '/api/config' && method === 'PATCH') return Promise.resolve(fetchJsonResponse(state.saveResponse, state.saveStatus))
     if (url === '/api/probes/status' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.statusResponse))
-    if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(state.rescanResponse ?? state.configProps))
+    if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(withFlag(state.rescanResponse ?? state.configProps)))
     if (url === '/api/probes/template' && method === 'POST') {
-      return Promise.resolve(fetchJsonResponse(state.templateResponse ?? state.configProps, state.templateStatus))
+      return Promise.resolve(fetchJsonResponse(withFlag(state.templateResponse ?? state.configProps), state.templateStatus))
     }
     if (url === '/api/probes/upload' && method === 'POST') {
-      return Promise.resolve(fetchJsonResponse(state.uploadResponse ?? state.configProps, state.uploadStatus))
+      return Promise.resolve(fetchJsonResponse(withFlag(state.uploadResponse ?? state.configProps), state.uploadStatus))
     }
     if (url.startsWith('/api/probes/source') && method === 'GET') {
       return Promise.resolve(fetchJsonResponse(state.sourceResponse ?? { content: '', editable: false }, state.sourceStatus))
     }
     if (url === '/api/probes/source' && method === 'PUT') {
-      return Promise.resolve(fetchJsonResponse(state.putSourceResponse ?? state.configProps, state.putSourceStatus))
+      return Promise.resolve(fetchJsonResponse(withFlag(state.putSourceResponse ?? state.configProps), state.putSourceStatus))
     }
     if (url.startsWith('/api/probes/source') && method === 'DELETE') {
-      return Promise.resolve(fetchJsonResponse(state.deleteSourceResponse ?? state.configProps, state.deleteSourceStatus))
+      return Promise.resolve(fetchJsonResponse(withFlag(state.deleteSourceResponse ?? state.configProps), state.deleteSourceStatus))
     }
     if (url.startsWith('/api/logs')) return Promise.resolve(fetchJsonResponse(state.logs))
     return Promise.resolve(fetchJsonResponse({}))
@@ -417,6 +429,7 @@ describe('ConfigTab', () => {
   })
 
   it('closing the Manage probes dialog without submitting adds nothing', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -454,6 +467,7 @@ describe('ConfigTab', () => {
   })
 
   it('creates a new probe from a template, adds it to the list, and refreshes choices', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -484,6 +498,7 @@ describe('ConfigTab', () => {
   })
 
   it('shows the server error and adds nothing when creating from a template fails', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -502,6 +517,7 @@ describe('ConfigTab', () => {
   })
 
   it('uploads a probe file, adds it to the list, and refreshes choices', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -534,6 +550,7 @@ describe('ConfigTab', () => {
   })
 
   it('shows the server error and adds nothing when uploading fails', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: [],
@@ -553,6 +570,7 @@ describe('ConfigTab', () => {
   })
 
   it('lists every discovered probe under "All probes", tagging native vs. custom and gating Delete to custom', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [],
@@ -595,6 +613,7 @@ describe('ConfigTab', () => {
   })
 
   it('edits and saves a custom probe\'s source, refreshing choices on success', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: ['vitals.editable_one'],
@@ -623,6 +642,7 @@ describe('ConfigTab', () => {
   })
 
   it('shows an inline error and keeps the detail panel open when saving an edit fails', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: ['vitals.editable_one'],
@@ -644,6 +664,7 @@ describe('ConfigTab', () => {
   })
 
   it('cancelling a delete confirm leaves the probe in place', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: [], default: [], choices: ['vitals.custom_one'],
@@ -661,6 +682,7 @@ describe('ConfigTab', () => {
   })
 
   it('confirming a delete removes the probe from the list and from the row\'s value', async () => {
+    router.state.probeEditing = true
     router.state.configProps = [makeConfigProp({
       key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
       value: ['vitals.custom_one'], default: [], choices: ['vitals.custom_one'],
@@ -764,6 +786,43 @@ describe('ConfigTab', () => {
     await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
 
     expect(document.querySelector('.cfg-warning-icon')).not.toBeInTheDocument()
+  })
+
+  it('with probe editing off, Manage probes only views and downloads', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.vitals_probes', label: 'Vitals probes', type: 'module_list',
+      value: [], default: [], choices: ['drives.collector.probes.vitals.smartctl_vitals', 'vitals.mine'],
+    })]
+    router.state.sourceResponse = { content: 'def run(vitals, state):\n    return vitals\n', editable: false }
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Vitals probes')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTitle('Manage probes…'))
+    expect(screen.getByText(/Probe editing is off/)).toBeInTheDocument()
+    expect(screen.queryByText('Add a probe')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('probe_name')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Upload/ })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Delete')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('View / edit source')).not.toBeInTheDocument()
+
+    // The custom probe is still viewable, read-only.
+    await userEvent.click(screen.getAllByTitle('View source')[1])
+    const textarea = await screen.findByDisplayValue('def run(vitals, state):\n    return vitals\n', { normalizer: rawValueNormalizer })
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('shows a file_only prop read-only, marked config.yaml only, with no reset', async () => {
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.custom_probes_dir', label: 'Custom probes directory', section: 'Collector',
+      type: 'str', value: 'elsewhere', default: 'custom_probes', min: null, max: null, file_only: true,
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    const input = await screen.findByDisplayValue('elsewhere')
+
+    expect(input).toBeDisabled()
+    expect(screen.getByText('config.yaml only')).toBeInTheDocument()
+    expect(screen.queryByTitle('Reset to default')).not.toBeInTheDocument()
   })
 })
 

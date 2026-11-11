@@ -198,6 +198,7 @@ class TestWriteProbeFile:
         probe_registry.write_probe_file(
             "vitals", "editable", b"def run(vitals, state):\n    return state\n", overwrite=True,
         )
+        cfg._values["collector.allow_probe_editing"] = True
         content, editable = probe_registry.read_probe_source("vitals", "vitals.editable")
         assert "return state" in content
         assert editable is True
@@ -229,11 +230,18 @@ class TestReadProbeSource:
         assert "def run(" in content
         assert editable is False
 
-    def test_reads_a_custom_probe_as_editable(self, isolated_data_dir):
+    def test_reads_a_custom_probe_as_editable_when_editing_is_allowed(self, isolated_data_dir):
+        cfg._values["collector.allow_probe_editing"] = True
         probe_registry.write_probe_file("vitals", "readable", b"def run(vitals, state):\n    return vitals\n")
         content, editable = probe_registry.read_probe_source("vitals", "vitals.readable")
         assert "return vitals" in content
         assert editable is True
+
+    def test_reads_a_custom_probe_as_not_editable_by_default(self, isolated_data_dir):
+        probe_registry.write_probe_file("vitals", "readable", b"def run(vitals, state):\n    return vitals\n")
+        content, editable = probe_registry.read_probe_source("vitals", "vitals.readable")
+        assert "return vitals" in content
+        assert editable is False
 
     def test_rejects_an_unknown_category(self, isolated_data_dir):
         with pytest.raises(probe_registry.ProbeLookupError, match="unknown probe category"):
@@ -286,3 +294,15 @@ class TestProbeTemplates:
 
         probe_registry.discover()
         assert f"{category}.from_template" in cfg._props[probe_registry.probe_key(category)].choices
+
+
+class TestEditingFlag:
+    def test_editing_is_off_by_default(self):
+        assert probe_registry.editing_allowed() is False
+
+    def test_editing_flag_and_custom_dir_cannot_be_set_over_the_api(self):
+        for key, value in (("collector.allow_probe_editing", True), ("collector.custom_probes_dir", "/tmp")):
+            with pytest.raises(ValueError, match="config.yaml"):
+                cfg.set_many({key: value})
+        assert probe_registry.editing_allowed() is False
+        assert cfg.get("collector.custom_probes_dir") == "custom_probes"

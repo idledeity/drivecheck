@@ -51,7 +51,23 @@ cfg.register("collector.custom_probes_dir",
     default="custom_probes", type="str", label="Custom probes directory",
     section="Collector",
     description="Folder (with scan/traits/telemetry/vitals subfolders) scanned for user-added probe modules. Relative paths resolve against the data directory.",
+    tooltip="Set in config.yaml only: every probe in this folder is imported, so "
+            "pointing it at another folder from the browser would run that "
+            "folder's Python code.",
     restart_required=False,
+    file_only=True,
+)
+
+cfg.register("collector.allow_probe_editing",
+    default=False, type="bool", label="Probe editing",
+    section="Collector",
+    description="Lets Manage probes create, upload, edit and delete custom probe files.",
+    tooltip="A probe is Python that the backend imports and runs, so with this on, "
+            "anyone who can log in can run code on this machine. Set in config.yaml "
+            "only, then restart. Viewing, downloading and rescanning probes work "
+            "either way, and probe files copied into the custom probes folder by "
+            "hand are picked up on rescan.",
+    file_only=True,
 )
 
 _NATIVE_PACKAGE = "drives.collector.probes"
@@ -71,6 +87,11 @@ def _custom_root() -> Path:
     same relative-or-absolute resolution as paths.data_dir() itself, just
     rooted at the data dir rather than the project root."""
     return (paths.data_dir() / cfg.get("collector.custom_probes_dir")).resolve()
+
+
+def editing_allowed() -> bool:
+    """Whether probe files may be written or deleted over the API."""
+    return bool(cfg.get("collector.allow_probe_editing"))
 
 
 def probe_key(category: str) -> str:
@@ -266,8 +287,8 @@ def native_probe_path(category: str, name: str) -> Path:
 
 
 def read_probe_source(category: str, dotted_path: str) -> tuple[str, bool]:
-    """The source text for `dotted_path`, plus whether it's editable (custom)
-    or read-only (native). Raises ProbeLookupError for an unknown category, a
+    """The source text for `dotted_path`, plus whether it's editable (custom,
+    with probe editing allowed) or read-only (native, or editing is off). Raises ProbeLookupError for an unknown category, a
     path that's neither shape for `category`, or a custom path whose file has
     since been deleted from disk."""
     if category not in CATEGORY_ARITY:
@@ -282,7 +303,7 @@ def read_probe_source(category: str, dotted_path: str) -> tuple[str, bool]:
         path = custom_probe_path(category, name)
     if not path.exists():
         raise ProbeLookupError(f"{dotted_path!r} no longer exists")
-    return path.read_text(), not is_native_probe_path(category, dotted_path)
+    return path.read_text(), editing_allowed() and not is_native_probe_path(category, dotted_path)
 
 
 def delete_probe_file(category: str, dotted_path: str) -> None:

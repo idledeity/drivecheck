@@ -26,6 +26,10 @@ collector:
     - drives.collector.probes.vitals.sysfs_io
     - drives.collector.probes.vitals.mount_status
   custom_probes_dir: custom_probes
+  # true lets the Settings UI create, upload, edit and delete custom probes.
+  # Probes are Python the backend runs, so leave this off unless you're writing
+  # probes. Only settable here (not from the UI); restart after changing it.
+  allow_probe_editing: false
 jobs:
   # Cap on simultaneously-running jobs across all drives. Per-drive exclusivity
   # already limits this to one job per drive, so any value >= the number of

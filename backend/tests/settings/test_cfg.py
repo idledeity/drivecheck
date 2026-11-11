@@ -88,6 +88,34 @@ def test_set_many_applies_all_on_success():
     assert set(restart_keys) == {"test.key", "test.other"}
 
 
+def test_set_many_refuses_file_only_keys():
+    _register_test_key()
+    cfg.register("test.locked", default=False, type="bool", label="Locked", section="Test",
+                 description="x", file_only=True)
+    with pytest.raises(ValueError, match="config.yaml"):
+        cfg.set_many({"test.key": 50, "test.locked": True})
+    assert cfg.get("test.key") == 10
+    assert cfg.get("test.locked") is False
+
+
+def test_file_only_keys_still_load_from_yaml(tmp_path):
+    cfg.register("test.locked", default=False, type="bool", label="Locked", section="Test",
+                 description="x", file_only=True)
+    path = tmp_path / "config.yaml"
+    path.write_text("test:\n  locked: true\n")
+    cfg.load(path)
+    assert cfg.get("test.locked") is True
+
+
+def test_props_reports_file_only():
+    _register_test_key()
+    cfg.register("test.locked", default=False, type="bool", label="Locked", section="Test",
+                 description="x", file_only=True)
+    by_key = {p["key"]: p for p in cfg.props()}
+    assert by_key["test.key"]["file_only"] is False
+    assert by_key["test.locked"]["file_only"] is True
+
+
 def test_apply_live_fires_live_props_with_current_value():
     calls = []
     _register_test_key(restart_required=False, on_changed=calls.append)

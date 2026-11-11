@@ -11,6 +11,9 @@ interface ManageProbesDialogProps {
   onAdd: (path: string) => void
   onChange: (value: string[]) => void
   onChoicesRefresh: (props: ConfigProp[]) => void
+  // collector.allow_probe_editing: when off, the dialog only views and
+  // downloads (the backend refuses writes either way).
+  editingAllowed: boolean
   onClose: () => void
 }
 
@@ -45,7 +48,7 @@ function downloadUrl(category: string, path: string): string {
 // stay open after success so the result is visible instead of immediately
 // vanishing; the probe list swaps to a detail panel in place rather than a
 // second dialog.
-export default function ManageProbesDialog({ category, value, choices, onAdd, onChange, onChoicesRefresh, onClose }: ManageProbesDialogProps) {
+export default function ManageProbesDialog({ category, value, choices, onAdd, onChange, onChoicesRefresh, editingAllowed, onClose }: ManageProbesDialogProps) {
   const [templateName, setTemplateName] = useState("")
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [templateSuccess, setTemplateSuccess] = useState<string | null>(null)
@@ -261,7 +264,16 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
               </section>
             ) : (
               <>
-                <section className="mp-section">
+                {!editingAllowed && (
+                  <section className="mp-section">
+                    <p className="mp-editing-off">
+                      Probe editing is off. To add, edit or delete custom probes here, set{" "}
+                      <code>collector.allow_probe_editing: true</code> in config.yaml and restart.
+                      You can also copy probe files into <code>custom_probes/{category}/</code> and rescan.
+                    </p>
+                  </section>
+                )}
+                {editingAllowed && <section className="mp-section">
                   <h4>Add a probe</h4>
                   <div className="mp-add-panel">
                     <label className="mp-add-label">New probe from template</label>
@@ -299,7 +311,7 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
                     {uploadError && <span className="ml-add-error">{uploadError}</span>}
                     {uploadSuccess && <span className="mp-add-success">{uploadSuccess}</span>}
                   </div>
-                </section>
+                </section>}
                 <section className="mp-section">
                   <h4>All probes</h4>
                   <ul className="mp-probe-list">
@@ -309,13 +321,13 @@ export default function ManageProbesDialog({ category, value, choices, onAdd, on
                         <li key={path} className="mp-probe-row">
                           <span className="mp-probe-path" title={path}>{shortProbeLabel(path, category)}</span>
                           <div className="mp-probe-actions">
-                            <button className="icon-btn" onClick={() => openDetail(path)} title={native ? "View source" : "View / edit source"}>
+                            <button className="icon-btn" onClick={() => openDetail(path)} title={native || !editingAllowed ? "View source" : "View / edit source"}>
                               <IconEye size={13} />
                             </button>
                             <a className="icon-btn" href={downloadUrl(category, path)} download title="Download">
                               <IconDownload size={13} />
                             </a>
-                            {!native && (
+                            {!native && editingAllowed && (
                               <button className="icon-btn" onClick={() => setDeleteTarget(path)} title="Delete">
                                 <IconTrash size={13} />
                               </button>

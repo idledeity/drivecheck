@@ -133,6 +133,18 @@
   flex-shrink: 0;
 }
 
+.mp-editing-off {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--t3);
+}
+.mp-editing-off code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--t2);
+}
+
 .mp-probe-empty {
   font-size: 11.5px;
   color: var(--t4);

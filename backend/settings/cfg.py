@@ -72,6 +72,10 @@ class ConfigProp:
                                         # (e.g. discovered probes), not enforced —
                                         # see set_choices() / _validate() below
     restart_required: bool = True
+    # Settable only by editing the YAML file, never through set_many() (which
+    # backs PATCH /api/config) — for props where a logged-in browser session
+    # changing them would amount to running code on the server.
+    file_only: bool = False
     on_changed: Callable | None = field(default=None, repr=False)
 
 
@@ -102,13 +106,15 @@ def register(
     max: float | None = None,
     choices: list[str] | None = None,
     restart_required: bool = True,
+    file_only: bool = False,
     on_changed: Callable | None = None,
 ) -> None:
     """Declare a config property. Call at module level before cfg.load()."""
     _props[key] = ConfigProp(
         key=key, default=default, type=type, label=label, section=section,
         description=description, tooltip=tooltip, min=min, max=max,
-        choices=choices, restart_required=restart_required, on_changed=on_changed,
+        choices=choices, restart_required=restart_required, file_only=file_only,
+        on_changed=on_changed,
     )
     _values[key] = default
 
@@ -241,9 +247,11 @@ def apply_live() -> None:
 
 def set_many(updates: dict[str, object]) -> list[str]:
     """Apply multiple key/value pairs atomically (all-or-nothing validation).
+    This is the API's write path, so file_only props are refused here.
 
     Returns a list of keys that require a restart to take full effect.
-    Raises KeyError / ValueError without applying anything if any value is invalid.
+    Raises KeyError / ValueError without applying anything if any value is
+    invalid or any key is file_only.
     """
     # Validate all first
     coerced: dict[str, object] = {}
@@ -251,6 +259,8 @@ def set_many(updates: dict[str, object]) -> list[str]:
         prop = _props.get(key)
         if prop is None:
             raise KeyError(f"unknown config key: {key!r}")
+        if prop.file_only:
+            raise ValueError(f"{key} can only be changed in config.yaml")
         coerced[key] = _coerce(value, prop)
         _validate(coerced[key], prop)
 
@@ -300,6 +310,7 @@ def props() -> list[dict]:
             "max":              p.max,
             "choices":          p.choices,
             "restart_required": p.restart_required,
+            "file_only":        p.file_only,
         }
         for p in _props.values()
     ]

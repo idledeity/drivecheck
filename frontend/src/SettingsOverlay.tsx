@@ -143,6 +143,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   }
 
   const sections = [...new Set(configProps.map(p => p.section))]
+  const probeEditing = configProps.find(p => p.key === "collector.allow_probe_editing")?.value === true
   const pendingCount = Object.keys(pending).length
 
   // Lets SettingsOverlay guard its own close paths (X, Escape, scrim click)
@@ -232,6 +233,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
                 onChange={v => handleChange(prop, v)}
                 onChoicesRefresh={setConfigProps}
                 warnings={probeWarnings[prop.key] ?? []}
+                probeEditing={probeEditing}
               />
             ))}
           </div>
@@ -424,9 +426,10 @@ interface PropRowProps {
   onChange: (value: unknown) => void
   onChoicesRefresh: (props: ConfigProp[]) => void
   warnings: ProbeWarning[]
+  probeEditing: boolean
 }
 
-function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: PropRowProps) {
+function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings, probeEditing }: PropRowProps) {
   // Only entries still present in the row's current value are shown —
   // warnings reflect the last collector restart, so a path the user already
   // removed (or hasn't restarted into yet) shouldn't linger as a warning.
@@ -437,6 +440,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
         <label className="cfg-prop-label">
           <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
           {prop.restart_required && dirty && <span className="cfg-restart-badge">Requires Restart</span>}
+          {prop.file_only && <span className="cfg-file-only-badge">config.yaml only</span>}
           {prop.tooltip && (
             <HoverReveal text={prop.tooltip}>
               <IconInfoCircle size={12} className="cfg-tooltip-icon" />
@@ -451,7 +455,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
               already visible in the control, and reverting that is what the
               footer's Discard button is for — showing this too would raise
               "revert to what?" between the pending edit and the default. */}
-          {!dirty && !configValuesEqual(value, prop.default) && (
+          {!dirty && !prop.file_only && !configValuesEqual(value, prop.default) && (
             <button className="icon-btn cfg-reset-btn" onClick={() => onChange(prop.default)} title="Reset to default">
               <IconRotate2 size={14} />
             </button>
@@ -459,7 +463,9 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
         </label>
         <span className="cfg-prop-description">{prop.description}</span>
       </div>
-      <div className="cfg-prop-control">
+      {/* A disabled fieldset disables every control inside it, whatever the
+          prop's type; the backend refuses file_only keys regardless. */}
+      <fieldset className="cfg-prop-control" disabled={prop.file_only}>
         {prop.type === "enum" && (
           <select className="cfg-ctl-enum" value={String(value)} onChange={e => onChange(e.target.value)}>
             {prop.choices!.map(c => <option key={c} value={c}>{c}</option>)}
@@ -510,9 +516,10 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings }: P
             onChange={onChange}
             category={prop.key.replace(/^collector\./, "").replace(/_probes$/, "")}
             onChoicesRefresh={onChoicesRefresh}
+            probeEditing={probeEditing}
           />
         )}
-      </div>
+      </fieldset>
     </div>
   )
 }
@@ -523,6 +530,7 @@ interface ModuleListControlProps {
   onChange: (value: string[]) => void
   category: string
   onChoicesRefresh: (props: ConfigProp[]) => void
+  probeEditing: boolean
 }
 
 // Full dotted paths (e.g. "drives.collector.probes.vitals.smartctl_vitals")
@@ -546,7 +554,7 @@ function shortProbeLabel(path: string, category: string): string {
 // these lists are short enough that it's not worth pulling one in), add
 // from the discovered `choices` or via the Manage probes dialog, remove
 // per item.
-function ModuleListControl({ value, choices, onChange, category, onChoicesRefresh }: ModuleListControlProps) {
+function ModuleListControl({ value, choices, onChange, category, onChoicesRefresh, probeEditing }: ModuleListControlProps) {
   const [manageOpen, setManageOpen] = useState(false)
 
   const availableChoices = (choices ?? []).filter(c => !value.includes(c))
@@ -612,6 +620,7 @@ function ModuleListControl({ value, choices, onChange, category, onChoicesRefres
           onAdd={addItem}
           onChange={onChange}
           onChoicesRefresh={onChoicesRefresh}
+          editingAllowed={probeEditing}
           onClose={() => setManageOpen(false)}
         />
       )}

@@ -17,6 +17,7 @@ export type ConfigProp = {
   max: number | null
   choices: string[] | null
   restart_required: boolean
+  file_only: boolean
 }
 
 export type ProbeWarning = {
