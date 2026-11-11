@@ -5,35 +5,40 @@ _watch_and_wait with no Popen object and an already-exited PID, the same state
 a job is in when the backend restarted mid-run and then saw badblocks exit.
 """
 
+import signal
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from drives.drive_models import DriveContext, DriveDescriptor
+from operations import logged_process
 from operations.catalog import badblocks_write_test
 from operations.catalog.badblocks_write_test import BadblocksWriteTestOperation, _read_badblocks_outcome
 from operations.operation import ReattachFailed
 
 DEVICE = "/dev/sdz"
-BS = b"\b" * 40
+
+# Real stderr of `badblocks -w -s -v -b 4096 -c 1024 -p 1` (e2fsprogs) on a
+# 300 MB file, slowed so progress lines appear. Test logs are cut from it so
+# their format can't drift from what badblocks actually prints.
+REAL_LOG = (Path(__file__).parent / "fixtures" / "badblocks_w_s_v_one_clean_pass.log").read_bytes()
+_FIRST_PHASE = REAL_LOG.index(b"Testing with pattern 0xaa:")
+_SUMMARY = REAL_LOG.index(b"Pass completed,")
+HEADER = REAL_LOG[:_FIRST_PHASE]
+_PHASES = REAL_LOG[_FIRST_PHASE:_SUMMARY]   # 4 patterns × (write + read/compare)
 
 
-def _pattern(name: str, pct_steps=(10.0, 55.5, 99.99)) -> bytes:
-    out = f"Testing with pattern {name}: ".encode()
-    for pct in pct_steps:
-        out += f"{pct:.2f}% done, 0:01 elapsed. (0/0/0 errors)".encode() + BS
-    out += b"done                                                 \nReading and comparing: "
-    for pct in pct_steps:
-        out += f"{pct:.2f}% done, 0:02 elapsed. (0/0/0 errors)".encode() + BS
-    return out + b"done                                                 \n"
+def _pattern(name: str) -> bytes:
+    """One pattern's write + read/compare phases, as badblocks printed them."""
+    start = _PHASES.index(f"Testing with pattern {name}:".encode())
+    nxt = _PHASES.find(b"Testing with pattern", start + 1)
+    return _PHASES[start:nxt if nxt != -1 else len(_PHASES)]
 
 
 def _pass(bad: int) -> bytes:
-    body = b"".join(_pattern(p) for p in ("0xaa", "0x55", "0xff", "0x00"))
-    return body + f"Pass completed, {bad} bad blocks found. ({bad}/0/0 errors)\n".encode()
-
-
-HEADER = b"Checking for bad blocks in read-write mode\nFrom block 0 to 1465130645\n"
+    """A full pass ending in badblocks' -v summary line (format from the real log)."""
+    return _PHASES + f"Pass completed, {bad} bad blocks found. (0/0/{bad} errors)\n".encode()
 
 
 def _write_log(tmp_path, data: bytes):
@@ -163,3 +168,28 @@ def test_killed_mid_pass_during_downtime_stays_interrupted(tmp_path):
     log = _write_log(tmp_path, HEADER + _pattern("0xaa"))
     with pytest.raises(ReattachFailed, match="stopped before finishing"):
         BadblocksWriteTestOperation().reattach(_CONTEXT, _PARAMS, _reattach_data(log))
+
+
+# ---------------------------------------------------------------------------
+# A real badblocks run on a small file
+# ---------------------------------------------------------------------------
+
+def test_real_badblocks_run_on_a_clean_file_passes(tmp_path, monkeypatch):
+    # Catches command-line problems the canned logs can't: before -v was added,
+    # badblocks never printed its pass summary and a clean drive failed.
+    monkeypatch.setattr(logged_process, "is_device_mounted", lambda _d: False)
+    img = tmp_path / "drive.img"
+    img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+    context = DriveContext(guid="g", descriptor=DriveDescriptor(str(img), "sat", str(img)))
+
+    def _timeout(_signum, _frame):
+        raise TimeoutError("badblocks run did not finish")
+
+    previous = signal.signal(signal.SIGALRM, _timeout)
+    signal.alarm(30)
+    try:
+        result = BadblocksWriteTestOperation().run(context, _PARAMS)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+    assert result == {"device": str(img), "bad_blocks": 0, "passes": 1}

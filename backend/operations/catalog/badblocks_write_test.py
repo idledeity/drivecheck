@@ -15,9 +15,18 @@ the pattern completes — so progress is parsed from the raw bytes rather than
 from lines.
 
 Output routing:
-  stderr: progress updates and "Pass completed, N bad blocks found." summary
+  stderr: progress updates, plus "Pass completed, N bad blocks found." at the
+          end of each pass — printed only with -v, and the verdict relies on it
   stdout: bad block numbers (one per line); discarded since we parse the count
           from the stderr summary line
+
+Real -w -s -v output (e2fsprogs; \\b-overwritten progress shown as "|"):
+    Checking for bad blocks in read-write mode
+    From block 0 to 76799
+    Testing with pattern 0xaa:   0.00% done, 0:00 elapsed. (0/0/0 errors)| 48.00% done, ...|done
+    Reading and comparing:   0.00% done, 0:06 elapsed. (0/0/0 errors)| 50.67% done, ...|done
+    ... the same for 0x55, 0xff, 0x00 (8 phases per pass, each 0-100%) ...
+    Pass completed, 0 bad blocks found. (0/0/0 errors)
 """
 
 import logging
@@ -108,6 +117,7 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
             _find_badblocks(),
             "-w",
             "-s",
+            "-v",  # required: without it badblocks never prints "Pass completed, N bad blocks found."
             "-b", str(int(params["block_size"])),
             "-c", "1024",
             "-p", str(self._passes),
