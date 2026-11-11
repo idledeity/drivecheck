@@ -6,6 +6,7 @@ These tests run real processes under a SIGALRM guard so a regression fails
 instead of hanging the suite.
 """
 
+import os
 import signal
 import subprocess
 import time
@@ -175,3 +176,40 @@ def test_run_refuses_when_the_block_device_is_gone(monkeypatch, real_block_devic
     with pytest.raises(RuntimeError, match="not found"):
         _ShellOperation().run(context, {"script": "echo should-not-run >&2"})
     assert not (tmp_path / "job_logs").exists()
+
+
+# ---------------------------------------------------------------------------
+# In-use check before a destructive run
+# ---------------------------------------------------------------------------
+
+class _DestructiveShellOperation(_ShellOperation):
+    destructive = True
+
+
+def _fake_open(err):
+    def _open(path, flags, *args):
+        assert flags & os.O_EXCL
+        raise OSError(err, os.strerror(err), path)
+    return _open
+
+
+def test_a_destructive_run_refuses_a_device_something_holds(monkeypatch, tmp_path):
+    import errno
+    monkeypatch.setattr(logged_process.os, "open", _fake_open(errno.EBUSY))
+    op = _DestructiveShellOperation()
+    with pytest.raises(RuntimeError, match="in use"):
+        op.run(_SHELL_CONTEXT, {"script": "echo should-not-run >&2"})
+    assert not (tmp_path / "job_logs").exists()
+
+
+def test_a_destructive_run_refuses_a_device_it_cannot_open(monkeypatch):
+    import errno
+    monkeypatch.setattr(logged_process.os, "open", _fake_open(errno.EACCES))
+    with pytest.raises(RuntimeError, match="could not be opened: Permission denied"):
+        _DestructiveShellOperation().run(_SHELL_CONTEXT, {"script": "true"})
+
+
+def test_device_in_use_reason_on_a_free_device(tmp_path):
+    img = tmp_path / "disk.img"
+    img.write_bytes(b"\0" * 4096)
+    assert logged_process.device_in_use_reason(str(img)) is None

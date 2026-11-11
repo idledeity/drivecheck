@@ -66,9 +66,14 @@ class JobRegistry:
         max_parallel: int | None,
         get_context: Callable[[str], DriveContext | None],
         capture_smart: Callable[[str, float], dict | None] | None = None,
+        is_locked: Callable[[str], bool | None] | None = None,
     ):
         self._max_parallel = max_parallel or None  # treat 0 the same as None/missing
         self._get_context = get_context
+        # Whether a drive is locked against destructive operations
+        # (DriveCollector.is_drive_locked). Checked again right before each
+        # destructive run, since a drive can be locked while its job is queued.
+        self._is_locked = is_locked
         # Returns a SMART snapshot summary for a drive, reusing a saved one up to
         # max_age seconds old (DriveCollector.capture_smart). Called just before
         # and just after each run; None disables snapshots.
@@ -86,13 +91,19 @@ class JobRegistry:
         cls,
         get_context: Callable[[str], DriveContext | None],
         capture_smart: Callable[[str, float], dict | None] | None = None,
+        is_locked: Callable[[str], bool | None] | None = None,
     ) -> "JobRegistry":
         """Construct a JobRegistry from the registered jobs.max_parallel cfg value.
 
         restart_required — there's no live on_changed path, so reading it
         once here at startup is sufficient.
         """
-        return cls(max_parallel=cfg.get("jobs.max_parallel"), get_context=get_context, capture_smart=capture_smart)
+        return cls(
+            max_parallel=cfg.get("jobs.max_parallel"),
+            get_context=get_context,
+            capture_smart=capture_smart,
+            is_locked=is_locked,
+        )
 
     # ---------------------------------------------------------------------------
     # Public API
@@ -306,9 +317,15 @@ class JobRegistry:
         logger.info("job %s %s: %s", job.id[:8], "reattaching" if reattach_data is not None else "started", job.operation)
         instance = self._instances[job.id]
         context = self._get_context(job.drive_guid)
+        started = False
         try:
             if context is None:
                 raise RuntimeError("drive no longer present")
+            # Not on reattach: that job is already running on the drive.
+            if (reattach_data is None and instance.destructive
+                    and self._is_locked is not None and self._is_locked(job.drive_guid)):
+                raise RuntimeError("drive was locked while this job was queued — unlock it to run this operation")
+            started = True
             if reattach_data is None and job.smart_before is None:
                 # Not on reattach: the snapshot from before the restart is already saved.
                 job.smart_before = self._snapshot(job, "before")
@@ -331,7 +348,7 @@ class JobRegistry:
             job.error = str(e)
             logger.warning("job %s failed: %s — %s", job.id[:8], job.operation, e)
         job.finished_at = datetime.now()
-        if context is not None and not self._shutting_down:
+        if started and not self._shutting_down:
             job.smart_after = self._snapshot(job, "after")
 
         with self._lock:

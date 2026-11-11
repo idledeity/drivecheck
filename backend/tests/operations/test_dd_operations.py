@@ -192,6 +192,7 @@ def test_write_stops_on_exact_byte_count(monkeypatch):
         raise _StopAtPopen()
 
     monkeypatch.setattr(logged_process, "is_device_mounted", lambda _d: False)
+    monkeypatch.setattr(logged_process, "device_in_use_reason", lambda _d: None)
     monkeypatch.setattr(logged_process.subprocess, "Popen", fake_popen)
     with pytest.raises(_StopAtPopen):
         DDWriteTestOperation().run(_context(CAPACITY), _WRITE_PARAMS)
@@ -203,6 +204,7 @@ def test_write_stops_on_exact_byte_count(monkeypatch):
 
 def test_write_refuses_whole_device_when_capacity_unknown(monkeypatch):
     monkeypatch.setattr(logged_process, "is_device_mounted", lambda _d: False)
+    monkeypatch.setattr(logged_process, "device_in_use_reason", lambda _d: None)
     with pytest.raises(RuntimeError, match="capacity .* is unknown"):
         DDWriteTestOperation().run(_context(None), _WRITE_PARAMS)
 

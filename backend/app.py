@@ -62,6 +62,7 @@ collector = Collector.from_config()
 job_registry = JobRegistry.from_config(
     get_context=collector.get_drive_context,
     capture_smart=collector.capture_smart,
+    is_locked=collector.is_drive_locked,
 )
 
 app = Flask(__name__)

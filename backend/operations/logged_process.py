@@ -24,6 +24,7 @@ Reattach outcomes:
   - process gone, nothing conclusive in the log → ReattachFailed (INTERRUPTED)
 """
 
+import errno
 import logging
 import os
 import re
@@ -87,6 +88,25 @@ def is_device_mounted(device: str) -> bool:
     except OSError:
         return False
     return any(line.split(" ", 1)[0].startswith(device) for line in mounts)
+
+
+def device_in_use_reason(device: str) -> str | None:
+    """Return why device can't be claimed exclusively (a clause to follow the
+    device path, e.g. "is in use (...)"), or None if it's free.
+
+    Opening a block device with O_EXCL fails with EBUSY while anything holds
+    it: a mounted partition, an md RAID or LVM member, dm-crypt, active swap,
+    a ZFS pool, or another exclusive opener. /proc/mounts sees only the first
+    of those. The fd is closed straight away; this is a check, not a claim.
+    """
+    try:
+        fd = os.open(device, os.O_RDONLY | os.O_EXCL)
+    except OSError as e:
+        if e.errno == errno.EBUSY:
+            return "is in use (part of a RAID, LVM or ZFS pool, encrypted volume, swap, or held by another program)"
+        return f"could not be opened: {e.strerror}"
+    os.close(fd)
+    return None
 
 
 def _pid_running(pid: int) -> bool:
@@ -207,6 +227,9 @@ class LoggedProcessOperation(OperationBase):
         if self.destructive and is_device_mounted(device):
             self._message = "Failed"
             raise RuntimeError(f"{device} is currently mounted — unmount all partitions before running {self.name}")
+        if self.destructive and (reason := device_in_use_reason(device)):
+            self._message = "Failed"
+            raise RuntimeError(f"{device} {reason} — refusing to run {self.name}")
 
         try:
             self._configure(context, params)

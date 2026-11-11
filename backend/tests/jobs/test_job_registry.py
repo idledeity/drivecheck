@@ -395,3 +395,46 @@ def test_marking_a_missing_drive_interrupted_keeps_the_before_snapshot():
     row = _job_row("job-m")
     assert row["status"] == JobStatus.INTERRUPTED.value
     assert json.loads(row["smart_before_json"])["captured_at"] == "before-restart"
+
+
+# ---------------------------------------------------------------------------
+# Drive lock, re-checked when a destructive job starts
+# ---------------------------------------------------------------------------
+
+class _DestructiveOperation(_ControllableOperation):
+    name = "Destructive"
+    destructive = True
+
+
+def _make_lock_registry(monkeypatch, op_cls, locked: set[str]):
+    monkeypatch.setattr(job_registry_module, "OPERATIONS", {"op": op_cls})
+    contexts = {g: _context(g) for g in ("d1", "d2")}
+    recorder = _SmartRecorder()
+    registry = JobRegistry(max_parallel=1, get_context=contexts.get, capture_smart=recorder,
+                           is_locked=lambda g: g in locked)
+    return registry, recorder
+
+
+def test_a_destructive_job_fails_if_its_drive_was_locked_while_queued(monkeypatch):
+    locked: set[str] = set()
+    registry, recorder = _make_lock_registry(monkeypatch, _DestructiveOperation, locked)
+    first, queued = registry.create_jobs(["d1", "d2"], "op", {})
+    assert queued.status == JobStatus.QUEUED
+
+    locked.add("d2")
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: queued.status == JobStatus.FAILED)
+
+    assert "locked" in queued.error
+    assert not _ControllableOperation.instances[1].started.is_set()  # never ran
+    assert queued.smart_before is None and queued.smart_after is None
+    assert recorder.calls == ["d1", "d1"]  # only the first job's before/after
+    assert db.get_job_history("d2")[0]["status"] == "failed"
+    assert first.status == JobStatus.COMPLETED
+
+
+def test_the_lock_doesnt_stop_a_non_destructive_job(monkeypatch):
+    registry, _ = _make_lock_registry(monkeypatch, _ControllableOperation, {"d1"})
+    job = registry.create_jobs(["d1"], "op", {})[0]
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: job.status == JobStatus.COMPLETED)
