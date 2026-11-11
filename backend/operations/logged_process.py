@@ -3,9 +3,8 @@ operations.logged_process — Base class for operations that run one external
 program against a drive (dd, badblocks, shred, ...).
 
 The program's stderr is redirected to a per-job log file rather than a pipe:
-  1. No SIGPIPE hazard — the `/api/restart` path closes all fds ≥ 3 before
-     re-exec'ing, which would kill the program on its next stderr write if
-     stderr were a pipe.
+  1. No SIGPIPE hazard — a restart replaces the backend process, which would
+     kill the program on its next stderr write if stderr were a pipe to it.
   2. The job survives a backend restart. The program runs in its own session,
      keeps writing to the log, and is re-identified afterwards by PID +
      /proc cmdline.
@@ -87,6 +86,18 @@ def is_device_mounted(device: str) -> bool:
     except OSError:
         return False
     return any(line.split(" ", 1)[0].startswith(device) for line in mounts)
+
+
+def _pid_running(pid: int) -> bool:
+    """True if `pid` exists and is not a zombie. For processes that aren't our
+    children, whose exit we can't wait() for — a zombie has already exited."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return False
+    # Format: "pid (comm) state ..." — comm may contain spaces/parens, so split on the last ")".
+    state = stat.rsplit(")", 1)[-1].split()[0]
+    return state not in ("Z", "X")
 
 
 def process_matches(pid: int, device: str, program: str) -> bool:
@@ -247,9 +258,8 @@ class LoggedProcessOperation(OperationBase):
 
     def _watch_and_wait(self, start_offset: int = 0, startup_timeout: float | None = None) -> dict:
         """Follow the log until the process exits, then judge the run."""
-        is_alive = (lambda: Path(f"/proc/{self._pid}").exists()) if self._pid is not None else None
         try:
-            for chunk in tail_log(self._log_path, start_offset, startup_timeout, is_alive):
+            for chunk in tail_log(self._log_path, start_offset, startup_timeout, self._process_alive):
                 if self._cancel_event.is_set():
                     self._terminate()
                     self._message = "Cancelled"
@@ -277,17 +287,27 @@ class LoggedProcessOperation(OperationBase):
     # Process plumbing
     # ------------------------------------------------------------------
 
-    def _poll_until_done(self) -> int | None:
-        """Wait for a reattached process to exit. Its exit code isn't recoverable
-        without waitpid, so this always returns None."""
-        if self._pid is None:
-            return None
-        while Path(f"/proc/{self._pid}").exists():
+    def _process_alive(self) -> bool:
+        """True while the process is still running.
+
+        An exited child stays a zombie (its /proc entry remains) until it is
+        reaped, so a process this backend started is checked with Popen.poll(),
+        which reaps it. A reattached process was started by a previous backend
+        process (restart spawns a fresh process), so it is never our child: it
+        is checked via /proc, counting a zombie as exited.
+        """
+        if self._proc is not None:
+            return self._proc.poll() is None
+        return self._pid is not None and _pid_running(self._pid)
+
+    def _poll_until_done(self) -> None:
+        """Wait for a reattached process to exit. It isn't our child, so its exit
+        code can't be recovered — the verdict comes from the log."""
+        while self._process_alive():
             if self._cancel_event.is_set():
                 self._terminate()
-                return None
+                return
             time.sleep(_TAIL_POLL_INTERVAL)
-        return None
 
     def _terminate(self) -> None:
         if self._proc is not None:

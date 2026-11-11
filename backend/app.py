@@ -424,7 +424,7 @@ def patch_config():
 
 
 def _restart_process():
-    logger.info("restarting process via os.execv")
+    logger.info("restarting: spawning a new backend process")
     try:
         collector.stop()
     except Exception:
