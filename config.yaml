@@ -53,3 +53,5 @@ server:
   https: true        # false only behind a reverse proxy that handles HTTPS
   tls_cert:          # PEM files; empty = self-signed cert in <data dir>/tls/
   tls_key:
+  tls_extra_names:   # more hostnames/IPs for the self-signed cert
+    - 75.100.43.250

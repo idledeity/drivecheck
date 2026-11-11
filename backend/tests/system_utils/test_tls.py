@@ -53,6 +53,29 @@ def test_replaces_a_certificate_that_is_about_to_expire(monkeypatch):
     assert open(cert).read() != first
 
 
+def test_extra_names_are_added_to_the_certificate():
+    cfg.set("server.tls_extra_names", ["203.0.113.7", "drivecheck.example.net", "not a name!"])
+    cert, _ = tls.certificate_files()
+    text = _cert_text(cert)
+    assert "IP Address:203.0.113.7" in text
+    assert "DNS:drivecheck.example.net" in text
+    assert "not a name" not in text
+
+
+def test_replaces_a_certificate_that_does_not_cover_a_new_name():
+    cert, _ = tls.certificate_files()
+    first = open(cert).read()
+
+    cfg.set("server.tls_extra_names", ["203.0.113.7"])
+    tls.certificate_files()
+    assert open(cert).read() != first
+    assert "IP Address:203.0.113.7" in _cert_text(cert)
+
+    second = open(cert).read()
+    tls.certificate_files()  # covered now, so kept
+    assert open(cert).read() == second
+
+
 def test_replaces_a_certificate_whose_key_is_missing():
     cert, key = tls.certificate_files()
     first = open(cert).read()

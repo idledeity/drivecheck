@@ -3,7 +3,8 @@ tls.py — HTTPS for the backend and the dev server.
 
 HTTPS is on by default. Without a configured certificate, a self-signed one
 is created under <data dir>/tls/ on first start (valid for localhost, this
-host's name and its LAN address) and replaced when it nears expiry. Browsers
+host's name, its LAN address and any server.tls_extra_names) and replaced
+when it nears expiry or no longer covers those names. Browsers
 warn about it once; a certificate from your own CA (e.g. mkcert) avoids that
 via server.tls_cert / server.tls_key. server.https: false serves plain HTTP,
 for running behind a reverse proxy that terminates TLS.
@@ -14,9 +15,11 @@ are, which also creates the certificate if the dev server starts first.
 """
 
 import fcntl
+import ipaddress
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -46,6 +49,15 @@ cfg.register("server.tls_cert",
 cfg.register("server.tls_key",
     default=None, type="str", label="TLS key",
     section="Server", description="Private key file (PEM) for the TLS certificate.",
+)
+
+cfg.register("server.tls_extra_names",
+    default=[], type="list", label="Extra certificate names",
+    section="Server",
+    description="More hostnames or IP addresses for the self-signed certificate, one per line.",
+    tooltip="localhost, this host's name and its LAN address are always included. Add "
+            "the names you reach drivecheck by otherwise, such as a public IP behind a "
+            "port forward or a DNS name. The certificate is recreated on the next start.",
 )
 
 # Apple platforms reject TLS certificates valid for more than 825 days, even
@@ -96,8 +108,9 @@ def ensure_self_signed(directory: Path) -> tuple[Path, Path]:
     cert, key = directory / "cert.pem", directory / "key.pem"
     with open(directory / ".lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if not (key.is_file() and _valid_for_a_while(cert)):
-            _generate(cert, key)
+        names = subject_alt_names()
+        if not (key.is_file() and _valid_for_a_while(cert) and _covers(cert, names)):
+            _generate(cert, key, names)
     return cert, key
 
 
@@ -111,8 +124,30 @@ def _valid_for_a_while(cert: Path) -> bool:
     return result.returncode == 0
 
 
-def _generate(cert: Path, key: Path) -> None:
-    names = subject_alt_names()
+def _covers(cert: Path, names: list[str]) -> bool:
+    """Whether cert is valid for every one of names (as subject_alt_names() returns them)."""
+    result = subprocess.run(
+        ["openssl", "x509", "-noout", "-ext", "subjectAltName", "-in", str(cert)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    have = set()
+    for entry in result.stdout.split(":", 1)[-1].replace("\n", " ").split(","):
+        kind, _, value = entry.strip().partition(":")
+        if kind == "DNS":
+            have.add(("DNS", value.lower()))
+        elif kind == "IP Address":
+            have.add(("IP", ipaddress.ip_address(value.strip())))
+    return all(_san_key(n) in have for n in names)
+
+
+def _san_key(name: str) -> tuple[str, object]:
+    kind, _, value = name.partition(":")
+    return (kind, ipaddress.ip_address(value)) if kind == "IP" else (kind, value.lower())
+
+
+def _generate(cert: Path, key: Path, names: list[str]) -> None:
     logger.info("creating a self-signed TLS certificate for %s", ", ".join(names))
     # Written beside the final files and renamed over them, so nobody reads
     # a half-written file.
@@ -138,8 +173,12 @@ def _generate(cert: Path, key: Path) -> None:
         os.replace(tmp_cert, cert)
 
 
+_DNS_NAME = re.compile(r"^(\*\.)?[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}))*$")
+
+
 def subject_alt_names() -> list[str]:
-    """Names the certificate is valid for: localhost, this host, its LAN address."""
+    """Names the certificate is valid for: localhost, this host, its LAN address,
+    then server.tls_extra_names."""
     host = socket.gethostname()
     dns = ["localhost", host]
     if "." not in host:
@@ -148,6 +187,19 @@ def subject_alt_names() -> list[str]:
     lan = _lan_address()
     if lan and lan not in ips:
         ips.append(lan)
+    for extra in cfg.get("server.tls_extra_names") or []:
+        extra = str(extra).strip()
+        try:
+            ip = str(ipaddress.ip_address(extra))
+        except ValueError:
+            if _DNS_NAME.match(extra):
+                if extra.lower() not in (d.lower() for d in dns):
+                    dns.append(extra)
+            else:
+                logger.warning("server.tls_extra_names: ignoring %r, not a hostname or IP address", extra)
+            continue
+        if ip not in ips:
+            ips.append(ip)
     return [f"DNS:{d}" for d in dns] + [f"IP:{i}" for i in ips]
 
 
