@@ -51,6 +51,7 @@ const READ_TEST: OperationInfo = {
   name: 'Full Read Test',
   category: 'Scan',
   tool: 'dd',
+  destructive: false,
   params: [],
 }
 

@@ -18,6 +18,7 @@ const READ_TEST: OperationInfo = {
   name: 'Full Read Test',
   category: 'Scan',
   tool: 'dd',
+  destructive: false,
   params: [{ name: 'blocksize', label: 'Block size', type: 'number', default: 4096, min: 512, max: 65536 }],
 }
 
@@ -26,6 +27,7 @@ const SLEEP_DEBUG: OperationInfo = {
   name: 'Sleep (debug)',
   category: 'Debug',
   tool: 'none',
+  destructive: false,
   params: [{ name: 'fail', label: 'Fail partway through', type: 'boolean', default: false, min: null, max: null }],
 }
 
