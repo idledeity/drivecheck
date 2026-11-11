@@ -8,6 +8,7 @@ those statuses.
 """
 
 import logging
+from dataclasses import fields
 
 from analysis.severity import flag
 from drives.drive_models import DCSignals, DriveHealth
@@ -44,6 +45,8 @@ def score_health(signals: DCSignals) -> DriveHealth:
         "power_on_hours":     flag(signals.power_on_hours,     warn_gte=40_000, crit_gte=60_000),
         "load_unload_cycles": flag(signals.load_unload_cycles, warn_gte=500_000, crit_gte=700_000),
         "temp":               flag(signals.temp,               warn_gte=45),
+        # Not weighted below: a failed verdict caps the score instead (SMART_FAIL_CAP).
+        "smart_passed":       "crit" if signals.smart_passed is False else "ok",
     }
 
     if signals.smart_passed is None:
@@ -70,3 +73,14 @@ def score_health(signals: DCSignals) -> DriveHealth:
 
     logger.debug("scored health: status=%s pct=%s flags=%s", status, health_pct, flags)
     return DriveHealth(health_pct=health_pct, health_status=status, signal_flags=flags)
+
+
+_DC_SIGNAL_FIELDS = {f.name for f in fields(DCSignals)}
+
+
+def score_signals(signals: dict | None) -> DriveHealth:
+    """score_health for a stored DCSignals dict, such as a job's SMART snapshot,
+    so stored facts are judged by the same, current thresholds as the live
+    drive. Keys a stored dict has but DCSignals no longer does are ignored."""
+    known = {k: v for k, v in (signals or {}).items() if k in _DC_SIGNAL_FIELDS}
+    return score_health(DCSignals(**known))

@@ -266,8 +266,9 @@ class Collector:
         poll — the same path as a scheduled one, so it also lands in the signal
         history and refreshes the live state — and saves its raw report.
 
-        Returns {snapshot_id, captured_at, signals, health, reused}, where
-        snapshot_id references the full report in drive_raw_snapshots. Returns
+        Returns {snapshot_id, captured_at, signals, reused}, where snapshot_id
+        references the full report in drive_raw_snapshots. Facts only: flags and
+        health are derived from signals when served (app._with_judgements). Returns
         None if the drive is unknown. A failed poll comes back as
         {"captured_at", "error"} rather than raising, so a failed capture never
         fails the job it belongs to.
@@ -515,7 +516,6 @@ class Collector:
             "snapshot_id": snapshot_id,
             "captured_at": captured_at,
             "signals": asdict(snapshot.telemetry.signals),
-            "health": {"health_pct": snapshot.health.health_pct, "health_status": snapshot.health.health_status},
         }
         with self._lock:
             self._latest_snapshots[state.context.guid] = summary

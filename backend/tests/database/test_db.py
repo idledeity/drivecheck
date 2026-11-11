@@ -149,7 +149,7 @@ def test_get_job_history_respects_limit_and_ordering():
 # ---------------------------------------------------------------------------
 
 _BEFORE = {"snapshot_id": 7, "captured_at": "2026-01-01T00:00:00", "signals": {"reallocated": 0},
-           "health": {"health_pct": 100, "health_status": "Healthy"}, "reused": False}
+           "reused": False}
 _AFTER_FAILED = {"captured_at": "2026-01-01T05:00:00", "error": "smartctl timed out"}
 
 

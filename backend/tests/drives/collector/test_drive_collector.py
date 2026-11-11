@@ -65,7 +65,7 @@ def _collector_with_drive(monkeypatch, attributes_all=lambda _d, _a: _SAS_DATA):
 def test_capture_smart_forces_a_poll_and_saves_its_full_report(monkeypatch):
     collector = _collector_with_drive(monkeypatch)
     summary = collector.capture_smart("g1")
-    assert set(summary) == {"snapshot_id", "captured_at", "signals", "health", "reused"}
+    assert set(summary) == {"snapshot_id", "captured_at", "signals", "reused"}
     assert summary["reused"] is False
     assert summary["signals"]["power_on_hours"] == _SAS_DATA["power_on_time"]["hours"]
     report = json.loads(db.get_raw_snapshot(summary["snapshot_id"])["raw_json"])

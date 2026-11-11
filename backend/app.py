@@ -20,6 +20,7 @@ from drives.collector import probe_registry
 from operations.operation_registry import OPERATIONS, discover as discover_operations
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
+from analysis.health import score_signals
 from analysis.smart_delta import compare_signals
 from database import db
 from settings import user_settings
@@ -69,12 +70,27 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
 
+def _with_judgements(snapshot: dict | None) -> dict | None:
+    """A stored snapshot summary plus what its signals mean: per-signal
+    ok/warn/crit flags and the health score. Derived when served, never stored,
+    so every snapshot is judged by the current thresholds. Replaces any health
+    stored by older versions."""
+    if not snapshot or "signals" not in snapshot:
+        return snapshot
+    health = score_signals(snapshot["signals"])
+    return {
+        **snapshot,
+        "signal_flags": health.signal_flags,
+        "health": {"health_pct": health.health_pct, "health_status": health.health_status},
+    }
+
+
 def _smart_summary(before: dict | None, after: dict | None) -> dict:
     """A job's condensed before/after SMART summaries plus their comparison.
     The full reports are fetched separately via GET /api/jobs/<id>/smart."""
     return {
-        "before": before,
-        "after": after,
+        "before": _with_judgements(before),
+        "after": _with_judgements(after),
         "comparison": compare_signals((before or {}).get("signals"), (after or {}).get("signals")),
     }
 

@@ -38,7 +38,9 @@ class Job:
     # Condensed SMART snapshots from just before the operation starts and just
     # after it ends (any outcome), so a run's effect on the drive can be compared.
     # Each is DriveCollector.capture_smart()'s summary: snapshot_id (the full
-    # report in drive_raw_snapshots), captured_at, signals, health, reused — or
-    # {"captured_at", "error"} if the capture failed.
+    # report in drive_raw_snapshots), captured_at, signals, reused — or
+    # {"captured_at", "error"} if the capture failed. Facts only: flags and health
+    # are derived from signals when served. (Rows from older versions also carry
+    # a stored "health", which the API ignores.)
     smart_before: dict | None = None
     smart_after: dict | None = None

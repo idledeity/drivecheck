@@ -1,10 +1,11 @@
-from analysis.health import score_health, SIGNAL_WEIGHTS, SMART_FAIL_CAP
+from analysis.health import score_health, score_signals, SIGNAL_WEIGHTS, SMART_FAIL_CAP
 from drives.drive_models import DCSignals
 
 
 ALL_OK_FLAGS = {
     "reallocated": "ok", "pending": "ok", "uncorrected": "ok",
     "crc_errors": "ok", "power_on_hours": "ok", "load_unload_cycles": "ok", "temp": "ok",
+    "smart_passed": "ok",
 }
 
 
@@ -89,3 +90,26 @@ def test_old_age_triggers_power_on_hours_flag():
     health = score_health(signals)
     assert health.signal_flags["power_on_hours"] == "warn"
     assert health.health_pct == 100 - SIGNAL_WEIGHTS["power_on_hours"]["warn"]
+
+
+def test_failed_smart_verdict_is_flagged_crit():
+    assert score_health(DCSignals(smart_passed=False)).signal_flags["smart_passed"] == "crit"
+
+
+def test_score_signals_judges_a_stored_dict_like_the_live_drive():
+    # Real stored snapshot shape (asdict(DCSignals)) from a failing SAS drive.
+    stored = {
+        "power_on_hours": 51327, "temp": 33, "reallocated": 1028, "pending": None, "uncorrected": 0,
+        "crc_errors": None, "reallocated_events": None, "load_unload_cycles": 3272, "smart_passed": False,
+    }
+    health = score_signals(stored)
+    assert health.signal_flags["power_on_hours"] == "warn"
+    assert health.signal_flags["reallocated"] == "warn"
+    assert health.signal_flags["smart_passed"] == "crit"
+    assert health.signal_flags["temp"] == "ok"
+    assert (health.health_pct, health.health_status) == (SMART_FAIL_CAP, "Failing")
+
+
+def test_score_signals_ignores_fields_dcsignals_no_longer_has():
+    assert score_signals({"temp": 50, "retired_field": 7}).signal_flags["temp"] == "warn"
+    assert score_signals(None).health_status is None
