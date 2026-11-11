@@ -1,6 +1,8 @@
 import json
 import logging
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 from database import db
 from drives.collector.drive_collector import Collector
@@ -60,6 +62,32 @@ def _collector_with_drive(monkeypatch, attributes_all=lambda _d, _a: _SAS_DATA):
                            traits=DriveTraits(drive_type=DriveType.SAS))
     collector._drive_states["g1"] = DriveState(context=context)
     return collector
+
+
+def test_health_is_scored_after_the_whole_telemetry_chain(monkeypatch):
+    # A later probe correcting a signal must be what health is judged on.
+    collector = _collector_with_drive(monkeypatch)
+    def mark_failing(snapshot, _context):
+        signals = replace(snapshot.telemetry.signals, smart_passed=False, uncorrected=3)
+        snapshot.telemetry = replace(snapshot.telemetry, signals=signals)
+        return snapshot
+    collector._telemetry_probes = [*collector._telemetry_probes, SimpleNamespace(run=mark_failing)]
+    state = collector._drive_states["g1"]
+    snapshot = collector._run_telemetry(state, 0)
+    assert snapshot.health.health_status == "Failing"
+    assert snapshot.health.signal_flags["uncorrected"] == "crit"
+    assert snapshot.health.signal_flags["smart_passed"] == "crit"
+    assert state.snapshot.health is snapshot.health
+
+
+def test_a_probe_that_never_scores_health_still_gets_a_rating(monkeypatch):
+    collector = _collector_with_drive(monkeypatch)
+    def facts_only(snapshot, _context):
+        snapshot.telemetry = replace(snapshot.telemetry, signals=replace(snapshot.telemetry.signals, smart_passed=True))
+        return snapshot
+    collector._telemetry_probes = [smartctl_telemetry, SimpleNamespace(run=facts_only)]
+    snapshot = collector._run_telemetry(collector._drive_states["g1"], 0)
+    assert snapshot.health.health_status is not None
 
 
 def test_capture_smart_forces_a_poll_and_saves_its_full_report(monkeypatch):

@@ -39,6 +39,7 @@ from datetime import datetime
 from settings import cfg
 from database import db
 from analysis.descriptor_rank import score_descriptor
+from analysis.health import score_health
 from drives.tools.timeout import ProbeTimeout
 from drives.drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
 from drives.collector.probes.vitals.block_device import run as resolve_block_device
@@ -480,10 +481,14 @@ class Collector:
         self._reconcile_descriptors(descriptors, now)
 
     def _run_telemetry(self, state: DriveState, now: float) -> DriveSnapshot:
-        """Run the telemetry probe chain for a drive and record signals + heartbeat."""
+        """Run the telemetry probe chain for a drive, score its health, and record
+        signals + heartbeat."""
         snapshot = DriveSnapshot()
         for probe in self._telemetry_probes:
             snapshot = probe.run(snapshot, state.context)
+        # Scored here, after the whole chain, not by a probe: probes report facts,
+        # and the last probe has final authority over every signal health is judged on.
+        snapshot.health = score_health(snapshot.telemetry.signals)
         with self._lock:
             state.snapshot = snapshot
 

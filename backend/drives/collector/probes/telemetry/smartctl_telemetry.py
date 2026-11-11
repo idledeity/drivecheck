@@ -35,8 +35,9 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
         signals = _map_ata(data)
 
     snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
-    snapshot.health = score_health(signals)
-    rows = build_attribute_rows(data, drive_type, signals, snapshot.health)
+    # Health itself is scored by the collector after the whole probe chain; this
+    # local scoring only feeds the attribute rows' statuses.
+    rows = build_attribute_rows(data, drive_type, signals, score_health(signals))
     snapshot.extras["smart_attributes"] = [asdict(r) for r in rows]
     snapshot.extras["self_test_log"] = [asdict(r) for r in build_self_test_log(data, drive_type)]
     snapshot.extras["smartctl"] = data
@@ -47,7 +48,7 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     if errors:
         logger.warning("telemetry poll for %s reported errors: %s", descriptor.info_name, errors)
     else:
-        logger.debug("telemetry poll for %s: health=%s", descriptor.info_name, snapshot.health.health_status)
+        logger.debug("telemetry poll for %s: signals=%s", descriptor.info_name, signals)
 
     return snapshot
 
@@ -134,7 +135,7 @@ if __name__ == "__main__":
         print(f"  polled_at: {snapshot.telemetry.last_polled_at}")
         for key, value in asdict(snapshot.telemetry.signals).items():
             print(f"  {key}: {value}")
-        print(f"  health: {snapshot.health}")
+        print(f"  health: {score_health(snapshot.telemetry.signals)}")
         print(f"  extras keys: {list(snapshot.extras.keys())}")
         print(f"  smart_attributes:")
         for row in snapshot.extras["smart_attributes"]:
