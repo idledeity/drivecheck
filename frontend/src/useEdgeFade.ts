@@ -38,5 +38,7 @@ export function useEdgeFade<T extends HTMLElement>() {
     }
   }, [])
 
-  return { ref, fade: overflowing }
+  // A pair rather than { ref, fade }: React's lint reads any property of an
+  // object holding a ref as a ref access during render.
+  return [ref, overflowing] as const
 }

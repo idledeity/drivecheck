@@ -46,7 +46,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
 
   // Mobile/touch only (see JobRow.css) — only fade the message's edge when
   // it's actually scrollable, same as DriveCard's scrollable rows.
-  const msgFade = useEdgeFade<HTMLSpanElement>()
+  const [msgFadeRef, msgFaded] = useEdgeFade<HTMLSpanElement>()
 
   return (
     <div className={`queue-row queue-row-${job.status}`} onClick={() => setExpanded(e => !e)}>
@@ -89,7 +89,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           {(job.progress.message || elapsedSeconds !== null) && (
             <div className="queue-msg-row">
               {job.progress.message && (
-                <span ref={msgFade.ref} className={`queue-msg${msgFade.fade ? " queue-edge-fade" : ""}`}>
+                <span ref={msgFadeRef} className={`queue-msg${msgFaded ? " queue-edge-fade" : ""}`}>
                   {job.progress.message}
                 </span>
               )}

@@ -272,6 +272,37 @@ describe('popovers (click-only / no-hover device)', () => {
   })
 })
 
+describe('long press (touch)', () => {
+  it('opens the context menu after holding, and the release does not toggle selection', () => {
+    vi.useFakeTimers()
+    const onContextMenu = vi.fn()
+    const { onSelectToggle } = renderCard({ onContextMenu })
+    const card = document.querySelector('.drive-card')!
+    fireEvent.pointerDown(card, { clientX: 30, clientY: 40 })
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(onContextMenu).toHaveBeenCalledWith('guid-1', { x: 30, y: 40 })
+    fireEvent.pointerUp(card)
+    fireEvent.click(card)
+    expect(onSelectToggle).not.toHaveBeenCalled()
+    fireEvent.click(card)
+    expect(onSelectToggle).toHaveBeenCalledOnce()
+  })
+
+  it('treats a short press as a tap', () => {
+    vi.useFakeTimers()
+    const onContextMenu = vi.fn()
+    const { onSelectToggle } = renderCard({ onContextMenu })
+    const card = document.querySelector('.drive-card')!
+    fireEvent.pointerDown(card)
+    act(() => { vi.advanceTimersByTime(200) })
+    fireEvent.pointerUp(card)
+    fireEvent.click(card)
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(onContextMenu).not.toHaveBeenCalled()
+    expect(onSelectToggle).toHaveBeenCalledOnce()
+  })
+})
+
 describe('popovers (hover-capable device)', () => {
   beforeEach(() => {
     mockMatchMedia(true)
@@ -299,6 +330,21 @@ describe('popovers (hover-capable device)', () => {
     expect(screen.getByText('Result')).toBeInTheDocument()
 
     fireEvent.mouseLeave(tz)
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
+  })
+
+  it('opens the queued list, not the task details, when resting on the pill inside the task bar', async () => {
+    renderCard({
+      job: makeJob({ status: 'running' }),
+      queuedJobs: [makeJob({ id: 'q1', operation_name: 'Sleep (debug)', category: 'Debug' })],
+    })
+    const tz = document.querySelector('.dc-tz')!
+    const pill = screen.getByText('1 queued')
+    fireEvent.mouseEnter(tz, { clientX: 10, clientY: 10 })
+    fireEvent.mouseEnter(pill, { clientX: 200, clientY: 10 })
+    fireEvent.mouseMove(pill, { clientX: 201, clientY: 10 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(400) })
+    expect(screen.getByText('Sleep (debug)')).toBeInTheDocument()
     expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 

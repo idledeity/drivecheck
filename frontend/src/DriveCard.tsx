@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
@@ -7,6 +7,8 @@ import SignalValue from "./SignalValue"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
+import { useHoverPopover } from "./useHoverPopover"
+import { useLongPress } from "./useLongPress"
 import Serial from "./Serial"
 import "./DriveCard.css"
 
@@ -58,55 +60,12 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // overflow check, so the edge-fade only shows up on a row that's actually
   // scrollable. dc-tn-id is shared by the running/queued task-zone branches
   // below since only one of them ever mounts at a time.
-  const idFade = useEdgeFade<HTMLDivElement>()
-  const traitsFade = useEdgeFade<HTMLDivElement>()
-  const stateFade = useEdgeFade<HTMLDivElement>()
-  const tnIdFade = useEdgeFade<HTMLDivElement>()
-  const tzMsgFade = useEdgeFade<HTMLSpanElement>()
-  const fsFade = useEdgeFade<HTMLDivElement>()
-
-  // Two independent bubbles: "task" shows the active job's full details,
-  // "queued" lists every queued job for this drive. Mutually exclusive so
-  // the (already small) card doesn't have to fit both open at once.
-  //
-  // Click is only wired up (see the JSX below: `supportsHover ? undefined :
-  // togglePopover(...)`) on devices that don't really hover — there, it's
-  // the only way in. On hover-capable devices it's hover alone; clicking the
-  // task zone there just does the normal card-select click instead, same as
-  // clicking anywhere else on the card. pinnedRef still exists to give
-  // click-only devices the classic "click to open, click again to close"
-  // toggle — it just never gets set on a hover-capable device, since the
-  // click handler that sets it is never attached there.
-  //
-  // Rendered through a portal into document.body instead of inline in the
-  // card: .drive-card needs overflow:hidden (its rounded left corners are
-  // only correct when the accent bar gets clipped to the card's own
-  // border-radius — the bar is too narrow for that radius to render right
-  // on its own), which would otherwise clip a same-DOM-subtree popover
-  // whenever there isn't much card left below the task zone, which is most
-  // of the time. position:fixed lets it float free of that clip.
-  //
-  // Positioned at the pointer itself (e.clientX/Y), not the trigger's own
-  // rect — anchoring to an element's top-left looked disconnected from the
-  // cursor whenever you entered/clicked further along it (e.g. the queued
-  // pill, at the right end). POPOVER_W/H are the CSS max-width/max-height
-  // (kept in sync with DriveCard.css), used only to clamp away from viewport
-  // edges before the real size is known.
-  const [popover, setPopover] = useState<"task" | "queued" | null>(null)
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
-  const pinnedRef = useRef(false)
-  const hoverTimerRef = useRef<number | null>(null)
-  const lastPosRef = useRef<{ x: number; y: number } | null>(null)
-  const pillRef = useRef<HTMLButtonElement>(null)
-  const longPressTimerRef = useRef<number | null>(null)
-  const longPressedRef = useRef(false)
-  const pointerDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-    onContextMenu?.(drive.guid, { x: e.clientX, y: e.clientY })
-  }
-
+  const [idFadeRef, idFaded] = useEdgeFade<HTMLDivElement>()
+  const [traitsFadeRef, traitsFaded] = useEdgeFade<HTMLDivElement>()
+  const [stateFadeRef, stateFaded] = useEdgeFade<HTMLDivElement>()
+  const [tnIdFadeRef, tnIdFaded] = useEdgeFade<HTMLDivElement>()
+  const [tzMsgFadeRef, tzMsgFaded] = useEdgeFade<HTMLSpanElement>()
+  const [fsFadeRef, fsFaded] = useEdgeFade<HTMLDivElement>()
 
   // (hover: hover) is true for a device whose *primary* pointer can actually
   // hover (a mouse) — false for touch, even on a touchscreen laptop with a
@@ -114,111 +73,25 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // mount; doesn't need to react to input switching mid-session for this.
   const [supportsHover] = useState(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches)
 
-  const positionFrom = (e: { clientX: number; clientY: number }) => {
-    const POPOVER_W = 280
-    const POPOVER_H = 160
-    setPopoverPos({
-      top: Math.min(e.clientY + 12, window.innerHeight - POPOVER_H - 8),
-      left: Math.max(8, Math.min(e.clientX, window.innerWidth - POPOVER_W - 8)),
-    })
+  // "task" shows the active job's full details, "queued" lists every queued
+  // job for this drive. Rendered through a portal: .drive-card needs
+  // overflow:hidden (its rounded left corners only render right when the
+  // accent bar is clipped to the card's radius), which would clip an inline
+  // popover whenever there isn't much card below the task zone.
+  const pop = useHoverPopover<"task" | "queued">({ supportsHover, delayMs: HOVER_DELAY_MS })
+
+  // Touch has no right-click: press and hold opens the same menu.
+  const longPress = useLongPress(pos => onContextMenu?.(drive.guid, pos), !supportsHover)
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    onContextMenu?.(drive.guid, { x: e.clientX, y: e.clientY })
   }
 
-  const cancelHoverTimer = () => {
-    if (hoverTimerRef.current !== null) {
-      clearTimeout(hoverTimerRef.current)
-      hoverTimerRef.current = null
-    }
-  }
-
-  const cancelLongPress = () => {
-    if (longPressTimerRef.current !== null) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    longPressedRef.current = false
-    pointerDownPosRef.current = { x: e.clientX, y: e.clientY }
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressedRef.current = true
-      onContextMenu?.(drive.guid, pointerDownPosRef.current)
-    }, 500)
-  }
-
-  const togglePopover = (which: "task" | "queued") => (e: React.MouseEvent) => {
-    e.stopPropagation()
-    cancelHoverTimer()
-    setPopover(p => {
-      if (p === which && pinnedRef.current) { pinnedRef.current = false; return null }
-      pinnedRef.current = true
-      positionFrom(e)
-      return which
-    })
-  }
-
-  // Mirrors the native title-attribute tooltip: only commits after the
-  // pointer has been genuinely still for HOVER_DELAY_MS, hides the instant
-  // it moves again, and re-arms from scratch without needing an exit/re-entry
-  // — wired to both onMouseEnter and onMouseMove (below) so it re-evaluates
-  // continuously, not just once at the boundary crossing.
-  //
-  // forceArm skips the distance check for onMouseEnter: crossing into a new
-  // region (e.g. onto the queued pill) should always count as "moved" even
-  // if the actual pixel delta from the last tracked point happens to be
-  // tiny, since lastPosRef is shared across the whole task zone.
-  //
-  // The "task" arm call ignores movement that's actually within the queued
-  // pill (pillRef.contains check) — mousemove bubbles (unlike enter/leave),
-  // so without this the zone's handler would also fire for every movement
-  // over the pill and fight with the pill's own arm calls.
-  const MOVE_THRESHOLD = 4
-  const armHover = (which: "task" | "queued", forceArm: boolean) => (e: React.MouseEvent) => {
-    if (pinnedRef.current || !supportsHover) return
-    if (which === "task" && pillRef.current?.contains(e.target as Node)) return
-    const { clientX: x, clientY: y } = e
-    const last = lastPosRef.current
-    const moved = forceArm || !last || Math.hypot(x - last.x, y - last.y) > MOVE_THRESHOLD
-    lastPosRef.current = { x, y }
-    if (!moved) return
-    cancelHoverTimer()
-    setPopover(p => pinnedRef.current ? p : null)
-    hoverTimerRef.current = window.setTimeout(() => {
-      positionFrom({ clientX: x, clientY: y })
-      setPopover(which)
-    }, HOVER_DELAY_MS)
-  }
-  const disarmHover = () => {
-    cancelHoverTimer()
-    lastPosRef.current = null
-    if (pinnedRef.current) return
-    setPopover(null)
-  }
-
-  // Guards against pending timers firing after unmount.
-  useEffect(() => () => { cancelHoverTimer(); cancelLongPress() }, [])
-
-  // Click-outside-to-dismiss (plus scroll, since a position:fixed popover
-  // would otherwise drift away from the task zone it's anchored to): both
-  // the trigger (togglePopover) and the popover's own onClick already call
-  // stopPropagation, so a click on either of those never reaches this
-  // document-level listener — only a click elsewhere does, which is exactly
-  // the "outside" set we want to close on.
-  useEffect(() => {
-    if (!popover) return
-    const close = () => { pinnedRef.current = false; setPopover(null) }
-    document.addEventListener("click", close)
-    window.addEventListener("scroll", close, true)
-    return () => {
-      document.removeEventListener("click", close)
-      window.removeEventListener("scroll", close, true)
-    }
-  }, [popover])
-
-  const popoverContent = popover && (popover === "queued" ? queuedJobs.length > 0 : !!job) && createPortal(
-    <div className="dc-popover" style={popoverPos} onClick={e => e.stopPropagation()}>
-      {popover === "task" && job && <JobDetailRows job={job} />}
-      {popover === "queued" && queuedJobs.map(q => (
+  const popoverContent = pop.open && (pop.open === "queued" ? queuedJobs.length > 0 : !!job) && createPortal(
+    <div className="dc-popover" style={pop.pos} {...pop.popoverProps}>
+      {pop.open === "task" && job && <JobDetailRows job={job} />}
+      {pop.open === "queued" && queuedJobs.map(q => (
         <div key={q.id} className="dc-queued-item">
           <span className="dc-queued-op">{q.operation_name}</span>
           <span className="dc-queued-meta">{q.category} · queued {formatRelativeTime(q.created_at)}</span>
@@ -240,16 +113,18 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     <div
       className={`drive-card bar-${health.bar}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
       title={drive.locked ? "Write protected — destructive operations blocked" : undefined}
-      onClick={(e) => { if (longPressedRef.current) { longPressedRef.current = false; return }; supportsHover ? onSelect(e) : onSelectToggle() }}
-      onPointerDown={supportsHover ? undefined : handlePointerDown}
-      onPointerUp={supportsHover ? undefined : cancelLongPress}
-      onPointerCancel={supportsHover ? undefined : cancelLongPress}
+      onClick={(e) => {
+        if (longPress.consumeLongPress()) return
+        if (supportsHover) onSelect(e)
+        else onSelectToggle()
+      }}
+      {...longPress.handlers}
       onContextMenu={supportsHover ? handleContextMenu : (e) => e.preventDefault()}
     >
       {/* Row 1: name + badge */}
       <div className="dc-r1">
         <div className="dc-sel-btn" />
-        <div ref={idFade.ref} className={`dc-r1-id${idFade.fade ? " dc-edge-fade" : ""}`}>
+        <div ref={idFadeRef} className={`dc-r1-id${idFaded ? " dc-edge-fade" : ""}`}>
           {(drive.white_label ?? drive.manufacturer_short) && <span className="dc-mfr">{drive.white_label ?? drive.manufacturer_short}</span>}
           <span className="dc-model">{drive.model ?? drive.device}</span>
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
@@ -260,7 +135,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
       {/* Row 2: traits (left) + serial (right) */}
       <div className="dc-traits">
-        <div ref={traitsFade.ref} className={`dc-traits-left${traitsFade.fade ? " dc-edge-fade" : ""}`}>
+        <div ref={traitsFadeRef} className={`dc-traits-left${traitsFaded ? " dc-edge-fade" : ""}`}>
           {drive.drive_type && <span className="dc-tv">{drive.drive_type}</span>}
           {drive.capacity_bytes != null && (
             <><span className="dc-tsep">·</span><span className="dc-tv">{formatCapacity(drive.capacity_bytes)}</span></>
@@ -279,7 +154,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       <div className="dc-ldr"><div className="dc-ldr-line" /></div>
 
       {/* Row 3: active state — path + temp + mount status */}
-      <div ref={stateFade.ref} className={`dc-state${stateFade.fade ? " dc-edge-fade" : ""}`}>
+      <div ref={stateFadeRef} className={`dc-state${stateFaded ? " dc-edge-fade" : ""}`}>
         <span className="dc-si"><IconServer size={11} /><span className="dc-sv">{drive.device}</span></span>
         {liveTemp !== null && (
           <>
@@ -301,26 +176,17 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       {job?.status === "running" ? (
         <div
           className="dc-tz running"
-          onClick={supportsHover ? undefined : togglePopover("task")}
-          onMouseEnter={armHover("task", true)}
-          onMouseMove={armHover("task", false)}
-          onMouseLeave={disarmHover}
+          {...pop.trigger("task")}
         >
           <div className="dc-tn">
-            <div ref={tnIdFade.ref} className={`dc-tn-id${tnIdFade.fade ? " dc-edge-fade" : ""}`}>
+            <div ref={tnIdFadeRef} className={`dc-tn-id${tnIdFaded ? " dc-edge-fade" : ""}`}>
               <IconLoader2 size={11} className="spinning" />
               <span>{job.operation_name}</span>
             </div>
             {(job.progress.percent !== null || queuedJobs.length > 0 || completePill) && (
               <div className="dc-tn-right">
                 {queuedJobs.length > 0 && (
-                  <button
-                    ref={pillRef}
-                    className="dc-queued-pill"
-                    onClick={supportsHover ? undefined : togglePopover("queued")}
-                    onMouseEnter={armHover("queued", true)}
-                    onMouseMove={armHover("queued", false)}
-                  >
+                  <button className="dc-queued-pill" {...pop.trigger("queued")}>
                     {queuedJobs.length} queued
                   </button>
                 )}
@@ -337,7 +203,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {(job.progress.message || elapsedSeconds !== null) && (
             <div className="dc-tz-msg">
               {job.progress.message && (
-                <span ref={tzMsgFade.ref} className={`dc-tz-msg-text${tzMsgFade.fade ? " dc-edge-fade" : ""}`}>
+                <span ref={tzMsgFadeRef} className={`dc-tz-msg-text${tzMsgFaded ? " dc-edge-fade" : ""}`}>
                   {job.progress.message}
                 </span>
               )}
@@ -352,26 +218,17 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       ) : job?.status === "queued" ? (
         <div
           className="dc-tz queued"
-          onClick={supportsHover ? undefined : togglePopover("task")}
-          onMouseEnter={armHover("task", true)}
-          onMouseMove={armHover("task", false)}
-          onMouseLeave={disarmHover}
+          {...pop.trigger("task")}
         >
           <div className="dc-tn">
-            <div ref={tnIdFade.ref} className={`dc-tn-id${tnIdFade.fade ? " dc-edge-fade" : ""}`}>
+            <div ref={tnIdFadeRef} className={`dc-tn-id${tnIdFaded ? " dc-edge-fade" : ""}`}>
               <IconClock size={11} />
               <span>Queued: {job.operation_name}</span>
             </div>
             {(queuedJobs.length > 0 || completePill) && (
               <div className="dc-tn-right">
                 {queuedJobs.length > 0 && (
-                  <button
-                    ref={pillRef}
-                    className="dc-queued-pill"
-                    onClick={supportsHover ? undefined : togglePopover("queued")}
-                    onMouseEnter={armHover("queued", true)}
-                    onMouseMove={armHover("queued", false)}
-                  >
+                  <button className="dc-queued-pill" {...pop.trigger("queued")}>
                     {queuedJobs.length} queued
                   </button>
                 )}
@@ -394,8 +251,8 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       {/* Footer */}
       <div className="dc-ft">
         <div
-          ref={fsFade.ref}
-          className={`dc-fs${fsFade.fade ? " dc-edge-fade" : ""}`}
+          ref={fsFadeRef}
+          className={`dc-fs${fsFaded ? " dc-edge-fade" : ""}`}
           title={drive.last_polled_at ? `Telemetry updated ${formatRelativeTime(drive.last_polled_at)}` : undefined}
         >
           {sigKeys.map(key => {

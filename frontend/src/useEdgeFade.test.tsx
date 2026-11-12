@@ -9,7 +9,7 @@ function setSize(node: HTMLElement, scrollWidth: number, clientWidth: number) {
 }
 
 function Box({ scrollWidth, clientWidth }: { scrollWidth: number; clientWidth: number }) {
-  const { ref, fade } = useEdgeFade<HTMLDivElement>()
+  const [ref, fade] = useEdgeFade<HTMLDivElement>()
   // Memoized so React only invokes it on actual mount/unmount — an inline
   // closure gets a new identity every render, which would make React
   // re-invoke it (and re-apply the original static size) on every re-render
