@@ -144,6 +144,41 @@ def test_get_job_history_respects_limit_and_ordering():
     assert [row["id"] for row in history] == ["job-2", "job-1"]
 
 
+def _finished_job(job_id, guid="guid-1", status=JobStatus.COMPLETED, operation="dd_read_test",
+                  category="Scan", finished=datetime(2026, 1, 1)):
+    return Job(id=job_id, drive_guid=guid, operation=operation, category=category, params={},
+               status=status, created_at=finished, started_at=finished, finished_at=finished)
+
+
+def test_job_history_across_drives_newest_finished_first():
+    db.record_job(_finished_job("a", "guid-1", finished=datetime(2026, 1, 2)))
+    db.record_job(_finished_job("b", "guid-2", finished=datetime(2026, 1, 3)))
+    db.record_job(_finished_job("c", "guid-3", finished=datetime(2026, 1, 1)))
+    assert [r["id"] for r in db.get_job_history()] == ["b", "a", "c"]
+    assert [r["id"] for r in db.get_job_history(["guid-1", "guid-3"])] == ["a", "c"]
+
+
+def test_job_history_filters_by_since_status_operation_and_category():
+    db.record_job(_finished_job("old", finished=datetime(2026, 1, 1)))
+    db.record_job(_finished_job("failed", status=JobStatus.FAILED, finished=datetime(2026, 1, 10)))
+    db.record_job(_finished_job("short", operation="smart_self_test_short", category="Test", finished=datetime(2026, 1, 11)))
+    db.record_job(_finished_job("debug", operation="debug_sleep", category="Debug", finished=datetime(2026, 1, 12)))
+
+    assert [r["id"] for r in db.get_job_history(since="2026-01-05T00:00:00")] == ["debug", "short", "failed"]
+    assert [r["id"] for r in db.get_job_history(statuses=["failed"])] == ["failed"]
+    assert [r["id"] for r in db.get_job_history(operations=["smart_self_test_short"])] == ["short"]
+    assert "debug" not in [r["id"] for r in db.get_job_history(exclude_categories=["Debug"])]
+    assert db.get_job_history(statuses=[]) == []
+
+
+def test_job_history_since_leaves_out_unfinished_jobs():
+    db.record_job(Job(id="queued", drive_guid="guid-1", operation="dd_read_test", category="Scan",
+                      params={}, created_at=datetime(2026, 1, 20)))
+    db.record_job(_finished_job("done", finished=datetime(2026, 1, 10)))
+    assert [r["id"] for r in db.get_job_history(since="2026-01-05T00:00:00")] == ["done"]
+    assert [r["id"] for r in db.get_job_history()] == ["queued", "done"]
+
+
 # ---------------------------------------------------------------------------
 # Job SMART snapshots
 # ---------------------------------------------------------------------------

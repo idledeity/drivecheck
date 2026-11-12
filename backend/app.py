@@ -345,13 +345,36 @@ def _json_or_none(text):
     return json.loads(text) if text else None
 
 
+def _csv_arg(name: str) -> list[str] | None:
+    """A comma-separated query arg as a list, or None when it's absent."""
+    raw = request.args.get(name)
+    return None if raw is None else [v for v in raw.split(",") if v]
+
+
 @app.route("/api/jobs/history")
 def job_history():
-    guid = request.args.get("guid")
-    if not guid:
-        return jsonify({"error": "missing 'guid'"}), 400
-    limit = min(int(request.args.get("limit", 50)), 200)
-    rows = db.get_job_history(guid, limit)
+    """Stored jobs, most recently finished first. Every filter is optional:
+    guid (one or more, comma-separated; none = every drive), since (ISO time,
+    jobs finished at or after it), status, operation, exclude_category (each
+    comma-separated), limit (default 50, at most 500)."""
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        return jsonify({"error": "'limit' must be a whole number"}), 400
+    since = request.args.get("since")
+    if since is not None:
+        try:
+            since = datetime.fromisoformat(since).isoformat()
+        except ValueError:
+            return jsonify({"error": "'since' must be an ISO date or time"}), 400
+    statuses = _csv_arg("status")
+    known = {s.value for s in JobStatus}
+    if statuses and not set(statuses) <= known:
+        return jsonify({"error": f"unknown status: {', '.join(sorted(set(statuses) - known))}"}), 400
+    rows = db.get_job_history(
+        _csv_arg("guid"), max(1, min(limit, 500)), since=since, statuses=statuses,
+        operations=_csv_arg("operation"), exclude_categories=_csv_arg("exclude_category"),
+    )
     return jsonify([_history_row_to_dict(r) for r in rows])
 
 

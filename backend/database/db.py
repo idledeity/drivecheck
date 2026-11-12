@@ -404,15 +404,45 @@ def get_active_jobs() -> list[sqlite3.Row]:
         ).fetchall()
 
 
-def get_job_history(guid: str, limit: int = 50) -> list[sqlite3.Row]:
-    """Return a drive's jobs, most recent first."""
-    logger.debug("looking up job history for drive %s (limit=%d)", guid, limit)
+def get_job_history(
+    guids: str | list[str] | None = None,
+    limit: int = 50,
+    *,
+    since: str | None = None,
+    statuses: list[str] | None = None,
+    operations: list[str] | None = None,
+    exclude_categories: list[str] | None = None,
+) -> list[sqlite3.Row]:
+    """Return jobs, most recently finished (or, if unfinished, created) first.
+
+    guids: one drive, several, or None for every drive. since: an ISO timestamp;
+    only jobs that finished at or after it. The rest filter on the column they
+    name; None means no filter.
+    """
+    if isinstance(guids, str):
+        guids = [guids]
+    where, args = [], []
+    def any_of(column: str, values: list[str] | None) -> None:
+        if values is not None:
+            where.append(f"{column} IN ({','.join('?' * len(values))})" if values else "0")
+            args.extend(values)
+    any_of("drive_guid", guids)
+    any_of("status", statuses)
+    any_of("operation", operations)
+    if exclude_categories:
+        where.append(f"category NOT IN ({','.join('?' * len(exclude_categories))})")
+        args.extend(exclude_categories)
+    if since is not None:
+        where.append("finished_at >= ?")
+        args.append(since)
+    sql = "SELECT * FROM jobs"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY COALESCE(finished_at, created_at) DESC LIMIT ?"
+    logger.debug("looking up job history: %s %r (limit=%d)", sql, args, limit)
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
-        return conn.execute(
-            "SELECT * FROM jobs WHERE drive_guid = ? ORDER BY created_at DESC LIMIT ?",
-            (guid, limit),
-        ).fetchall()
+        return conn.execute(sql, (*args, limit)).fetchall()
 
 
 def get_job_smart(job_id: str) -> tuple[dict | None, dict | None] | None:
