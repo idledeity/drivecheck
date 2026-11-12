@@ -106,7 +106,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- Condensed SMART summaries around the run (see Job.smart_before/smart_after);
     -- each one's snapshot_id references the full report in drive_raw_snapshots.
     smart_before_json TEXT,
-    smart_after_json  TEXT
+    smart_after_json  TEXT,
+    queue_position    INTEGER  -- Job.queue_position: run order while queued, else NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
@@ -155,6 +156,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for col in ("smart_before_json", "smart_after_json"):
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    if "queue_position" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN queue_position INTEGER")
 
 
 # ---------------------------------------------------------------------------
@@ -374,8 +377,8 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
             INSERT OR REPLACE INTO jobs (
                 id, drive_guid, operation, category, params_json, status,
                 result_json, error, created_at, started_at, finished_at,
-                reattach_json, smart_before_json, smart_after_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reattach_json, smart_before_json, smart_after_json, queue_position
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id, job.drive_guid, job.operation, job.category,
@@ -388,18 +391,33 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 json.dumps(reattach_data) if reattach_data is not None else None,
                 json.dumps(job.smart_before) if job.smart_before is not None else None,
                 json.dumps(job.smart_after) if job.smart_after is not None else None,
+                job.queue_position,
             ),
         )
 
 
+def set_queue_positions(positions: dict[str, int | None]) -> None:
+    """Update queued jobs' run order without rewriting the rest of their rows."""
+    if not positions:
+        return
+    with _connection() as conn:
+        conn.executemany(
+            "UPDATE jobs SET queue_position = ? WHERE id = ?",
+            [(pos, job_id) for job_id, pos in positions.items()],
+        )
+
+
 def get_active_jobs() -> list[sqlite3.Row]:
-    """Return all jobs with non-terminal status (queued or running) from the previous run."""
+    """Return all jobs with non-terminal status (queued or running) from the previous run,
+    queued ones in their saved run order (rows from before queue_position existed
+    fall back to creation order)."""
     from jobs.job_models import JobStatus  # local import to avoid circular dependency at module load
     logger.debug("loading active jobs for restart recovery")
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(
-            "SELECT * FROM jobs WHERE status IN (?, ?) ORDER BY created_at",
+            "SELECT * FROM jobs WHERE status IN (?, ?)"
+            " ORDER BY queue_position IS NULL, queue_position, created_at",
             (JobStatus.QUEUED.value, JobStatus.RUNNING.value),
         ).fetchall()
 

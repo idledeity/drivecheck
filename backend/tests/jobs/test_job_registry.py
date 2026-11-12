@@ -448,3 +448,67 @@ def test_the_lock_doesnt_stop_a_non_destructive_job(monkeypatch):
     job = registry.create_jobs(["d1"], "op", {})[0]
     _ControllableOperation.instances[0].release()
     _wait_until(lambda: job.status == JobStatus.COMPLETED)
+
+
+# ---------------------------------------------------------------------------
+# Queue order: moving queued jobs, and keeping the order across a restart
+# ---------------------------------------------------------------------------
+
+def _positions(*jobs):
+    return [_job_row(j.id)["queue_position"] for j in jobs]
+
+
+def test_moving_a_queued_job_changes_which_runs_next_on_its_drive():
+    registry = _make_registry()
+    running, second, third = (registry.create_jobs(["d1"], "controllable", {})[0] for _ in range(3))
+    assert running.status == JobStatus.RUNNING
+    assert _positions(running, second, third) == [None, 0, 1]
+
+    assert registry.move_job(third.id, -1) is True
+    assert (third.queue_position, second.queue_position) == (0, 1)
+    assert _positions(second, third) == [1, 0]
+
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: third.status == JobStatus.RUNNING)
+    assert second.status == JobStatus.QUEUED
+    assert third.queue_position is None and _positions(second, third) == [0, None]
+
+
+def test_move_reports_jobs_it_cannot_move():
+    registry = _make_registry()
+    running, first, last = (registry.create_jobs(["d1"], "controllable", {})[0] for _ in range(3))
+    assert registry.move_job(first.id, -1) is False
+    assert registry.move_job(last.id, 1) is False
+    assert registry.move_job(running.id, 1) is None
+    assert registry.move_job("nonexistent-id", 1) is None
+    with pytest.raises(ValueError):
+        registry.move_job(first.id, 2)
+
+
+def test_move_only_reorders_within_a_drive():
+    registry = _make_registry(max_parallel=1)
+    registry.create_jobs(["d1"], "controllable", {})       # runs, taking the only slot
+    [other] = registry.create_jobs(["d2"], "controllable", {})
+    [mine] = registry.create_jobs(["d1"], "controllable", {})
+    # The d2 job is ahead in the queue, but it is not this drive's job to swap with.
+    assert registry.move_job(mine.id, -1) is False
+    assert (other.queue_position, mine.queue_position) == (0, 1)
+
+
+def test_cancelling_a_queued_job_renumbers_the_rest():
+    registry = _make_registry()
+    _running, a, b, c = (registry.create_jobs(["d1"], "controllable", {})[0] for _ in range(4))
+    assert registry.cancel_job(b.id) is True
+    assert _positions(a, b, c) == [0, None, 1]
+
+
+def test_recovery_restores_the_saved_queue_order():
+    # Created in one order, reordered before the restart: the saved positions win.
+    for job_id, created, pos in (("early", datetime(2026, 1, 1), 1), ("late", datetime(2026, 1, 2), 0)):
+        db.record_job(Job(id=job_id, drive_guid="d1", operation="controllable", category="Test",
+                          params={}, created_at=created, queue_position=pos))
+    registry = _make_registry()
+    registry.recover()
+    jobs = {j.id: j for j in registry.list_jobs()}
+    assert jobs["late"].status == JobStatus.RUNNING
+    assert jobs["early"].status == JobStatus.QUEUED and jobs["early"].queue_position == 0

@@ -246,3 +246,27 @@ def test_migration_adds_snapshot_columns_to_an_existing_jobs_table(isolated_data
     db.init()
     db.record_job(_job_with_snapshots())
     assert db.get_job_smart("job-s") == (_BEFORE, _AFTER_FAILED)
+
+
+def test_migration_adds_the_queue_position_column(isolated_data_dir):
+    with db._connection() as conn:
+        conn.execute("DROP TABLE jobs")
+        conn.execute("""CREATE TABLE jobs (id TEXT PRIMARY KEY, drive_guid TEXT NOT NULL, operation TEXT NOT NULL,
+                        category TEXT NOT NULL, params_json TEXT NOT NULL, status TEXT NOT NULL, result_json TEXT,
+                        error TEXT, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, reattach_json TEXT,
+                        smart_before_json TEXT, smart_after_json TEXT)""")
+    db.init()
+    db.record_job(Job(id="q", drive_guid="g", operation="dd_read_test", category="Scan", params={}, queue_position=3))
+    assert db.get_active_jobs()[0]["queue_position"] == 3
+
+
+def test_active_jobs_come_back_in_queue_order_then_creation_order():
+    def queued(job_id, day, pos):
+        db.record_job(Job(id=job_id, drive_guid="g", operation="dd_read_test", category="Scan", params={},
+                          created_at=datetime(2026, 1, day), queue_position=pos))
+    queued("first-created", 1, 2)
+    queued("moved-to-front", 2, 0)
+    queued("from-older-version", 3, None)   # rows saved before queue_position existed
+    queued("second", 4, 1)
+    db.set_queue_positions({"second": 1})
+    assert [r["id"] for r in db.get_active_jobs()] == ["moved-to-front", "second", "first-created", "from-older-version"]

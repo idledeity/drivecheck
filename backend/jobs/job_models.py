@@ -44,3 +44,6 @@ class Job:
     # a stored "health", which the API ignores.)
     smart_before: dict | None = None
     smart_after: dict | None = None
+    # Place in the run queue (0 starts first) while QUEUED, else None. Persisted
+    # so a restart keeps the order the user set, not just creation order.
+    queue_position: int | None = None

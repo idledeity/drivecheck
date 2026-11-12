@@ -80,7 +80,7 @@ class JobRegistry:
         self._capture_smart = capture_smart
         self._jobs: dict[str, Job] = {}
         self._instances: dict[str, OperationBase] = {}
-        self._pending: list[str] = []     # job ids, FIFO
+        self._pending: list[str] = []     # job ids in run order (FIFO unless moved)
         self._running: set[str] = set()   # drive guids with a job currently executing
         self._lock = threading.Lock()
         self._executor = ThreadPoolExecutor(max_workers=self._max_parallel, thread_name_prefix="job")
@@ -144,6 +144,7 @@ class JobRegistry:
                 self._jobs[job.id] = job
                 self._instances[job.id] = instance
                 self._pending.append(job.id)
+                job.queue_position = len(self._pending) - 1
                 db.record_job(job)  # persist QUEUED state immediately
                 created.append(job)
             self._dispatch()
@@ -189,6 +190,7 @@ class JobRegistry:
                 interrupted_immediately += 1
 
         with self._lock:
+            self._renumber_queue()
             self._dispatch()
 
         logger.info(
@@ -233,6 +235,8 @@ class JobRegistry:
                 return False
             if job.status == JobStatus.QUEUED:
                 self._pending.remove(job_id)
+                job.queue_position = None
+                self._renumber_queue()
                 job.status = JobStatus.CANCELLED
                 job.finished_at = datetime.now()
                 logger.info("job %s cancelled while queued: %s", job.id[:8], job.operation)
@@ -244,6 +248,33 @@ class JobRegistry:
                 logger.debug("cancel_job: job %s already finished (%s)", job.id[:8], job.status.value)
                 return False
         db.record_job(job)
+        return True
+
+    def move_job(self, job_id: str, direction: int) -> bool | None:
+        """Swap a queued job with the next queued job for the same drive, earlier
+        (direction -1) or later (+1) in the run order.
+
+        Returns None if job_id isn't a queued job, False if it is already first
+        or last among its drive's queued jobs, True once moved. Order across
+        drives stays first-in, first-out: a job for an idle drive still starts
+        ahead of jobs waiting on a busy one.
+        """
+        if direction not in (-1, 1):
+            raise ValueError("direction must be -1 or 1")
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.status != JobStatus.QUEUED:
+                return None
+            i = self._pending.index(job_id)
+            same_drive = [k for k, jid in enumerate(self._pending) if self._jobs[jid].drive_guid == job.drive_guid]
+            pos = same_drive.index(i) + direction
+            if not 0 <= pos < len(same_drive):
+                return False
+            j = same_drive[pos]
+            self._pending[i], self._pending[j] = self._pending[j], self._pending[i]
+            self._renumber_queue()
+            self._dispatch()
+        logger.info("job %s moved %s: %s", job_id[:8], "up" if direction < 0 else "down", job.operation)
         return True
 
     def shutdown(self) -> None:
@@ -301,11 +332,25 @@ class JobRegistry:
                 break
             self._submit(job)
 
+    def _renumber_queue(self) -> None:
+        """Give queued jobs positions 0..n-1 in run order, persisting any that
+        changed. Caller holds self._lock."""
+        assert self._lock.locked(), "_renumber_queue called without holding self._lock"
+        changed = {}
+        for pos, jid in enumerate(self._pending):
+            job = self._jobs[jid]
+            if job.queue_position != pos:
+                job.queue_position = pos
+                changed[jid] = pos
+        db.set_queue_positions(changed)
+
     def _submit(self, job: Job, reattach_data: dict | None = None) -> None:
         """Mark a job as running and submit it to the executor. Caller holds self._lock."""
         assert self._lock.locked(), "_submit called without holding self._lock"
         if job.id in self._pending:
             self._pending.remove(job.id)
+            job.queue_position = None
+            self._renumber_queue()
         self._running.add(job.drive_guid)
         if reattach_data is None:
             # Fresh dispatch — set started_at now

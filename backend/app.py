@@ -154,6 +154,7 @@ def _job_to_dict(job):
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         "smart": _smart_summary(job.smart_before, job.smart_after),
+        "queue_position": job.queue_position,
     }
 
 
@@ -438,6 +439,21 @@ def job_smart(job_id):
 def cancel_job(job_id):
     if not job_registry.cancel_job(job_id):
         return jsonify({"error": "unknown or already-finished job"}), 404
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/jobs/<job_id>/move", methods=["POST"])
+def move_job(job_id):
+    """Move a queued job one place earlier ("up") or later ("down") among its
+    drive's queued jobs."""
+    direction = {"up": -1, "down": 1}.get((request.get_json() or {}).get("direction"))
+    if direction is None:
+        return jsonify({"error": "'direction' must be \"up\" or \"down\""}), 400
+    moved = job_registry.move_job(job_id, direction)
+    if moved is None:
+        return jsonify({"error": "unknown job, or it is no longer queued"}), 404
+    if not moved:
+        return jsonify({"error": "already first or last among this drive's queued jobs"}), 409
     return jsonify({"status": "ok"})
 
 
