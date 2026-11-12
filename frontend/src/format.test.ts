@@ -7,6 +7,8 @@ import {
   formatThroughput,
   formatTimestamp,
   humanizeKey,
+  dayLabel,
+  toLocalIso,
 } from './format'
 
 describe('formatCapacity', () => {
@@ -112,5 +114,33 @@ describe('humanizeKey', () => {
 
   it('leaves a single word capitalized', () => {
     expect(humanizeKey('duration')).toBe('Duration')
+  })
+})
+
+describe('dayLabel', () => {
+  const now = new Date(2026, 10, 11, 0, 30).getTime()   // just after midnight
+
+  it('names today and yesterday by calendar day, not 24-hour windows', () => {
+    expect(dayLabel(new Date(2026, 10, 11, 0, 5).getTime(), now)).toBe('Today')
+    expect(dayLabel(new Date(2026, 10, 10, 23, 59).getTime(), now)).toBe('Yesterday')
+    expect(dayLabel(new Date(2026, 10, 10, 0, 1).getTime(), now)).toBe('Yesterday')
+  })
+
+  it('uses a short date for older days, adding the year only when it differs', () => {
+    const older = dayLabel(new Date(2026, 10, 8, 12).getTime(), now)
+    expect(older).toMatch(/8/)
+    expect(older).not.toMatch(/2026/)
+    expect(dayLabel(new Date(2025, 6, 1, 12).getTime(), now)).toMatch(/2025/)
+  })
+
+  it('handles the day after a DST change', () => {
+    // Nov 2 follows the Nov 1 change in US zones; still exactly one day back.
+    expect(dayLabel(new Date(2026, 10, 1, 12).getTime(), new Date(2026, 10, 2, 0, 30).getTime())).toBe('Yesterday')
+  })
+})
+
+describe('toLocalIso', () => {
+  it('formats local time without an offset', () => {
+    expect(toLocalIso(new Date(2026, 0, 2, 3, 4, 5).getTime())).toBe('2026-01-02T03:04:05')
   })
 })

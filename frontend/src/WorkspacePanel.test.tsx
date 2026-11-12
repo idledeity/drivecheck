@@ -50,6 +50,6 @@ describe('WorkspacePanel', () => {
     renderPanel()
     await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'History' }))
-    expect(screen.getByText(/Select one or more drives to view job history/)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Finished in' })).toBeInTheDocument()
   })
 })

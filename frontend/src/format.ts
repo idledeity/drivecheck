@@ -46,6 +46,28 @@ export function formatTimestamp(isoTimestamp: string): string {
   })
 }
 
+// "Today", "Yesterday", or a short date ("Nov 8"; with the year when it isn't
+// the current one) for the day containing `t`, relative to `now` (both ms).
+export function dayLabel(t: number, now: number): string {
+  const d = new Date(t)
+  if (d.toDateString() === new Date(now).toDateString()) return "Today"
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: d.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric",
+  })
+}
+
+// A time (ms) as local ISO without an offset ("2026-11-11T19:30:00"), the form
+// the backend stores job timestamps in and expects for filters like `since`.
+export function toLocalIso(t: number): string {
+  const d = new Date(t), p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 // "test_type" -> "Test type" — for rendering arbitrary job params/result keys
 // without needing each operation's ParamSpec labels just for a details view.
 export function humanizeKey(key: string): string {

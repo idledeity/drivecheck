@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HistoryTab from './HistoryTab'
 import { mergeHistory } from './jobHistory'
+import { toLocalIso } from './format'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Job } from './types'
 
@@ -14,70 +15,118 @@ afterEach(() => {
 })
 
 describe('HistoryTab', () => {
-  it('prompts for a selection when no drive is selected', () => {
-    render(<HistoryTab drives={[]} selectedGuids={[]} jobs={[]} onCancel={() => {}} />)
-    expect(screen.getByText(/Select one or more drives/)).toBeInTheDocument()
+  // 2026-11-11 19:30 local; stored times are local ISO strings without an offset.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 10, 11, 19, 30)) })
+  afterEach(() => { vi.useRealTimers() })
+
+  const done = (o: Partial<Job>) => makeJob({ status: 'completed', category: 'Scan', started_at: '2026-11-11T09:00:00', finished_at: '2026-11-11T10:00:00', ...o })
+  const renderTab = (props: Partial<React.ComponentProps<typeof HistoryTab>> = {}) =>
+    render(<HistoryTab drives={[makeDrive({ guid: 'd1', model: 'ModelX' }), makeDrive({ guid: 'd2', model: 'ModelY' })]} selectedGuids={[]} jobs={[]} onCancel={() => {}} {...props} />)
+  // Operation names also appear in the Operation dropdown, so read rows only.
+  const ops = () => [...document.querySelectorAll('.queue-op')].map(e => e.textContent)
+  const rowFor = (name: string) => [...document.querySelectorAll('.queue-op')].find(e => e.textContent === name)?.closest('.queue-row')
+  // 14 x 24 h ago, which crosses the DST change in early November.
+  const since14d = () => toLocalIso(Date.now() - 14 * 24 * 3600e3)
+
+  it('fetches the last 14 days across every drive by default', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([done({ id: 'j1', drive_guid: 'd2', operation_name: 'Full Read Test' })]))
+    renderTab()
+    expect(fetch).toHaveBeenCalledWith(`/api/jobs/history?limit=500&since=${encodeURIComponent(since14d())}`)
+    await waitFor(() => expect(ops()).toEqual(['Full Read Test']))
+    expect(screen.getByText('1 job')).toBeInTheDocument()
   })
 
-  it('fetches and renders job history for each selected drive', async () => {
-    const drive = makeDrive({ guid: 'd1', model: 'ModelX' })
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([makeJob({ id: 'j1' })]))
-
-    render(<HistoryTab drives={[drive]} selectedGuids={['d1']} jobs={[]} onCancel={() => {}} />)
-
-    expect(fetch).toHaveBeenCalledWith('/api/jobs/history?guid=d1')
-    // "ModelX" appears twice: once in DriveHistory's own header, once inside
-    // the rendered JobRow's drive identity.
-    await waitFor(() => expect(screen.getAllByText('ModelX').length).toBeGreaterThan(0))
-    expect(screen.getByText('Full Read Test')).toBeInTheDocument()
-  })
-
-  it('shows an empty message when a drive has no completed jobs', async () => {
+  it('refetches when the time range changes, without since for All', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([]))
-    render(<HistoryTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} jobs={[]} onCancel={() => {}} />)
-    await waitFor(() => expect(screen.getByText('No completed jobs for this drive yet.')).toBeInTheDocument())
+    renderTab()
+    fireEvent.click(screen.getByRole('button', { name: 'All' , pressed: false }))
+    await waitFor(() => expect(fetch).toHaveBeenLastCalledWith('/api/jobs/history?limit=500'))
   })
 
-  it('treats a fetch failure the same as an empty history', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('network down'))
-    render(<HistoryTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} jobs={[]} onCancel={() => {}} />)
-    await waitFor(() => expect(screen.getByText('No completed jobs for this drive yet.')).toBeInTheDocument())
+  it('filters by status with counts, and never drops the last status', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
+      done({ id: 'a', operation_name: 'Good Run' }),
+      done({ id: 'b', status: 'failed', error: 'boom', operation_name: 'Bad Run' }),
+    ]))
+    renderTab()
+    await waitFor(() => expect(ops()).toHaveLength(2))
+    const completed = screen.getByRole('button', { name: /Completed/ })
+    expect(completed).toHaveTextContent('Completed 1')
+    fireEvent.click(completed)
+    expect(ops()).toEqual(['Bad Run'])
+    fireEvent.click(screen.getByRole('button', { name: /Cancelled/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Interrupted/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Failed/ }))   // the only one left: stays on
+    expect(screen.getByRole('button', { name: /Failed/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('renders one section per selected drive', async () => {
+  it('hides debug jobs unless included', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([done({ id: 'dbg', category: 'Debug', operation_name: 'Sleep (debug)' })]))
+    renderTab()
+    expect(await screen.findByText('0 jobs · 1 debug job hidden')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Include debug jobs'))
+    expect(ops()).toEqual(['Sleep (debug)'])
+  })
+
+  it('limits to the selected drives when asked', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
+      done({ id: 'a', drive_guid: 'd1', operation_name: 'On One' }),
+      done({ id: 'b', drive_guid: 'd2', operation_name: 'On Two' }),
+    ]))
+    renderTab({ selectedGuids: ['d2'] })
+    await waitFor(() => expect(ops()).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Selected (1)' }))
+    expect(ops()).toEqual(['On Two'])
+  })
+
+  it('disables Selected when nothing is selected', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([]))
-    render(<HistoryTab
-      drives={[makeDrive({ guid: 'd1' }), makeDrive({ guid: 'd2' })]}
-      selectedGuids={['d1', 'd2']}
-      jobs={[]}
-      onCancel={() => {}}
-    />)
-    expect(fetch).toHaveBeenCalledWith('/api/jobs/history?guid=d1')
-    expect(fetch).toHaveBeenCalledWith('/api/jobs/history?guid=d2')
+    renderTab()
+    expect(screen.getByRole('button', { name: 'Selected (0)' })).toBeDisabled()
   })
 
-  it('shows a job finishing as soon as the live list does, without re-fetching', async () => {
-    const drive = makeDrive({ guid: 'd1' })
-    // Stored while running; the live list then reports it completed.
-    const storedRunning = makeJob({ id: 'j1', drive_guid: 'd1', status: 'running', operation_name: 'Short Self-Test' })
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([storedRunning]))
-    const row = () => screen.getByText('Short Self-Test').closest('.queue-row')
-    const { rerender } = render(<HistoryTab drives={[drive]} selectedGuids={['d1']} jobs={[storedRunning]} onCancel={() => {}} />)
-    await waitFor(() => expect(row()).toHaveClass('queue-row-running'))
+  it('sorts newest first with day dividers, or by duration', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
+      done({ id: 'y', operation_name: 'Yesterday Long', started_at: '2026-11-10T01:00:00', finished_at: '2026-11-10T09:00:00' }),
+      done({ id: 't', operation_name: 'Today Short', started_at: '2026-11-11T09:55:00', finished_at: '2026-11-11T10:00:00' }),
+    ]))
+    renderTab()
+    await waitFor(() => expect(ops()).toEqual(['Today Short', 'Yesterday Long']))
+    expect(screen.getAllByRole('heading').map(h => h.textContent)).toEqual(['Today', 'Yesterday'])
+    fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'long' } })
+    expect(ops()).toEqual(['Yesterday Long', 'Today Short'])
+    expect(screen.queryAllByRole('heading')).toEqual([])
+  })
 
-    const done = { ...storedRunning, status: 'completed' as const, finished_at: '2026-11-11T10:42:58' }
-    rerender(<HistoryTab drives={[drive]} selectedGuids={['d1']} jobs={[done]} onCancel={() => {}} />)
-    expect(row()).toHaveClass('queue-row-completed')
+  it('groups by drive under drive chips', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
+      done({ id: 'a', drive_guid: 'd1', operation_name: 'First' }),
+      done({ id: 'b', drive_guid: 'd2', operation_name: 'Second' }),
+    ]))
+    renderTab()
+    await waitFor(() => expect(ops()).toHaveLength(2))
+    fireEvent.click(screen.getByLabelText('Group by drive'))
+    expect(document.querySelectorAll('.history-group')).toHaveLength(2)
+  })
+
+  it('shows a job as soon as the live list reports it finished, without refetching', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([]))
+    const running = makeJob({ id: 'live', drive_guid: 'd1', status: 'running', operation_name: 'Short Self-Test', category: 'Test' })
+    const { rerender } = renderTab({ jobs: [running] })
+    await screen.findByText(/No jobs finished in the last 14d/)
+    expect(ops()).toEqual([])   // running jobs live in Activity
+
+    const finished = { ...running, status: 'completed' as const, finished_at: '2026-11-11T19:20:00' }
+    rerender(<HistoryTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={[]} jobs={[finished]} onCancel={() => {}} />)
+    expect(rowFor('Short Self-Test')).toHaveClass('queue-row-completed')
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('cancels a running job from its history row', async () => {
-    const running = makeJob({ id: 'j1', drive_guid: 'd1', status: 'running' })
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([running]))
-    const onCancel = vi.fn()
-    render(<HistoryTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} jobs={[running]} onCancel={onCancel} />)
-    fireEvent.click(await screen.findByTitle('Cancel'))
-    expect(onCancel).toHaveBeenCalledWith('j1')
+  it('offers all time when the range is empty, and treats a failed fetch as empty', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('network down'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show all time' }))
+    await waitFor(() => expect(fetch).toHaveBeenLastCalledWith('/api/jobs/history?limit=500'))
   })
 })
 
