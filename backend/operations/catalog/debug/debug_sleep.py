@@ -21,8 +21,8 @@ class DebugSleepOperation(OperationBase):
     category = "Debug"
     tool = "none"
     params = [
-        ParamSpec(name="duration", label="Duration (seconds)", type="number", default=10, min=1, max=120,
-                  tooltip="How long the job runs, reporting progress as it goes. Touches no drive."),
+        ParamSpec(name="duration", label="Duration (seconds)", type="number", default=10, min=1, max=86400,
+                  tooltip="How long the job runs, up to a day, reporting progress as it goes. Touches no drive."),
         ParamSpec(name="fail", label="Fail partway through", type="boolean", default=False,
                   tooltip="Fail the job halfway through, to exercise error handling and the failed-job display."),
     ]

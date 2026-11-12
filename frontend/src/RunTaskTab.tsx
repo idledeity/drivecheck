@@ -70,9 +70,11 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
     ? selected.filter(guid => drives.find(d => d.guid === guid)?.locked)
     : []
   const blockedByLock = lockedSelected.length > 0
+  const paramErrors = Object.fromEntries((activeOp?.params ?? []).map(spec => [spec.name, paramError(spec, paramValues[spec.name])]))
+  const hasParamErrors = Object.values(paramErrors).some(e => e !== null)
 
   const dispatch = () => {
-    if (!activeOp || blockedByLock) return
+    if (!activeOp || blockedByLock || hasParamErrors) return
     setConfirming(false)
     setRunning(true)
     setRunError(null)
@@ -83,7 +85,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
 
   // Destructive operations never dispatch straight from the Run button.
   const handleRun = () => {
-    if (!activeOp || blockedByLock) return
+    if (!activeOp || blockedByLock || hasParamErrors) return
     if (activeOp.destructive) setConfirming(true)
     else dispatch()
   }
@@ -124,6 +126,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
                 key={spec.name}
                 spec={spec}
                 value={paramValues[spec.name]}
+                error={paramErrors[spec.name]}
                 onChange={value => setParamValues(prev => ({ ...prev, [spec.name]: value }))}
               />
             ))}
@@ -132,7 +135,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
                 {lockedSelected.length === 1 ? "1 drive is" : `${lockedSelected.length} drives are`} locked — unlock before running a destructive operation.
               </div>
             )}
-            <button className="rt-run" onClick={handleRun} disabled={running || blockedByLock}>
+            <button className="rt-run" onClick={handleRun} disabled={running || blockedByLock || hasParamErrors}>
               <IconPlayerPlay size={14} />
               Run
             </button>
@@ -152,7 +155,18 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
   )
 }
 
-function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: unknown; onChange: (value: unknown) => void }) {
+// The same rules the backend applies (validate_params): a "number" is a whole
+// number within min/max. Checked here so a bad value is caught at the field
+// rather than refused after Run.
+function paramError(spec: ParamSpec, value: unknown): string | null {
+  if (spec.type !== "number") return null
+  if (typeof value !== "number" || !Number.isInteger(value)) return "Enter a whole number"
+  if (spec.min !== null && value < spec.min) return `Must be at least ${spec.min}`
+  if (spec.max !== null && value > spec.max) return `Must be at most ${spec.max}`
+  return null
+}
+
+function ParamInput({ spec, value, error, onChange }: { spec: ParamSpec; value: unknown; error: string | null; onChange: (value: unknown) => void }) {
   if (spec.type === "boolean") {
     return (
       <label className="rt-param rt-param-bool">
@@ -173,11 +187,15 @@ function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: unknown
         <span className="rt-param-label">{spec.label}<ParamTooltip spec={spec} /></span>
         <input
           type="number"
-          value={value as number}
+          step={1}
+          value={value === null ? "" : value as number}
           min={spec.min ?? undefined}
           max={spec.max ?? undefined}
-          onChange={e => onChange(Number(e.target.value))}
+          aria-invalid={error !== null}
+          aria-describedby={error ? `rt-param-error-${spec.name}` : undefined}
+          onChange={e => onChange(e.target.value === "" ? null : Number(e.target.value))}
         />
+        {error && <span className="rt-param-error" id={`rt-param-error-${spec.name}`}>{error}</span>}
       </label>
     )
   }

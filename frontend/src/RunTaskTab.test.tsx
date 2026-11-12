@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RunTaskTab from './RunTaskTab'
@@ -134,6 +134,38 @@ describe('RunTaskTab', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Run/ }))
     expect(onRun).toHaveBeenCalledWith(['d1'], 'dd_read_test', { blocksize: 4096 })
+  })
+
+  describe('number param limits', () => {
+    async function renderReadTest(onRun = vi.fn().mockResolvedValue(null)) {
+      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} />)
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
+      return { onRun, input: screen.getByRole('spinbutton') }
+    }
+
+    it.each([
+      ['100000', 'Must be at most 65536'],
+      ['100', 'Must be at least 512'],
+      ['1024.5', 'Enter a whole number'],
+      ['', 'Enter a whole number'],
+    ])('flags %j at the field and holds Run', async (typed, message) => {
+      const { onRun, input } = await renderReadTest()
+      fireEvent.change(input, { target: { value: typed } })
+      expect(screen.getByText(message)).toBeInTheDocument()
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByRole('button', { name: /Run/ })).toBeDisabled()
+      expect(onRun).not.toHaveBeenCalled()
+    })
+
+    it('runs again once the value is back in range', async () => {
+      const { onRun, input } = await renderReadTest()
+      fireEvent.change(input, { target: { value: '100000' } })
+      fireEvent.change(input, { target: { value: '8192' } })
+      expect(screen.queryByText(/Must be/)).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /Run/ }))
+      expect(onRun).toHaveBeenCalledWith(['d1'], 'dd_read_test', { blocksize: 8192 })
+    })
   })
 
   it('shows the reason a run was refused, and clears it on the next run', async () => {
