@@ -74,9 +74,8 @@
   }
 }
 
-/* Serial lives here (not next to the drive name) so it always reads as
-   right-aligned, grouped with the row's other secondary metadata (time,
-   cancel) instead of getting squeezed up against a long drive/label string. */
+/* Secondary row metadata (time, cancel), right-aligned. The serial is in
+   the drive chip. */
 .queue-right {
   grid-area: right;
   justify-self: end;
@@ -127,11 +126,6 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--cy2);
-}
-
-.queue-serial {
-  font-size: 12px;
-  color: var(--t5);
 }
 
 .queue-time {

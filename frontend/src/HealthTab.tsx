@@ -3,7 +3,7 @@ import type { Drive } from "./types"
 import { REPORT_SIGNALS, formatSignal, signalLabel } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
-import DriveIdentity from "./DriveIdentity"
+import { DriveChipHeader } from "./DriveChip"
 import { DriveAttributes } from "./SmartAttributesPanel"
 import "./HealthTab.css"
 
@@ -80,7 +80,7 @@ function DriveOverview({ drive }: { drive: Drive }) {
 
   return (
     <div className="hov-section">
-      <DriveIdentity drive={drive} />
+      <DriveChipHeader drive={drive} />
 
       <div className="hov-score-row">
         <div className="hov-score-track">
@@ -164,7 +164,7 @@ function DriveReport({ drive }: { drive: Drive }) {
 
   return (
     <div className="rep-section">
-      <DriveIdentity drive={drive} />
+      <DriveChipHeader drive={drive} />
 
       <div className="rep-identity-grid">
         <RepRow label="Type"     value={drive.drive_type ?? "—"} />

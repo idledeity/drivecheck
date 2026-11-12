@@ -43,9 +43,19 @@
 }
 
 .drive-chip-serial {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 11px;
   color: var(--t4);
+  flex: none;
+}
+
+/* Same treatment as the serial tag's barcode icon (Serial.css). */
+.drive-chip-serial svg {
+  color: var(--cy);
+  opacity: 0.75;
   flex: none;
 }
 
@@ -68,6 +78,7 @@
 /* Full serial by default; the last four characters when the list is narrow,
    then no manufacturer either. */
 .drive-chip-serial-tail { display: none; }
+.drive-chip-serial.tail-only .drive-chip-serial-tail { display: inline; }
 @container drive-chips (max-width: 520px) {
   .drive-chip-serial-full { display: none; }
   .drive-chip-serial-tail { display: inline; }

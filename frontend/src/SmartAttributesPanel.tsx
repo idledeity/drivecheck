@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import type { Drive, RawSnapshot, SmartAttributeRow } from "./types"
-import DriveIdentity from "./DriveIdentity"
+import { DriveChipHeader } from "./DriveChip"
 
 interface Props {
   drives: Drive[]
@@ -25,7 +25,7 @@ export default function SmartAttributesPanel({ drives, selectedGuids }: Props) {
 }
 
 function DriveHeader({ drive }: { drive?: Drive }) {
-  return <DriveIdentity drive={drive} className="smart-drive-header" />
+  return <DriveChipHeader drive={drive} className="smart-drive-header" />
 }
 
 export function DriveAttributes({ guid }: { guid: string }) {

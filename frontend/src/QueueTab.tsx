@@ -5,8 +5,7 @@ import { formatDuration, formatRelativeTime } from "./format"
 import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
 import { StubTab } from "./WorkspacePanel"
-import DriveIdentity from "./DriveIdentity"
-import Serial from "./Serial"
+import DriveChip from "./DriveChip"
 import "./QueueTab.css"
 
 interface Props {
@@ -94,11 +93,10 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
       <div className="queue-row-main">
         <span className={`queue-status-icon queue-status-${job.status}`}>{STATUS_ICON[job.status]}</span>
         {drive
-          ? <DriveIdentity drive={drive} className="queue-drive-id" showSerial={false} />
+          ? <span className="queue-drive-id"><DriveChip drive={drive} serial="tail" /></span>
           : <span className="queue-drive-id">{job.drive_guid}</span>}
         <span className="queue-op">{job.operation_name}</span>
         <div className="queue-right">
-          {drive?.serial && <Serial value={drive.serial} className="queue-serial" />}
           {job.finished_at && <span className="queue-time">{formatRelativeTime(job.finished_at)}</span>}
           {cancellable && (
             <button className="queue-cancel" onClick={e => { e.stopPropagation(); onCancel(job.id) }} title="Cancel">
