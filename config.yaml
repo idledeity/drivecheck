@@ -30,6 +30,10 @@ collector:
   # Probes are Python the backend runs, so leave this off unless you're writing
   # probes. Only settable here (not from the UI); restart after changing it.
   allow_probe_editing: false
+  # true keeps the full SMART reports taken before and after each job past the
+  # history retention window; false prunes them with the rest of the history.
+  # A job keeps its condensed before/after values either way.
+  keep_job_snapshots: true
 jobs:
   # Cap on simultaneously-running jobs across all drives. Each drive already
   # runs one job at a time, so `null` (no limit) lets every drive be tested at
@@ -38,6 +42,10 @@ jobs:
   max_parallel: null
   enable_debug_operations: true   # adds "Sleep (debug)" for exercising the
                                    # queue/scheduler without touching drives
+  # How old (seconds) a drive's latest saved SMART snapshot may be and still
+  # serve as a job's "before" snapshot, e.g. the previous queued job's "after".
+  # 0 always takes a new one. The "after" snapshot is always new.
+  smart_snapshot_reuse_seconds: 300
 
 logging:
   level: info                    # debug | info | warning | error
