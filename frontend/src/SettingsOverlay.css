@@ -388,6 +388,19 @@ textarea.cfg-ctl-list {
 
 /* Permanent type-tinted border, echoing the nav icon colors */
 .cfg-ctl-enum { border-color: rgba(24, 196, 238, 0.45); }
+.cfg-ctl-num-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.cfg-ctl-error {
+  font-size: 11px;
+  color: var(--re);
+}
+.cfg-ctl-num[aria-invalid="true"],
+.cfg-ctl-num[aria-invalid="true"]:focus { border-color: var(--re); }
+
 .cfg-ctl-num-group {
   display: inline-flex;
   align-items: center;

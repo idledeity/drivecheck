@@ -15,6 +15,20 @@ function configValuesEqual(a: unknown, b: unknown): boolean {
   return a === b
 }
 
+// The backend's checks for int/float props (cfg._coerce/_validate), so a bad
+// number is caught at its row rather than refused on Save. "" is a cleared
+// field; null is fine (the backend accepts it, and none_label names it).
+function numberPropError(prop: ConfigProp, value: unknown): string | null {
+  if (prop.type !== "int" && prop.type !== "float") return null
+  if (value === null) return null
+  const whole = prop.type === "int"
+  if (typeof value !== "number" || Number.isNaN(value)) return whole ? "Enter a whole number" : "Enter a number"
+  if (whole && !Number.isInteger(value)) return "Enter a whole number"
+  if (prop.min !== null && value < prop.min) return `Must be at least ${prop.min}`
+  if (prop.max !== null && value > prop.max) return `Must be at most ${prop.max}`
+  return null
+}
+
 const TABS: { id: SettingsTab; label: string; icon: typeof IconAdjustments; iconClass: string }[] = [
   { id: "config", label: "Config", icon: IconAdjustments, iconClass: "so-nav-icon-config" },
   { id: "logs",   label: "Logs",   icon: IconFileText,    iconClass: "so-nav-icon-logs"   },
@@ -145,6 +159,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const sections = [...new Set(configProps.map(p => p.section))]
   const probeEditing = configProps.find(p => p.key === "collector.allow_probe_editing")?.value === true
   const pendingCount = Object.keys(pending).length
+  const errorCount = configProps.filter(p => p.key in pending && numberPropError(p, pending[p.key]) !== null).length
 
   // Lets SettingsOverlay guard its own close paths (X, Escape, scrim click)
   // without owning `pending` itself — ConfigTab stays the source of truth.
@@ -175,6 +190,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   }
 
   const handleSave = async () => {
+    if (errorCount > 0) return
     setSaving(true)
     setSaveError(null)
     try {
@@ -230,6 +246,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
                 prop={prop}
                 value={getValue(prop)}
                 dirty={prop.key in pending}
+                error={numberPropError(prop, getValue(prop))}
                 onChange={v => handleChange(prop, v)}
                 onChoicesRefresh={setConfigProps}
                 warnings={probeWarnings[prop.key] ?? []}
@@ -243,11 +260,13 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
         <button
           className="tinted-btn tint-cy cfg-save-btn"
           onClick={handleSave}
-          disabled={pendingCount === 0 || saving}
+          disabled={pendingCount === 0 || errorCount > 0 || saving}
         >
           {saving
             ? "Saving…"
-            : pendingCount > 0
+            : errorCount > 0
+              ? `Fix ${errorCount} value${errorCount > 1 ? "s" : ""} to save`
+              : pendingCount > 0
               ? `Save (${pendingCount} change${pendingCount > 1 ? "s" : ""})`
               : "No Changes"}
         </button>
@@ -423,6 +442,8 @@ interface PropRowProps {
   prop: ConfigProp
   value: unknown
   dirty: boolean
+  /** Why the shown value can't be saved, or null. */
+  error: string | null
   onChange: (value: unknown) => void
   onChoicesRefresh: (props: ConfigProp[]) => void
   warnings: ProbeWarning[]
@@ -432,7 +453,7 @@ interface PropRowProps {
 // A number input; for a prop with a none_label, also a checkbox for null
 // ("No limit"), which disables the input. Unticking it restores the last
 // number shown, or the prop's minimum.
-function NumberControl({ prop, value, onChange }: { prop: ConfigProp; value: unknown; onChange: (value: unknown) => void }) {
+function NumberControl({ prop, value, error, onChange }: { prop: ConfigProp; value: unknown; error: string | null; onChange: (value: unknown) => void }) {
   const isNone = value === null && prop.none_label !== null
   const [lastNumber, setLastNumber] = useState<number | null>(typeof value === "number" ? value : null)
   if (typeof value === "number" && value !== lastNumber) setLastNumber(value)
@@ -443,18 +464,21 @@ function NumberControl({ prop, value, onChange }: { prop: ConfigProp; value: unk
       step={prop.type === "int" ? 1 : "any"}
       min={prop.min ?? undefined}
       max={prop.max ?? undefined}
-      value={isNone ? "" : String(value)}
+      value={isNone || value === null ? "" : String(value)}
       placeholder={isNone ? prop.none_label! : undefined}
       disabled={isNone}
       aria-label={prop.label}
-      onChange={e => {
-        const n = prop.type === "int" ? parseInt(e.target.value) : parseFloat(e.target.value)
-        if (!isNaN(n)) onChange(n)
-      }}
+      aria-invalid={error !== null}
+      aria-describedby={error ? `cfg-error-${prop.key}` : undefined}
+      // Kept as typed, even when invalid ("" or 1.5 for an int): the row
+      // explains what's wrong and Save waits, instead of the field snapping back.
+      onChange={e => onChange(e.target.value === "" ? "" : Number(e.target.value))}
     />
   )
-  if (prop.none_label === null) return input
+  const errorText = error && <span className="cfg-ctl-error" id={`cfg-error-${prop.key}`}>{error}</span>
+  if (prop.none_label === null) return <span className="cfg-ctl-num-wrap">{input}{errorText}</span>
   return (
+    <span className="cfg-ctl-num-wrap">
     <span className="cfg-ctl-num-group">
       {input}
       <label className="cfg-ctl-none">
@@ -466,10 +490,12 @@ function NumberControl({ prop, value, onChange }: { prop: ConfigProp; value: unk
         {prop.none_label}
       </label>
     </span>
+    {errorText}
+    </span>
   )
 }
 
-function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings, probeEditing }: PropRowProps) {
+function PropRow({ prop, value, dirty, error, onChange, onChoicesRefresh, warnings, probeEditing }: PropRowProps) {
   // Only entries still present in the row's current value are shown —
   // warnings reflect the last collector restart, so a path the user already
   // removed (or hasn't restarted into yet) shouldn't linger as a warning.
@@ -512,7 +538,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings, pro
           </select>
         )}
         {(prop.type === "int" || prop.type === "float") && (
-          <NumberControl prop={prop} value={value} onChange={onChange} />
+          <NumberControl prop={prop} value={value} error={error} onChange={onChange} />
         )}
         {prop.type === "bool" && (
           <input

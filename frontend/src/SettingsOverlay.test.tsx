@@ -272,6 +272,44 @@ describe('ConfigTab', () => {
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
   })
 
+  describe('number limits', () => {
+    // makeConfigProp: server.port, int, 1..65535, value 4343.
+    it.each([
+      ['70000', 'Must be at most 65535'],
+      ['0', 'Must be at least 1'],
+      ['80.5', 'Enter a whole number'],
+      ['', 'Enter a whole number'],
+    ])('flags %j at the row and holds Save', async (typed, message) => {
+      router.state.configProps = [makeConfigProp()]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      const input = await screen.findByRole('spinbutton')
+      fireEvent.change(input, { target: { value: typed } })
+      expect(screen.getByText(message)).toBeInTheDocument()
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByRole('button', { name: 'Fix 1 value to save' })).toBeDisabled()
+    })
+
+    it('saves once the value is back in range', async () => {
+      router.state.configProps = [makeConfigProp()]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      const input = await screen.findByRole('spinbutton')
+      fireEvent.change(input, { target: { value: '70000' } })
+      fireEvent.change(input, { target: { value: '8080' } })
+      expect(screen.queryByText(/Must be/)).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+      await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/config', expect.objectContaining({
+        method: 'PATCH', body: JSON.stringify({ 'server.port': 8080 }),
+      })))
+    })
+
+    it('allows fractions for a float prop', async () => {
+      router.state.configProps = [makeConfigProp({ key: 'collector.interval', label: 'Interval', type: 'float', value: 2, default: 2, min: 0.5, max: 60 })]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      fireEvent.change(await screen.findByRole('spinbutton'), { target: { value: '1.5' } })
+      expect(screen.getByRole('button', { name: 'Save (1 change)' })).toBeEnabled()
+    })
+  })
+
   describe('a number prop with a none_label', () => {
     const cap = (value: number | null) => makeConfigProp({
       key: 'jobs.max_parallel', label: 'Max parallel jobs', section: 'Jobs',
