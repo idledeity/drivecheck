@@ -429,6 +429,46 @@ interface PropRowProps {
   probeEditing: boolean
 }
 
+// A number input; for a prop with a none_label, also a checkbox for null
+// ("No limit"), which disables the input. Unticking it restores the last
+// number shown, or the prop's minimum.
+function NumberControl({ prop, value, onChange }: { prop: ConfigProp; value: unknown; onChange: (value: unknown) => void }) {
+  const isNone = value === null && prop.none_label !== null
+  const [lastNumber, setLastNumber] = useState<number | null>(typeof value === "number" ? value : null)
+  if (typeof value === "number" && value !== lastNumber) setLastNumber(value)
+  const input = (
+    <input
+      className="cfg-ctl-num"
+      type="number"
+      step={prop.type === "int" ? 1 : "any"}
+      min={prop.min ?? undefined}
+      max={prop.max ?? undefined}
+      value={isNone ? "" : String(value)}
+      placeholder={isNone ? prop.none_label! : undefined}
+      disabled={isNone}
+      aria-label={prop.label}
+      onChange={e => {
+        const n = prop.type === "int" ? parseInt(e.target.value) : parseFloat(e.target.value)
+        if (!isNaN(n)) onChange(n)
+      }}
+    />
+  )
+  if (prop.none_label === null) return input
+  return (
+    <span className="cfg-ctl-num-group">
+      {input}
+      <label className="cfg-ctl-none">
+        <input
+          type="checkbox"
+          checked={isNone}
+          onChange={e => onChange(e.target.checked ? null : (lastNumber ?? prop.min ?? 0))}
+        />
+        {prop.none_label}
+      </label>
+    </span>
+  )
+}
+
 function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings, probeEditing }: PropRowProps) {
   // Only entries still present in the row's current value are shown —
   // warnings reflect the last collector restart, so a path the user already
@@ -472,18 +512,7 @@ function PropRow({ prop, value, dirty, onChange, onChoicesRefresh, warnings, pro
           </select>
         )}
         {(prop.type === "int" || prop.type === "float") && (
-          <input
-            className="cfg-ctl-num"
-            type="number"
-            step={prop.type === "int" ? 1 : "any"}
-            min={prop.min ?? undefined}
-            max={prop.max ?? undefined}
-            value={String(value)}
-            onChange={e => {
-              const n = prop.type === "int" ? parseInt(e.target.value) : parseFloat(e.target.value)
-              if (!isNaN(n)) onChange(n)
-            }}
-          />
+          <NumberControl prop={prop} value={value} onChange={onChange} />
         )}
         {prop.type === "bool" && (
           <input

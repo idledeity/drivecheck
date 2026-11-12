@@ -31,11 +31,11 @@ collector:
   # probes. Only settable here (not from the UI); restart after changing it.
   allow_probe_editing: false
 jobs:
-  # Cap on simultaneously-running jobs across all drives. Per-drive exclusivity
-  # already limits this to one job per drive, so any value >= the number of
-  # drives -- or `null`/omitted -- means "uncapped": one job per drive, no
-  # additional throttling, and it stays correct even if the drive count changes.
-  max_parallel: 2
+  # Cap on simultaneously-running jobs across all drives. Each drive already
+  # runs one job at a time, so `null` (no limit) lets every drive be tested at
+  # once. Set a number when drives share bandwidth (one controller, expander or
+  # USB hub) or running them all at once heats the enclosure. Restart to apply.
+  max_parallel: null
   enable_debug_operations: true   # adds "Sleep (debug)" for exercising the
                                    # queue/scheduler without touching drives
 

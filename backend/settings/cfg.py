@@ -76,6 +76,9 @@ class ConfigProp:
     # backs PATCH /api/config) — for props where a logged-in browser session
     # changing them would amount to running code on the server.
     file_only: bool = False
+    # What null means for this prop (e.g. "No limit"), so the Settings UI can
+    # offer it as a choice. Unset: the UI never writes null for it.
+    none_label: str | None = None
     on_changed: Callable | None = field(default=None, repr=False)
 
 
@@ -107,6 +110,7 @@ def register(
     choices: list[str] | None = None,
     restart_required: bool = True,
     file_only: bool = False,
+    none_label: str | None = None,
     on_changed: Callable | None = None,
 ) -> None:
     """Declare a config property. Call at module level before cfg.load()."""
@@ -114,7 +118,7 @@ def register(
         key=key, default=default, type=type, label=label, section=section,
         description=description, tooltip=tooltip, min=min, max=max,
         choices=choices, restart_required=restart_required, file_only=file_only,
-        on_changed=on_changed,
+        none_label=none_label, on_changed=on_changed,
     )
     _values[key] = default
 
@@ -311,6 +315,7 @@ def props() -> list[dict]:
             "choices":          p.choices,
             "restart_required": p.restart_required,
             "file_only":        p.file_only,
+            "none_label":       p.none_label,
         }
         for p in _props.values()
     ]

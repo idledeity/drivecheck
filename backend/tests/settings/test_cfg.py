@@ -116,6 +116,19 @@ def test_props_reports_file_only():
     assert by_key["test.locked"]["file_only"] is True
 
 
+def test_none_label_marks_null_as_a_valid_choice():
+    _register_test_key()
+    cfg.register("test.cap", default=None, type="int", label="Cap", section="Test",
+                 description="x", none_label="No limit", min=1, max=64)
+    by_key = {p["key"]: p for p in cfg.props()}
+    assert by_key["test.key"]["none_label"] is None
+    assert by_key["test.cap"]["none_label"] == "No limit"
+    assert cfg.get("test.cap") is None
+    cfg.set_many({"test.cap": 9})
+    cfg.set_many({"test.cap": None})
+    assert cfg.get("test.cap") is None
+
+
 def test_apply_live_fires_live_props_with_current_value():
     calls = []
     _register_test_key(restart_required=False, on_changed=calls.append)

@@ -21,6 +21,8 @@ export type ConfigProp = {
   choices: string[] | null
   restart_required: boolean
   file_only: boolean
+  /** What null means for this prop (e.g. "No limit"); null when null isn't a choice. */
+  none_label: string | null
 }
 
 export type ProbeWarning = {

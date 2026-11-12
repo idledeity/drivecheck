@@ -21,6 +21,7 @@ function makeConfigProp(overrides: Partial<ConfigProp> = {}): ConfigProp {
     choices: null,
     restart_required: true,
     file_only: false,
+    none_label: null,
     ...overrides,
   }
 }
@@ -269,6 +270,44 @@ describe('ConfigTab', () => {
     })))
     await waitFor(() => expect(screen.getByText(/Restart required to apply: server.port/)).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'No Changes' })).toBeDisabled()
+  })
+
+  describe('a number prop with a none_label', () => {
+    const cap = (value: number | null) => makeConfigProp({
+      key: 'jobs.max_parallel', label: 'Max parallel jobs', section: 'Jobs',
+      value, default: null, min: 1, max: 64, none_label: 'No limit',
+    })
+
+    it('shows null as the ticked option with the input disabled', async () => {
+      router.state.configProps = [cap(null)]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: 'No limit' })).toBeChecked())
+      expect(screen.getByRole('spinbutton', { name: 'Max parallel jobs' })).toBeDisabled()
+    })
+
+    it('saves null when ticked, and the last number when unticked again', async () => {
+      router.state.configProps = [cap(4)]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      const box = await screen.findByRole('checkbox', { name: 'No limit' })
+      expect(box).not.toBeChecked()
+
+      await userEvent.click(box)
+      expect(screen.getByRole('spinbutton', { name: 'Max parallel jobs' })).toBeDisabled()
+      await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+      await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/config', expect.objectContaining({
+        method: 'PATCH', body: JSON.stringify({ 'jobs.max_parallel': null }),
+      })))
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'No limit' }))
+      expect(screen.getByRole('spinbutton', { name: 'Max parallel jobs' })).toHaveValue(4)
+    })
+
+    it('offers no such option to a plain number prop', async () => {
+      router.state.configProps = [makeConfigProp()]
+      render(<SettingsOverlay onClose={vi.fn()} />)
+      await waitFor(() => expect(screen.getByRole('spinbutton')).toBeInTheDocument())
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    })
   })
 
   it('shows the server-provided error message when saving fails', async () => {

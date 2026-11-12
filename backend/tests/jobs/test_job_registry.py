@@ -207,6 +207,17 @@ def test_per_drive_exclusivity_even_with_unlimited_parallelism():
     _wait_until(lambda: job2.status == JobStatus.COMPLETED)
 
 
+def test_no_cap_runs_every_drive_at_once_beyond_the_default_thread_count():
+    # ThreadPoolExecutor's own default is min(32, cpus + 4) — on a small box,
+    # fewer threads than drives. Every job must actually start, not just say so.
+    guids = [f"d{i}" for i in range(12)]
+    registry = _make_registry(max_parallel=None, guids=guids)
+    created = registry.create_jobs(guids, "controllable", {})
+    assert all(job.status == JobStatus.RUNNING for job in created)
+    for op in _ControllableOperation.instances:
+        assert op.started.wait(timeout=2)
+
+
 def test_job_completion_persists_to_db_history():
     registry = _make_registry()
     job = registry.create_jobs(["d1"], "controllable", {})[0]

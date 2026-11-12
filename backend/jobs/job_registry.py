@@ -40,10 +40,19 @@ from jobs.job_models import Job, JobStatus
 # ---------------------------------------------------------------------------
 
 cfg.register("jobs.max_parallel",
-    default=2, type="int", label="Max parallel jobs",
+    default=None, type="int", label="Max parallel jobs",
     section="Jobs", description="Cap on simultaneously-running jobs across all drives.",
-    min=1, max=8, restart_required=True,
+    tooltip="Each drive already runs one job at a time, so with no limit every drive can be "
+            "tested at once. Set a cap when drives share bandwidth (one controller, SAS "
+            "expander or USB hub) or when running them all heats up the enclosure.",
+    none_label="No limit",
+    min=1, max=64, restart_required=True,
 )
+
+# Worker threads are started only as jobs need them; _dispatch alone decides how
+# many run. Large enough never to be the limit: jobs resumed after a restart
+# bypass max_parallel, and with no cap every drive may run at once.
+_EXECUTOR_THREADS = 256
 
 
 def _json_or_none(text: str | None):
@@ -83,7 +92,7 @@ class JobRegistry:
         self._pending: list[str] = []     # job ids in run order (FIFO unless moved)
         self._running: set[str] = set()   # drive guids with a job currently executing
         self._lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=self._max_parallel, thread_name_prefix="job")
+        self._executor = ThreadPoolExecutor(max_workers=_EXECUTOR_THREADS, thread_name_prefix="job")
         self._shutting_down = False
 
     @classmethod
