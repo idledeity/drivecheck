@@ -6,6 +6,8 @@ import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
 import { useAuth } from "./authContext"
 import { toLocalIso } from "./format"
+import { useUnseenResults } from "./jobHistory"
+import { JobsContext, type JobsContextValue } from "./jobsContext"
 import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
 
@@ -160,6 +162,7 @@ export default function App() {
     if (needsSeenAt) patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
   }, [needsSeenAt])
   const markJobsSeen = () => patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
+  const unseen = useUnseenResults(jobsSeenAt, jobs)
 
   const runOperation = (guids: string[], operation: string, params: Record<string, unknown>) =>
     fetch("/api/jobs", {
@@ -273,7 +276,10 @@ export default function App() {
     [drives, sort, jobs],
   )
 
+  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, runOperation, markJobsSeen }
+
   return (
+    <JobsContext.Provider value={jobsContext}>
     <div>
       {error && <div className="status-error">{error}</div>}
       <div className="page-label">
@@ -312,16 +318,8 @@ export default function App() {
       }
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
       {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} drives={drives} onClose={closeContextMenu} onSetLocked={handleSetLocked} onRename={handleRename} />}
-      <WorkspacePanel
-        drives={drives}
-        selected={selected}
-        jobs={jobs}
-        onCancelJob={cancelJob}
-        onMoveJob={moveJob}
-        onRunOperation={runOperation}
-        jobsSeenAt={jobsSeenAt}
-        onMarkJobsSeen={markJobsSeen}
-      />
+      <WorkspacePanel drives={drives} selected={selected} />
     </div>
+    </JobsContext.Provider>
   )
 }

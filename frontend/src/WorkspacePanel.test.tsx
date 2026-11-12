@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkspacePanel from './WorkspacePanel'
+import { JobsContext, type JobsContextValue } from './jobsContext'
 import { fetchJsonResponse, makeJob } from './test/fixtures'
 
 beforeEach(() => {
@@ -12,10 +13,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderPanel(props: Partial<React.ComponentProps<typeof WorkspacePanel>> = {}) {
+function renderPanel(jobs: Partial<JobsContextValue> = {}) {
+  const value: JobsContextValue = {
+    jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn(), ...jobs,
+  }
   return render(
-    <WorkspacePanel drives={[]} selected={[]} jobs={[]} onCancelJob={vi.fn()} onMoveJob={vi.fn()} onRunOperation={vi.fn()}
-      jobsSeenAt={null} onMarkJobsSeen={vi.fn()} {...props} />,
+    <JobsContext.Provider value={value}>
+      <WorkspacePanel drives={[]} selected={[]} />
+    </JobsContext.Provider>,
   )
 }
 
@@ -54,10 +59,8 @@ describe('WorkspacePanel', () => {
     expect(screen.getByRole('group', { name: 'Finished in' })).toBeInTheDocument()
   })
 
-  it('counts finished jobs since the seen time on the Tasks and Activity tabs', async () => {
-    const done = makeJob({ id: 'new', status: 'completed', finished_at: '2026-11-11T10:00:00' })
-    const before = makeJob({ id: 'old', status: 'completed', finished_at: '2026-11-11T08:00:00' })
-    renderPanel({ jobs: [done, before], jobsSeenAt: '2026-11-11T09:00:00' })
+  it('shows the unseen-results count on the Tasks and Activity tabs', async () => {
+    renderPanel({ unseen: [makeJob({ id: 'new', status: 'completed', finished_at: '2026-11-11T10:00:00' })] })
     const tasks = screen.getByRole('button', { name: /Tasks/ })
     expect(tasks).toHaveTextContent('Tasks1')
     await userEvent.click(tasks)

@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HistoryTab from './HistoryTab'
-import { mergeHistory } from './jobHistory'
+import { mergeHistory, useUnseenResults } from './jobHistory'
 import { toLocalIso } from './format'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Job } from './types'
@@ -146,3 +146,22 @@ describe('mergeHistory', () => {
     expect(mergeHistory([at('c', '2026-11-11T09:00:00')], live).map(j => j.id)).toEqual(['q', 'r', 'c'])
   })
 })
+
+describe('useUnseenResults', () => {
+  const finished = (id: string, finished_at: string, status: Job['status'] = 'completed') => makeJob({ id, status, finished_at })
+
+  it('is empty until the seen time is known, and fetches nothing', () => {
+    const { result } = renderHook(() => useUnseenResults(null, [finished('a', '2026-11-11T10:00:00')]))
+    expect(result.current).toEqual([])
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('lists stored and live jobs that finished after the seen time, newest first', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([finished('stored', '2026-11-11T09:30:00', 'failed')]))
+    const live = [finished('live', '2026-11-11T10:00:00'), finished('old', '2026-11-11T08:00:00'), makeJob({ id: 'run', status: 'running' })]
+    const { result } = renderHook(() => useUnseenResults('2026-11-11T09:00:00', live))
+    expect(fetch).toHaveBeenCalledWith('/api/jobs/history?limit=500&since=2026-11-11T09%3A00%3A00')
+    await waitFor(() => expect(result.current.map(j => j.id)).toEqual(['live', 'stored']))
+  })
+})
+

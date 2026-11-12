@@ -1,9 +1,9 @@
 import { useState } from "react"
-import type { Drive, Job } from "./types"
+import type { Drive } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
 import TasksTab from "./TasksTab"
-import { useUnseenResults } from "./jobHistory"
+import { useJobs } from "./jobsContext"
 import "./WorkspacePanel.css"
 
 type Tab = "health" | "tasks"
@@ -16,18 +16,12 @@ const TABS: { id: Tab; label: string }[] = [
 interface Props {
   drives: Drive[]
   selected: string[]
-  jobs: Job[]
-  onCancelJob: (jobId: string) => void
-  onMoveJob: (jobId: string, direction: "up" | "down") => void
-  onRunOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<unknown>
-  jobsSeenAt: string | null
-  onMarkJobsSeen: () => void
 }
 
-export default function WorkspacePanel({ drives, selected, jobs, onCancelJob, onMoveJob, onRunOperation, jobsSeenAt, onMarkJobsSeen }: Props) {
+export default function WorkspacePanel({ drives, selected }: Props) {
   const [tab, setTab]           = useState<Tab>("health")
-  // Here, not in Activity, so the count shows on the Tasks tab while it's closed.
-  const unseen = useUnseenResults(jobsSeenAt, jobs)
+  // Shown on the Tasks tab too, so it's visible while Tasks is closed.
+  const { unseen } = useJobs()
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -61,10 +55,7 @@ export default function WorkspacePanel({ drives, selected, jobs, onCancelJob, on
           </div>
           <div className="ws-body">
             {tab === "health" && <HealthTab drives={drives} selectedGuids={selected} />}
-            {tab === "tasks"  && (
-              <TasksTab drives={drives} selected={selected} jobs={jobs} onCancelJob={onCancelJob} onMoveJob={onMoveJob}
-                onRunOperation={onRunOperation} unseen={unseen} onMarkJobsSeen={onMarkJobsSeen} />
-            )}
+            {tab === "tasks"  && <TasksTab drives={drives} selected={selected} />}
           </div>
         </>
       )}

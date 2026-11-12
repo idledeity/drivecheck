@@ -1,5 +1,6 @@
 import { useState } from "react"
-import type { Drive, Job } from "./types"
+import type { Drive } from "./types"
+import { useJobs } from "./jobsContext"
 import ActivityTab from "./ActivityTab"
 import HistoryTab from "./HistoryTab"
 import RunTaskTab from "./RunTaskTab"
@@ -16,16 +17,13 @@ const SUBTABS: { id: SubTab; label: string }[] = [
 interface Props {
   drives: Drive[]
   selected: string[]
-  jobs: Job[]
-  onCancelJob: (jobId: string) => void
-  onMoveJob: (jobId: string, direction: "up" | "down") => void
-  onRunOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<unknown>
-  unseen: Job[]   // finished jobs since the user last marked results seen, newest first
-  onMarkJobsSeen: () => void
 }
 
-export default function TasksTab({ drives, selected, jobs, onCancelJob, onMoveJob, onRunOperation, unseen, onMarkJobsSeen }: Props) {
+// Job state and actions come from App through the jobs context; the sub-tabs
+// take them as plain props, which keeps them simple to test.
+export default function TasksTab({ drives, selected }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("run")
+  const { jobs, unseen, cancelJob, moveJob, runOperation, markJobsSeen } = useJobs()
 
   return (
     <div className="tasks-tab">
@@ -42,12 +40,12 @@ export default function TasksTab({ drives, selected, jobs, onCancelJob, onMoveJo
         ))}
       </nav>
       <div className="tasks-subtab-body">
-        {subTab === "run"      && <RunTaskTab drives={drives} selected={selected} onRun={onRunOperation} />}
+        {subTab === "run"      && <RunTaskTab drives={drives} selected={selected} onRun={runOperation} />}
         {subTab === "activity" && (
-          <ActivityTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={onCancelJob} onMove={onMoveJob}
-            unseen={unseen} onMarkSeen={onMarkJobsSeen} onShowHistory={() => setSubTab("history")} />
+          <ActivityTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={cancelJob} onMove={moveJob}
+            unseen={unseen} onMarkSeen={markJobsSeen} onShowHistory={() => setSubTab("history")} />
         )}
-        {subTab === "history"  && <HistoryTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={onCancelJob} />}
+        {subTab === "history"  && <HistoryTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={cancelJob} />}
       </div>
     </div>
   )
