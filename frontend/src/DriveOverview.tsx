@@ -5,8 +5,9 @@ import { DriveChipHeader } from "./DriveChip"
 import "./DriveOverview.css"
 
 // A drive's health at a glance: score, temperature, power-on hours and any
-// flagged signals. Shown on Health > Overview.
-export default function DriveOverview({ drive }: { drive: Drive }) {
+// flagged signals. Shown on Health > Overview, and without the drive header
+// in the health popover on that drive's card.
+export default function DriveOverview({ drive, header = true }: { drive: Drive; header?: boolean }) {
   const score    = drive.health_pct
   const liveTemp = drive.vitals.temp ?? drive.temp
 
@@ -16,7 +17,7 @@ export default function DriveOverview({ drive }: { drive: Drive }) {
 
   return (
     <div className="hov-section">
-      <DriveChipHeader drive={drive} />
+      {header && <DriveChipHeader drive={drive} />}
 
       <HealthScoreBar drive={drive} />
 

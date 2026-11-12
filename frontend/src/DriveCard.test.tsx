@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DriveCard from './DriveCard'
+import { JobsContext } from './jobsContext'
 import { makeDrive, makeJob } from './test/fixtures'
 
 function mockMatchMedia(matches: boolean) {
@@ -265,6 +266,45 @@ describe('popovers (click-only / no-hover device)', () => {
     expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
+  it('lists the unseen results from the complete pill, with how each ended', async () => {
+    renderCard({ newResults: [
+      makeJob({ id: 'r1', status: 'failed', operation_name: 'Short Test', error: 'Self-test aborted' }),
+      makeJob({ id: 'r2', status: 'completed', operation_name: 'Badblocks', summary: 'No bad blocks' }),
+    ] })
+    await userEvent.click(screen.getByText('2 complete'))
+    const popover = document.querySelector('.dc-popover')!
+    expect(popover).toHaveTextContent('Short Test')
+    expect(popover).toHaveTextContent('Self-test aborted')
+    expect(popover).toHaveTextContent('Badblocks')
+    expect(popover).toHaveTextContent('No bad blocks')
+  })
+
+  it('shows the health overview from the health badge, without selecting the card', async () => {
+    const { onSelectToggle } = renderCard({ drive: makeDrive({ health_pct: 87, health_status: 'Degraded' }) })
+    await userEvent.click(screen.getByText('Degraded'))
+    const popover = document.querySelector('.dc-popover')!
+    expect(popover).toHaveTextContent('87')
+    expect(popover).toHaveTextContent('No flagged signals')
+    expect(onSelectToggle).not.toHaveBeenCalled()
+  })
+
+  it('cancels a queued job from the queued popover', async () => {
+    const cancelJob = vi.fn()
+    render(
+      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}>
+        <DriveCard
+          drive={makeDrive()} selected={false} onSelect={vi.fn()} onSelectToggle={vi.fn()}
+          job={makeJob({ status: 'running' })}
+          queuedJobs={[makeJob({ id: 'q1', status: 'queued', operation_name: 'Sleep (debug)' })]}
+        />
+      </JobsContext.Provider>,
+    )
+    await userEvent.click(screen.getByText('1 queued'))
+    await userEvent.click(screen.getByTitle('Cancel'))
+    expect(cancelJob).toHaveBeenCalledWith('q1')
+    expect(screen.getByText('Sleep (debug)')).toBeInTheDocument()
+  })
+
   it('does not open a popover for a queued (not running) job from a plain click', async () => {
     renderCard({ job: makeJob({ status: 'queued', category: 'Scan' }) })
     await userEvent.click(document.querySelector('.dc-tz')!)
@@ -330,7 +370,20 @@ describe('popovers (hover-capable device)', () => {
     expect(screen.getByText('Result')).toBeInTheDocument()
 
     fireEvent.mouseLeave(tz)
+    expect(screen.getByText('Result')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
     expect(screen.queryByText('Result')).not.toBeInTheDocument()
+  })
+
+  it('stays open while the pointer is over the popover', async () => {
+    renderCard({ job: makeJob({ status: 'running' }) })
+    const tz = document.querySelector('.dc-tz')!
+    fireEvent.mouseEnter(tz, { clientX: 10, clientY: 10 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(400) })
+    fireEvent.mouseLeave(tz)
+    fireEvent.mouseEnter(document.querySelector('.dc-popover')!)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(screen.getByText('Result')).toBeInTheDocument()
   })
 
   it('opens the queued list, not the task details, when resting on the pill inside the task bar', async () => {
@@ -362,10 +415,9 @@ describe('popovers (hover-capable device)', () => {
       expect(pill()).not.toBeInTheDocument()
     })
 
-    it('shows on an idle drive, naming the job and how it ended', () => {
+    it('shows on an idle drive', () => {
       renderCard({ newResults: [makeJob({ status: 'failed', operation_name: 'Short Test' })] })
       expect(pill()).toHaveTextContent('1 complete')
-      expect(pill()).toHaveAttribute('title', 'New result: Short Test failed')
     })
 
     it('sits next to the queued pill while a job runs', () => {
@@ -375,7 +427,6 @@ describe('popovers (hover-capable device)', () => {
         newResults: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })],
       })
       expect(pill()).toHaveTextContent('3 complete')
-      expect(pill()).toHaveAttribute('title', '3 new results')
       expect(pill()!.parentElement).toBe(screen.getByText('1 queued').parentElement)
     })
 

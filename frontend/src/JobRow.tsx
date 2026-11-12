@@ -18,8 +18,9 @@ const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
 
 // One job: status icon, drive chip, operation, then progress while running,
 // the outcome once finished, and its details when clicked. Used by History and
-// by Activity's lanes and summary.
-export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void }) {
+// by Activity's lanes and summary. `compact` leaves out the drive chip and
+// puts the outcome on its own line, for a narrow popover on that drive's card.
+export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
   const finished = !cancellable
@@ -49,10 +50,10 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
   const [msgFadeRef, msgFaded] = useEdgeFade<HTMLSpanElement>()
 
   return (
-    <div className={`queue-row queue-row-${job.status}`} onClick={() => setExpanded(e => !e)}>
+    <div className={`queue-row queue-row-${job.status}${compact ? " compact" : ""}`} onClick={() => setExpanded(e => !e)}>
       <div className="queue-row-main">
         <span className={`queue-status-icon queue-status-${job.status}`}>{STATUS_ICON[job.status]}</span>
-        {drive
+        {compact ? null : drive
           ? <span className="queue-drive-id"><DriveChip drive={drive} serial="tail" /></span>
           : <span className="queue-drive-id">{job.drive_guid}</span>}
         <span className="queue-op">{job.operation_name}</span>

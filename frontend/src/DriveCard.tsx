@@ -6,6 +6,9 @@ import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
+import { JobRow } from "./JobRow"
+import { useJobs } from "./jobsContext"
+import DriveOverview from "./DriveOverview"
 import { useEdgeFade } from "./useEdgeFade"
 import { useHoverPopover } from "./useHoverPopover"
 import { useLongPress } from "./useLongPress"
@@ -74,11 +77,13 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   const [supportsHover] = useState(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches)
 
   // "task" shows the active job's full details, "queued" lists every queued
-  // job for this drive. Rendered through a portal: .drive-card needs
-  // overflow:hidden (its rounded left corners only render right when the
-  // accent bar is clipped to the card's radius), which would clip an inline
-  // popover whenever there isn't much card below the task zone.
-  const pop = useHoverPopover<"task" | "queued">({ supportsHover, delayMs: HOVER_DELAY_MS })
+  // job for this drive, "complete" its unseen results and "health" its health
+  // overview. Rendered through a portal: .drive-card needs overflow:hidden
+  // (its rounded left corners only render right when the accent bar is
+  // clipped to the card's radius), which would clip an inline popover
+  // whenever there isn't much card below the task zone.
+  const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS })
+  const { cancelJob } = useJobs()
 
   // Touch has no right-click: press and hold opens the same menu.
   const longPress = useLongPress(pos => onContextMenu?.(drive.guid, pos), !supportsHover)
@@ -88,25 +93,27 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     onContextMenu?.(drive.guid, { x: e.clientX, y: e.clientY })
   }
 
-  const popoverContent = pop.open && (pop.open === "queued" ? queuedJobs.length > 0 : !!job) && createPortal(
-    <div className="dc-popover" style={pop.pos} {...pop.popoverProps}>
-      {pop.open === "task" && job && <JobDetailRows job={job} />}
-      {pop.open === "queued" && queuedJobs.map(q => (
-        <div key={q.id} className="dc-queued-item">
-          <span className="dc-queued-op">{q.operation_name}</span>
-          <span className="dc-queued-meta">{q.category} · queued {formatRelativeTime(q.created_at)}</span>
-        </div>
-      ))}
+  const jobRows = (jobs: Job[]) => jobs.map(j => <JobRow key={j.id} job={j} drive={drive} onCancel={cancelJob} compact />)
+  const popoverBody = {
+    task: job && <JobDetailRows job={job} />,
+    queued: queuedJobs.length > 0 && jobRows(queuedJobs),
+    complete: newResults.length > 0 && jobRows(newResults),
+    health: <DriveOverview drive={drive} header={false} />,
+  }[pop.open ?? "task"]
+  const popoverContent = pop.open && popoverBody && createPortal(
+    <div className={`dc-popover${pop.open === "task" ? "" : " dc-popover-wide"}`} style={pop.pos} {...pop.popoverProps}>
+      {popoverBody}
     </div>,
     document.body,
   )
 
   // Yellow text, never an outcome color: green/red on a drive card always
-  // means health. Which job and how it ended is on the Activity tab.
+  // means health. How each job ended is in its popover (status icon) and on
+  // the Activity tab.
   const completePill = newResults.length > 0 && (
-    <span className="dc-complete-pill" title={newResultsLabel(newResults)}>
+    <button className="dc-complete-pill" {...pop.trigger("complete")}>
       {newResults.length} complete
-    </span>
+    </button>
   )
 
   return (
@@ -130,7 +137,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
           {drive.label && <span className="dc-label">({drive.label})</span>}
         </div>
-        <span className={`dc-badge dc-badge-${health.bar}`}>{health.label}</span>
+        <span className={`dc-badge dc-badge-${health.bar}`} {...pop.trigger("health")}>{health.label}</span>
       </div>
 
       {/* Row 2: traits (left) + serial (right) */}
@@ -280,14 +287,11 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   )
 }
 
+type PopoverKey = "task" | "queued" | "complete" | "health"
+
 const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; label: string }> = {
   Healthy:  { bar: "green", label: "SMART OK" },
   Degraded: { bar: "warn",  label: "Degraded" },
   Failing:  { bar: "red",   label: "Failing"  },
   Unrated:  { bar: "grey",  label: "Unrated"  },
-}
-
-function newResultsLabel(jobs: Job[]): string {
-  if (jobs.length === 1) return `New result: ${jobs[0].operation_name} ${jobs[0].status}`
-  return `${jobs.length} new results`
 }

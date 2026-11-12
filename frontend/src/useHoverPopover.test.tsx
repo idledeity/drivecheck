@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useHoverPopover } from './useHoverPopover'
 
 const DELAY = 300
+const CLOSE = 300 // the hook's default closeDelayMs
 
 // An outer trigger ("a") with a nested trigger ("b") inside it, plus a
 // neutral element elsewhere on the page.
@@ -60,26 +61,47 @@ describe('useHoverPopover', () => {
       expect(parseFloat(style.top)).toBeLessThanOrEqual(window.innerHeight - 160 - 8)
     })
 
-    it('ignores jitter below the threshold but hides and re-arms on a real move', () => {
+    it('ignores jitter below the threshold but restarts the delay on a real move', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
+      wait(DELAY - 100)
+      fireEvent.mouseMove(a, { clientX: 12, clientY: 11 })
+      wait(100)
+      expect(openKey()).toBe('a')
+    })
+
+    it('restarts the delay when the pointer moves before it opens', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
+      wait(DELAY - 100)
+      fireEvent.mouseMove(a, { clientX: 40, clientY: 10 })
+      wait(100)
+      expect(openKey()).toBeNull()
+      wait(DELAY - 100)
+      expect(openKey()).toBe('a')
+    })
+
+    it('stays open while the pointer moves about its trigger', () => {
       render(<Surface />)
       const a = screen.getByTestId('a')
       fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
       wait(DELAY)
-      fireEvent.mouseMove(a, { clientX: 12, clientY: 11 })
-      expect(openKey()).toBe('a')
-
-      fireEvent.mouseMove(a, { clientX: 40, clientY: 10 })
-      expect(openKey()).toBeNull()
-      wait(DELAY)
+      fireEvent.mouseMove(a, { clientX: 40, clientY: 30 })
+      wait(DELAY + CLOSE)
       expect(openKey()).toBe('a')
     })
 
-    it('closes when the pointer leaves, and a pending open never fires', () => {
+    it('closes shortly after the pointer leaves, and a pending open never fires', () => {
       render(<Surface />)
       const a = screen.getByTestId('a')
       fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
       wait(DELAY)
       fireEvent.mouseLeave(a)
+      wait(CLOSE - 1)
+      expect(openKey()).toBe('a')
+      wait(1)
       expect(openKey()).toBeNull()
 
       fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
@@ -96,6 +118,79 @@ describe('useHoverPopover', () => {
       fireEvent.mouseMove(b, { clientX: 11, clientY: 10 })
       wait(DELAY)
       expect(openKey()).toBe('b')
+    })
+
+    it('stays open while the pointer is in the popover, and closes shortly after it leaves', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      fireEvent.mouseLeave(a)
+      fireEvent.mouseEnter(screen.getByTestId('pop'))
+      wait(CLOSE * 3)
+      expect(openKey()).toBe('a')
+
+      fireEvent.mouseLeave(screen.getByTestId('pop'))
+      wait(CLOSE)
+      expect(openKey()).toBeNull()
+    })
+
+    it('keeps it open when the pointer comes back to the trigger in time', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      fireEvent.mouseEnter(a, { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      fireEvent.mouseLeave(a)
+      wait(CLOSE - 100)
+      fireEvent.mouseEnter(a, { clientX: 12, clientY: 10 })
+      wait(CLOSE * 3)
+      expect(openKey()).toBe('a')
+    })
+
+    it('lets the pointer cross another trigger on its way into the popover', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      const b = screen.getByTestId('b')
+      fireEvent.mouseEnter(b, { clientX: 10, clientY: 10 })
+      fireEvent.mouseMove(b, { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      expect(openKey()).toBe('b')
+
+      // Out of the pill, across the bar around it, into the popover.
+      fireEvent.mouseLeave(b)
+      fireEvent.mouseMove(a, { clientX: 10, clientY: 18 })
+      expect(openKey()).toBe('b')
+      fireEvent.mouseEnter(screen.getByTestId('pop'))
+      wait(DELAY + CLOSE)
+      expect(openKey()).toBe('b')
+    })
+
+    it('switches to another trigger the pointer rests on', () => {
+      render(<Surface />)
+      const a = screen.getByTestId('a')
+      const b = screen.getByTestId('b')
+      fireEvent.mouseEnter(b, { clientX: 10, clientY: 10 })
+      fireEvent.mouseMove(b, { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      fireEvent.mouseLeave(b)
+      wait(100)
+      fireEvent.mouseMove(a, { clientX: 40, clientY: 10 })
+      expect(openKey()).toBe('b')
+      wait(CLOSE - 100)
+      expect(openKey()).toBeNull()
+      wait(100)
+      expect(openKey()).toBe('a')
+    })
+
+    it('flips above the pointer when it would run off the bottom', () => {
+      const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 200, height: 150 } as DOMRect)
+      render(<Surface />)
+      const y = window.innerHeight - 50
+      fireEvent.mouseEnter(screen.getByTestId('a'), { clientX: 10, clientY: y })
+      wait(DELAY)
+      expect(screen.getByTestId('pop').style.top).toBe(`${y - 12 - 150}px`)
+      rect.mockRestore()
     })
 
     it('does not open on click', () => {
@@ -160,6 +255,24 @@ describe('useHoverPopover', () => {
       fireEvent.click(screen.getByTestId('a'))
       fireEvent.scroll(window)
       expect(openKey()).toBeNull()
+    })
+
+    it('stays open when the popover scrolls its own content', () => {
+      render(<Surface supportsHover={false} />)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.scroll(screen.getByTestId('pop'))
+      expect(openKey()).toBe('a')
+    })
+
+    it("keeps the popover's right-click and press from reaching the surface", () => {
+      const onContextMenu = vi.fn()
+      const onPointerDown = vi.fn()
+      render(<div onContextMenu={onContextMenu} onPointerDown={onPointerDown}><Surface supportsHover={false} /></div>)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.contextMenu(screen.getByTestId('inside'))
+      fireEvent.pointerDown(screen.getByTestId('inside'))
+      expect(onContextMenu).not.toHaveBeenCalled()
+      expect(onPointerDown).not.toHaveBeenCalled()
     })
 
     it('closes through close(), and the next tap opens it again', () => {

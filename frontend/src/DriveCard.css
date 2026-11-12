@@ -338,7 +338,7 @@
 }
 .dc-queued-pill:hover { color: var(--t2); border-color: var(--bd2); }
 /* Same shape as the queued pill; yellow text marks results not yet seen
-   (the Activity tab's number uses the same color). Not clickable. */
+   (the Activity tab's number uses the same color). Opens those results. */
 .dc-complete-pill {
   font-size: 9.5px;
   font-weight: 600;
@@ -348,7 +348,10 @@
   background: rgba(255, 178, 46, 0.08);
   border: 0.5px solid rgba(255, 178, 46, 0.3);
   white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
+.dc-complete-pill:hover { border-color: rgba(255, 178, 46, 0.55); }
 
 .dc-tz-bar {
   height: 3px;
@@ -424,14 +427,16 @@
   cursor: default;
 }
 
-.dc-queued-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 10px;
+/* Job rows and the health overview need more room than the task details. */
+.dc-popover-wide {
+  width: min(340px, calc(100vw - 16px));
+  max-width: none;
+  max-height: min(360px, calc(100vh - 16px));
+  padding: 6px;
 }
-.dc-queued-op { color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dc-queued-meta { color: var(--t4); white-space: nowrap; flex-shrink: 0; }
+.dc-popover-wide .queue-row { margin-bottom: 0; }
+.dc-popover-wide .hov-section { padding: 0 4px; }
+.dc-popover-wide .hov-score-row { margin-top: 2px; }
 
 /* ── Footer ── */
 .dc-ft {

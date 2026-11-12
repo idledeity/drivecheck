@@ -55,6 +55,19 @@
   }
 }
 
+/* No drive chip, and the outcome on its own wrapping line at any width.
+   After the narrow layout above, so it wins there too. */
+.queue-row.compact .queue-row-main {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon op right"
+    "outcome outcome outcome";
+  row-gap: 3px;
+}
+/* Not stretched, so the chip hugs its text, but still capped at the track
+   so a long name ellipsizes instead of running into the time. */
+.queue-row.compact .queue-op { justify-self: start; max-width: 100%; }
+
 /* Secondary row metadata (time, cancel), right-aligned in its own track. The
    serial is in the drive chip. */
 .queue-right {
@@ -221,6 +234,10 @@
   text-overflow: ellipsis;
 }
 .queue-outcome.bad { color: var(--re); }
+.queue-row.compact .queue-outcome {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
 .history-note {
   font-size: 10.5px;
