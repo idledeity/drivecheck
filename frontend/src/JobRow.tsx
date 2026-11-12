@@ -56,6 +56,13 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           ? <span className="queue-drive-id"><DriveChip drive={drive} serial="tail" /></span>
           : <span className="queue-drive-id">{job.drive_guid}</span>}
         <span className="queue-op">{job.operation_name}</span>
+        {/* What happened, without expanding the row: the summary, or the error
+            in red. Inline on wide rows, its own wrapping line on narrow ones. */}
+        {finished && (
+          <span className={`queue-outcome${job.status === "failed" || job.status === "interrupted" ? " bad" : ""}`} title={jobResultText(job)}>
+            {jobResultText(job)}
+          </span>
+        )}
         <div className="queue-right">
           {job.finished_at && (
             <span className="queue-time" title={ranFor ? `Ran for ${ranFor}` : undefined}>
@@ -94,10 +101,6 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
             </div>
           )}
         </div>
-      )}
-      {/* What happened, without expanding the row: the summary, or the error in red. */}
-      {finished && (
-        <div className={`queue-outcome${job.status === "failed" || job.status === "interrupted" ? " bad" : ""}`}>{jobResultText(job)}</div>
       )}
       {expanded && (
         <div className="queue-details">

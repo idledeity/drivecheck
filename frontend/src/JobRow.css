@@ -27,14 +27,13 @@
    leftover row width exists, which is what was making the title and op name
    each balloon out to ~50% of the row even when their text was short. The
    0 floor still lets them shrink (and the text inside ellipsis) once the
-   row is too narrow for everything at full size. .queue-right is the only
-   1fr track, so it alone absorbs leftover space — justify-self:end below
-   then pins its actual content (serial/time/cancel) to the row's right edge
-   instead of letting it stretch across that space too. */
+   row is too narrow for everything at full size. The outcome is the only 1fr
+   track, so it alone absorbs leftover space (and is the first to ellipsize);
+   .queue-right sits in its own auto track at the row's right edge. */
 .queue-row-main {
   display: grid;
-  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr);
-  grid-template-areas: "icon drive op right";
+  grid-template-columns: auto minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-areas: "icon drive op outcome right";
   align-items: baseline;
   gap: 8px;
   min-width: 0;
@@ -46,7 +45,8 @@
     grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr);
     grid-template-areas:
       "icon op    right"
-      "drive drive drive";
+      "drive drive drive"
+      "outcome outcome outcome";
     row-gap: 3px;
   }
 
@@ -55,8 +55,8 @@
   }
 }
 
-/* Secondary row metadata (time, cancel), right-aligned. The serial is in
-   the drive chip. */
+/* Secondary row metadata (time, cancel), right-aligned in its own track. The
+   serial is in the drive chip. */
 .queue-right {
   grid-area: right;
   justify-self: end;
@@ -208,11 +208,17 @@
   flex-shrink: 0;
 }
 
+/* Fills the space between the op name and the time on wide rows, cut short
+   with an ellipsis when long (the full text is in the title and details). */
 .queue-outcome {
+  grid-area: outcome;
+  min-width: 0;
   font-size: 11.5px;
   color: var(--t4);
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .queue-outcome.bad { color: var(--re); }
 
@@ -244,12 +250,15 @@
   }
 }
 
-/* Tighten every layer of spacing — section gap, row padding/margin, the
+/* Tighten every layer of spacing — row padding/margin, the
    gaps between elements within a row — since on a narrow screen all of it
    compounds into a lot of width spent on whitespace instead of content. */
 @media (max-width: 640px) {
-  .queue-tab {
-    gap: 12px;
+  /* Narrow rows give the outcome its own line, wrapped instead of cut short.
+     Here, after the base .queue-outcome rule, so it wins. */
+  .queue-outcome {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .queue-row {
