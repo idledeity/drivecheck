@@ -53,8 +53,23 @@
 }
 
 .rt-form-targets {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.rt-form-targets-label {
   font-size: 11.5px;
   color: var(--t4);
+  flex: none;
+}
+
+/* The chip list is a size container (DriveChip.css), so it can't take its
+   width from its chips: give it the rest of the row instead. */
+.rt-form-targets .drive-chip-list {
+  flex: 1 1 200px;
 }
 
 .rt-param {

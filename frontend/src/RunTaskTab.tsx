@@ -5,6 +5,7 @@ import { StubTab } from "./WorkspacePanel"
 import DestructiveConfirmDialog from "./DestructiveConfirmDialog"
 import HoverReveal from "./HoverReveal"
 import "./RunTaskTab.css"
+import DriveChip from "./DriveChip"
 
 const CATEGORY_ORDER = ["Test", "Scan", "Maintenance", "Debug"]
 
@@ -63,7 +64,6 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
   const targets = selected
     .map(guid => drives.find(d => d.guid === guid))
     .filter((d): d is Drive => d !== undefined)
-  const driveNames = targets.map(d => d.label ?? d.model ?? d.device)
 
   const lockedSelected = activeOp?.destructive
     ? selected.filter(guid => drives.find(d => d.guid === guid)?.locked)
@@ -108,7 +108,12 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
           <>
             <h3 className="rt-form-title">{activeOp.name}</h3>
             <div className="rt-form-targets">
-              Target: {driveNames.length === 1 ? driveNames[0] : `${driveNames.length} drives`}
+              <span className="rt-form-targets-label">Runs on</span>
+              <div className="drive-chip-list" aria-label="Target drives">
+                {targets.map(d => (
+                  <DriveChip key={d.guid} drive={d} blocked={blockedByLock && d.locked} />
+                ))}
+              </div>
             </div>
             {activeOp.params.map(spec => (
               <ParamInput

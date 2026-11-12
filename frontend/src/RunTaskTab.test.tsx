@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RunTaskTab from './RunTaskTab'
@@ -80,20 +80,41 @@ describe('RunTaskTab', () => {
     expect(screen.getByRole('checkbox')).not.toBeChecked()
   })
 
-  it('shows the single drive name as the target when one drive is selected', async () => {
+  it('shows the target drive as a chip with its name and serial tail', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1', model: 'ModelX' })]} selected={['d1']} onRun={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('Target: ModelX')).toBeInTheDocument())
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1', model: 'ModelX', serial: 'ZTM0FF02' })]} selected={['d1']} onRun={vi.fn()} />)
+    const list = await screen.findByLabelText('Target drives')
+    expect(within(list).getByText('Acme')).toBeInTheDocument()
+    expect(within(list).getByText('ModelX')).toBeInTheDocument()
+    expect(within(list).getByText('1 TB')).toBeInTheDocument()
+    // Both forms render; a container query picks one by the space available.
+    expect(within(list).getByText('ZTM0FF02')).toHaveClass('drive-chip-serial-full')
+    expect(within(list).getByText('FF02')).toHaveClass('drive-chip-serial-tail')
+    expect(within(list).getByRole('img', { name: 'Healthy 100' })).toHaveClass('ok')
   })
 
-  it('shows a drive count as the target when multiple drives are selected', async () => {
+  it('shows one chip per selected drive, preferring the label over the model', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
     render(<RunTaskTab
-      drives={[makeDrive({ guid: 'd1' }), makeDrive({ guid: 'd2' })]}
+      drives={[makeDrive({ guid: 'd1', label: 'booop' }), makeDrive({ guid: 'd2', model: 'Exos X16' }), makeDrive({ guid: 'd3' })]}
       selected={['d1', 'd2']}
       onRun={vi.fn()}
     />)
-    await waitFor(() => expect(screen.getByText('Target: 2 drives')).toBeInTheDocument())
+    const list = await screen.findByLabelText('Target drives')
+    expect(within(list).getAllByText(/booop|Exos X16|ModelX/).map(e => e.textContent)).toEqual(['booop', 'Exos X16'])
+  })
+
+  it('marks a locked target as blocking a destructive operation', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([{ ...READ_TEST, key: 'shred', name: 'Secure Erase', destructive: true }]))
+    render(<RunTaskTab
+      drives={[makeDrive({ guid: 'd1', model: 'Locked One', locked: true }), makeDrive({ guid: 'd2', model: 'Free One' })]}
+      selected={['d1', 'd2']}
+      onRun={vi.fn()}
+    />)
+    const list = await screen.findByLabelText('Target drives')
+    expect(within(list).getByText('Locked One').closest('.drive-chip')).toHaveClass('blocked')
+    expect(within(list).getByText('Free One').closest('.drive-chip')).not.toHaveClass('blocked')
+    expect(within(list).getByLabelText('locked')).toBeInTheDocument()
   })
 
   it('switches the active operation when another sidebar entry is clicked', async () => {

@@ -1,0 +1,77 @@
+.drive-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--t2);
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 2px 11px 2px 9px;
+}
+
+/* Health status dot; the status name is in the title and aria-label. */
+.drive-chip-health {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--t5);
+}
+.drive-chip-health.ok   { background: var(--gn); }
+.drive-chip-health.warn { background: var(--wa); }
+.drive-chip-health.crit { background: var(--re); }
+
+.drive-chip-maker {
+  color: var(--t3);
+  flex: none;
+}
+
+.drive-chip-meta {
+  color: var(--t3);
+  flex: none;
+}
+
+.drive-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-chip-serial {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--t4);
+  flex: none;
+}
+
+.drive-chip-lock {
+  color: var(--t4);
+  flex: none;
+}
+
+.drive-chip.blocked { border-color: rgba(255, 178, 46, 0.55); }
+.drive-chip.blocked .drive-chip-lock { color: var(--wa); }
+
+.drive-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  container: drive-chips / inline-size;
+}
+
+/* Full serial by default; the last four characters when the list is narrow,
+   then no manufacturer either. */
+.drive-chip-serial-tail { display: none; }
+@container drive-chips (max-width: 520px) {
+  .drive-chip-serial-full { display: none; }
+  .drive-chip-serial-tail { display: inline; }
+}
+@container drive-chips (max-width: 340px) {
+  .drive-chip-maker { display: none; }
+}
