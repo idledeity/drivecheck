@@ -1,5 +1,8 @@
 export type Settings = {
   footer_signals: Record<string, string[]>
+  // Local ISO time the user last marked finished jobs as seen; jobs that
+  // finished after it count as new results. Absent until first set.
+  jobs_seen_at?: string | null
 }
 
 export type ConfigPropType = "int" | "float" | "str" | "bool" | "enum" | "list" | "module_list"
@@ -126,6 +129,7 @@ export type Job = {
   started_at: string | null
   finished_at: string | null
   smart: JobSmart
+  queue_position: number | null  // run order while queued (0 starts first), else null
 }
 
 export type ParamSpec = {

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Drive, Job, JobStatus } from "./types"
 import { mergeHistory } from "./jobHistory"
-import { JobRow } from "./QueueTab"
+import { JobRow } from "./JobRow"
 import { DriveChipHeader } from "./DriveChip"
 import { Control, FilterChip, Segmented } from "./Controls"
 import { dayLabel, toLocalIso } from "./format"
-import "./QueueTab.css"
 import "./HistoryTab.css"
 
 interface Props {

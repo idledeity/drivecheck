@@ -5,6 +5,7 @@ import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
 import { useAuth } from "./authContext"
+import { toLocalIso } from "./format"
 import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
 
@@ -125,6 +126,41 @@ export default function App() {
       })
       .catch(() => setError("Backend unavailable — retrying…"))
 
+  // Moves a queued job one place earlier or later among its drive's queued
+  // jobs. A 409 (already first/last) just leaves the order as it is.
+  const moveJob = (jobId: string, direction: "up" | "down") =>
+    fetch(`/api/jobs/${jobId}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction }),
+    })
+      .then(r => {
+        if (!r.ok && r.status !== 409) throw new Error(`HTTP ${r.status}`)
+        return loadJobs()
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
+
+  const patchSettings = (updates: Partial<Settings>) =>
+    fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json().then(setSettings)
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
+
+  // Finished jobs after this time are new results. On first use there's no
+  // value yet: start from now rather than calling the whole history new.
+  const jobsSeenAt = settings?.jobs_seen_at ?? null
+  const needsSeenAt = settings !== null && !settings.jobs_seen_at
+  useEffect(() => {
+    if (needsSeenAt) patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
+  }, [needsSeenAt])
+  const markJobsSeen = () => patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
+
   const runOperation = (guids: string[], operation: string, params: Record<string, unknown>) =>
     fetch("/api/jobs", {
       method: "POST",
@@ -222,7 +258,9 @@ export default function App() {
         else queued.set(j.drive_guid, [j])
       }
     }
-    // Active = running job if present, else earliest queued
+    // Queued jobs in run order; the list itself comes back in creation order.
+    for (const arr of queued.values()) arr.sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0))
+    // Active = running job if present, else the next queued one
     const active = new Map<string, Job>(running)
     for (const [guid, arr] of queued) {
       if (!active.has(guid)) active.set(guid, arr[0])
@@ -279,7 +317,10 @@ export default function App() {
         selected={selected}
         jobs={jobs}
         onCancelJob={cancelJob}
+        onMoveJob={moveJob}
         onRunOperation={runOperation}
+        jobsSeenAt={jobsSeenAt}
+        onMarkJobsSeen={markJobsSeen}
       />
     </div>
   )

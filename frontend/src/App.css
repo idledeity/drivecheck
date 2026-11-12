@@ -247,3 +247,13 @@
   padding: 10px 14px;
   margin-bottom: 8px;
 }
+
+/* Count of finished jobs the user hasn't seen, on the Tasks and Activity tabs.
+   Plain yellow text: cyan already means selected and red means failed. */
+.new-count {
+  margin-left: 6px;
+  font-size: 0.95em;
+  font-weight: 700;
+  color: var(--wa);
+  font-variant-numeric: tabular-nums;
+}

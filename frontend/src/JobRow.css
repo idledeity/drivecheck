@@ -1,22 +1,3 @@
-.queue-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.queue-section-title {
-  margin: 0 0 6px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--t4);
-}
-
-.history-drive-header {
-  margin-bottom: 8px;
-}
-
 .queue-row {
   display: flex;
   flex-direction: column;
@@ -227,11 +208,13 @@
   flex-shrink: 0;
 }
 
-.queue-error {
-  font-size: 11px;
-  color: var(--re);
-  line-height: 1;
+.queue-outcome {
+  font-size: 11.5px;
+  color: var(--t4);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
+.queue-outcome.bad { color: var(--re); }
 
 .history-note {
   font-size: 10.5px;

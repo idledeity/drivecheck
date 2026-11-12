@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkspacePanel from './WorkspacePanel'
-import { fetchJsonResponse } from './test/fixtures'
+import { fetchJsonResponse, makeJob } from './test/fixtures'
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fetchJsonResponse([])))
@@ -12,9 +12,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderPanel() {
+function renderPanel(props: Partial<React.ComponentProps<typeof WorkspacePanel>> = {}) {
   return render(
-    <WorkspacePanel drives={[]} selected={[]} jobs={[]} onCancelJob={vi.fn()} onRunOperation={vi.fn()} />,
+    <WorkspacePanel drives={[]} selected={[]} jobs={[]} onCancelJob={vi.fn()} onMoveJob={vi.fn()} onRunOperation={vi.fn()}
+      jobsSeenAt={null} onMarkJobsSeen={vi.fn()} {...props} />,
   )
 }
 
@@ -32,11 +33,11 @@ describe('WorkspacePanel', () => {
     expect(screen.queryByText(/Select one or more drives to view an overview/)).not.toBeInTheDocument()
   })
 
-  it('switches to the Queue tab', async () => {
+  it('switches to the Activity tab', async () => {
     renderPanel()
     await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
-    expect(screen.getByText(/Running and queued jobs/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Activity' }))
+    expect(screen.getByRole('region', { name: 'Summary' })).toBeInTheDocument()
   })
 
   it('switches to the Run Task tab', async () => {
@@ -51,5 +52,15 @@ describe('WorkspacePanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'History' }))
     expect(screen.getByRole('group', { name: 'Finished in' })).toBeInTheDocument()
+  })
+
+  it('counts finished jobs since the seen time on the Tasks and Activity tabs', async () => {
+    const done = makeJob({ id: 'new', status: 'completed', finished_at: '2026-11-11T10:00:00' })
+    const before = makeJob({ id: 'old', status: 'completed', finished_at: '2026-11-11T08:00:00' })
+    renderPanel({ jobs: [done, before], jobsSeenAt: '2026-11-11T09:00:00' })
+    const tasks = screen.getByRole('button', { name: /Tasks/ })
+    expect(tasks).toHaveTextContent('Tasks1')
+    await userEvent.click(tasks)
+    expect(screen.getByRole('button', { name: /Activity/ })).toHaveTextContent('Activity1')
   })
 })

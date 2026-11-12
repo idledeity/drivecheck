@@ -66,6 +66,7 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
     started_at: null,
     finished_at: null,
     smart: { before: null, after: null, comparison: null },
+    queue_position: null,
     ...overrides,
   }
 }

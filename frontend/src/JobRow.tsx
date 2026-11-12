@@ -1,56 +1,11 @@
 import { useEffect, useState } from "react"
 import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
-import { formatDuration, formatRelativeTime } from "./format"
+import { formatDuration, formatRelativeTime, jobResultText } from "./format"
 import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
-import { StubTab } from "./WorkspacePanel"
 import DriveChip from "./DriveChip"
-import "./QueueTab.css"
-
-interface Props {
-  drives: Drive[]
-  jobs: Job[]
-  onCancel: (jobId: string) => void
-}
-
-export default function QueueTab({ drives, jobs, onCancel }: Props) {
-  if (jobs.length === 0) {
-    return <StubTab label="Queue" note="Running and queued jobs across all drives." />
-  }
-
-  const running = jobs.filter(j => j.status === "running")
-  const queued = jobs.filter(j => j.status === "queued")
-  const finished = jobs
-    .filter(j => j.status === "completed" || j.status === "failed" || j.status === "cancelled" || j.status === "interrupted")
-    .sort((a, b) => new Date(b.finished_at ?? b.created_at).getTime() - new Date(a.finished_at ?? a.created_at).getTime())
-    .slice(0, 15)
-
-  return (
-    <div className="queue-tab">
-      <Section title="Running" jobs={running} drives={drives} onCancel={onCancel} />
-      <Section title="Queued" jobs={queued} drives={drives} onCancel={onCancel} />
-      <Section title="Recently finished" jobs={finished} drives={drives} onCancel={onCancel} />
-    </div>
-  )
-}
-
-function Section({ title, jobs, drives, onCancel }: {
-  title: string
-  jobs: Job[]
-  drives: Drive[]
-  onCancel: (jobId: string) => void
-}) {
-  if (jobs.length === 0) return null
-  return (
-    <div className="queue-section">
-      <h3 className="queue-section-title">{title}</h3>
-      {jobs.map(job => (
-        <JobRow key={job.id} job={job} drive={drives.find(d => d.guid === job.drive_guid)} onCancel={onCancel} />
-      ))}
-    </div>
-  )
-}
+import "./JobRow.css"
 
 const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
   running:     <IconLoader2 size={13} className="spinning" />,
@@ -61,11 +16,16 @@ const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
   interrupted: <IconHelpCircle size={13} />,
 }
 
-// Exported for HistoryTab, which renders the same row for every job a drive
-// has run, running ones included (so its cancel button is live there too).
+// One job: status icon, drive chip, operation, then progress while running,
+// the outcome once finished, and its details when clicked. Used by History and
+// by Activity's lanes and summary.
 export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
+  const finished = !cancellable
+  const ranFor = finished && job.started_at && job.finished_at
+    ? formatDuration((new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000)
+    : null
 
   // Ticks once a second only while this row's job is running — elapsed/ETA
   // text below is derived from this plus job.started_at, not from polled
@@ -84,7 +44,7 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
   // percent/elapsed extrapolation) — see JobRegistry.get_progress().
   const remainingSeconds = job.progress.eta_seconds ?? null
 
-  // Mobile/touch only (see QueueTab.css) — only fade the message's edge when
+  // Mobile/touch only (see JobRow.css) — only fade the message's edge when
   // it's actually scrollable, same as DriveCard's scrollable rows.
   const msgFade = useEdgeFade<HTMLSpanElement>()
 
@@ -97,7 +57,11 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           : <span className="queue-drive-id">{job.drive_guid}</span>}
         <span className="queue-op">{job.operation_name}</span>
         <div className="queue-right">
-          {job.finished_at && <span className="queue-time">{formatRelativeTime(job.finished_at)}</span>}
+          {job.finished_at && (
+            <span className="queue-time" title={ranFor ? `Ran for ${ranFor}` : undefined}>
+              {ranFor && <>{ranFor} · </>}{formatRelativeTime(job.finished_at)}
+            </span>
+          )}
           {cancellable && (
             <button className="queue-cancel" onClick={e => { e.stopPropagation(); onCancel(job.id) }} title="Cancel">
               <IconX size={13} />
@@ -131,7 +95,10 @@ export function JobRow({ job, drive, onCancel }: { job: Job; drive: Drive | unde
           )}
         </div>
       )}
-      {(job.status === "failed" || job.status === "interrupted") && job.error && <div className="queue-error">{job.error}</div>}
+      {/* What happened, without expanding the row: the summary, or the error in red. */}
+      {finished && (
+        <div className={`queue-outcome${job.status === "failed" || job.status === "interrupted" ? " bad" : ""}`}>{jobResultText(job)}</div>
+      )}
       {expanded && (
         <div className="queue-details">
           <JobDetails job={job} />

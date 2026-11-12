@@ -65,3 +65,7 @@
 .history-link:hover { color: var(--cy2); }
 .history-link:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; }
 .history-more { align-self: flex-start; padding-top: 2px; }
+
+.history-drive-header {
+  margin-bottom: 8px;
+}

@@ -268,13 +268,13 @@ describe('App', () => {
     expect(screen.getByTestId('settings-overlay')).toBeInTheDocument()
   })
 
-  it('cancels a job from the Queue tab', async () => {
+  it('cancels a job from the Activity tab', async () => {
     router.state.jobs = [makeJob({ id: 'job-1', status: 'running' })]
     render(<App />)
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/jobs'))
 
     await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Activity' }))
     await userEvent.click(screen.getByTitle('Cancel'))
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/jobs/job-1/cancel', expect.objectContaining({ method: 'POST' })))
   })

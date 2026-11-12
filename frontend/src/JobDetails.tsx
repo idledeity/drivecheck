@@ -7,7 +7,7 @@ import "./JobDetails.css"
 // Every job shows the same common properties (status, result, times, device)
 // whatever its operation; its settings and operation-specific result fields
 // follow in their own sections. JobDetails is the full two-column view
-// (QueueTab/HistoryTab expanded rows); JobDetailRows is the single-column
+// (JobRow expanded rows); JobDetailRows is the single-column
 // summary for narrow spots (DriveCard's task popover).
 
 const STATUS_LABEL: Record<JobStatus, string> = {
