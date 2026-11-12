@@ -62,6 +62,8 @@ function makeFetchRouter(initial: { drives?: Drive[]; jobs?: Job[]; settings?: S
     jobs: initial.jobs ?? [],
     settings: initial.settings ?? { footer_signals: {} },
     failNextDrivesLoad: false,
+    // What POST /api/jobs answers: [body, status], or 'offline' for a failed request.
+    runResponse: [[], 201] as [unknown, number] | 'offline',
   }
   const fn = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
@@ -74,6 +76,10 @@ function makeFetchRouter(initial: { drives?: Drive[]; jobs?: Job[]; settings?: S
       return Promise.resolve(fetchJsonResponse(state.drives))
     }
     if (url === '/api/jobs' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.jobs))
+    if (url === '/api/jobs' && method === 'POST') {
+      if (state.runResponse === 'offline') return Promise.reject(new TypeError('Failed to fetch'))
+      return Promise.resolve(fetchJsonResponse(...state.runResponse))
+    }
     if (url.startsWith('/api/operations')) return Promise.resolve(fetchJsonResponse([READ_TEST]))
     // Every other endpoint (cancel, run, refresh, scan, label patch) just
     // needs to look like a successful response — App reloads drives/jobs
@@ -294,5 +300,36 @@ describe('App', () => {
       method: 'POST',
       body: JSON.stringify({ guids: ['d1'], operation: 'dd_read_test', params: {} }),
     })))
+  })
+
+  async function runFromTasks() {
+    router.state.drives = [makeDrive({ guid: 'd1' })]
+    render(<App />)
+    await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('select-d1'))
+    await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Run Task' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+  }
+
+  it('shows why the server refused a run, without calling the backend unavailable', async () => {
+    router.state.runResponse = [{ error: "invalid parameter 'duration': must be at most 120" }, 400]
+    await runFromTasks()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("invalid parameter 'duration': must be at most 120"))
+    expect(screen.queryByText(/Backend unavailable/)).not.toBeInTheDocument()
+  })
+
+  it('says so when no selected drive could take the job', async () => {
+    router.state.runResponse = [[], 201]
+    await runFromTasks()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('None of the selected drives can run this operation'))
+  })
+
+  it('reports the backend unavailable only when the run request itself fails', async () => {
+    router.state.runResponse = 'offline'
+    await runFromTasks()
+    await waitFor(() => expect(screen.getByText('Backend unavailable — retrying…')).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

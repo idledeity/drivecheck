@@ -170,11 +170,23 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ guids, operation, params }),
     })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return loadJobs()
+      .then(async r => {
+        // A refusal (bad param, locked drive) is the server answering: report
+        // its reason to the form. Only a failed request means it's unreachable.
+        if (!r.ok) {
+          const body = await r.json().catch(() => null)
+          return (body?.error as string | undefined) ?? `Request failed (HTTP ${r.status})`
+        }
+        const created: unknown = await r.json().catch(() => null)
+        loadJobs()
+        return Array.isArray(created) && created.length === 0
+          ? "None of the selected drives can run this operation"
+          : null
       })
-      .catch(() => setError("Backend unavailable — retrying…"))
+      .catch(() => {
+        setError("Backend unavailable — retrying…")
+        return null
+      })
 
   const handleSelect = (guid: string, e: React.MouseEvent) => {
     if (e.ctrlKey || e.metaKey) {

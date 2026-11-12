@@ -9,7 +9,8 @@ export type JobsContextValue = {
   cancelJob: (jobId: string) => void
   /** Move a queued job one place earlier or later among its drive's queued jobs. */
   moveJob: (jobId: string, direction: "up" | "down") => void
-  runOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<unknown>
+  /** Queue the operation on each drive; resolves to the server's reason if it refused, else null. */
+  runOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<string | null>
   /** Count every job finished so far as seen. */
   markJobsSeen: () => void
 }
@@ -20,7 +21,7 @@ export const JobsContext = createContext<JobsContextValue>({
   unseen: [],
   cancelJob: () => {},
   moveJob: () => {},
-  runOperation: () => Promise.resolve(),
+  runOperation: () => Promise.resolve(null),
   markJobsSeen: () => {},
 })
 

@@ -136,6 +136,18 @@ describe('RunTaskTab', () => {
     expect(onRun).toHaveBeenCalledWith(['d1'], 'dd_read_test', { blocksize: 4096 })
   })
 
+  it('shows the reason a run was refused, and clears it on the next run', async () => {
+    const onRun = vi.fn().mockResolvedValueOnce('one or more drives are locked').mockResolvedValueOnce(null)
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /Run/ }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('one or more drives are locked'))
+    await userEvent.click(screen.getByRole('button', { name: /Run/ }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
+
   describe('destructive operations', () => {
     const DRIVES = [
       makeDrive({ guid: 'd1', label: 'Bay 3', model: 'Exos X16', serial: 'ZL2ABC01', block_device: '/dev/sdb', capacity_bytes: 16e12 }),

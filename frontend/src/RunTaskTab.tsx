@@ -12,7 +12,7 @@ const CATEGORY_ORDER = ["Test", "Scan", "Maintenance", "Debug"]
 interface Props {
   drives: Drive[]
   selected: string[]
-  onRun: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<unknown>
+  onRun: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<string | null>
 }
 
 export default function RunTaskTab({ drives, selected, onRun }: Props) {
@@ -21,6 +21,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
   const [running, setRunning] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
   useEffect(() => {
     if (selected.length === 0) return
@@ -74,7 +75,10 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
     if (!activeOp || blockedByLock) return
     setConfirming(false)
     setRunning(true)
-    onRun(selected, activeOp.key, paramValues).finally(() => setRunning(false))
+    setRunError(null)
+    onRun(selected, activeOp.key, paramValues)
+      .then(err => setRunError(err))
+      .finally(() => setRunning(false))
   }
 
   // Destructive operations never dispatch straight from the Run button.
@@ -132,6 +136,7 @@ export default function RunTaskTab({ drives, selected, onRun }: Props) {
               <IconPlayerPlay size={14} />
               Run
             </button>
+            {runError && <div className="rt-run-error" role="alert">{runError}</div>}
             {confirming && activeOp.destructive && (
               <DestructiveConfirmDialog
                 operation={activeOp}
