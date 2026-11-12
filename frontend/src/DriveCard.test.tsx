@@ -307,4 +307,35 @@ describe('popovers (hover-capable device)', () => {
     fireEvent.click(document.querySelector('.dc-tz')!)
     expect(onSelect).toHaveBeenCalledOnce()
   })
+
+  describe('complete pill', () => {
+    const pill = () => screen.queryByText(/\d+ complete$/)
+
+    it('is absent without unseen results', () => {
+      renderCard()
+      expect(pill()).not.toBeInTheDocument()
+    })
+
+    it('shows on an idle drive, naming the job and how it ended', () => {
+      renderCard({ newResults: [makeJob({ status: 'failed', operation_name: 'Short Test' })] })
+      expect(pill()).toHaveTextContent('1 complete')
+      expect(pill()).toHaveAttribute('title', 'New result: Short Test failed')
+    })
+
+    it('sits next to the queued pill while a job runs', () => {
+      renderCard({
+        job: makeJob({ status: 'running' }),
+        queuedJobs: [makeJob({ id: 'q', status: 'queued' })],
+        newResults: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })],
+      })
+      expect(pill()).toHaveTextContent('3 complete')
+      expect(pill()).toHaveAttribute('title', '3 new results')
+      expect(pill()!.parentElement).toBe(screen.getByText('1 queued').parentElement)
+    })
+
+    it('shows while the next job is only queued', () => {
+      renderCard({ job: makeJob({ status: 'queued' }), newResults: [makeJob({ id: 'a' })] })
+      expect(pill()).toHaveTextContent('1 complete')
+    })
+  })
 })

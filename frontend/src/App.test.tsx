@@ -7,7 +7,7 @@ import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Drive, Job, OperationInfo, Settings } from './types'
 
 vi.mock('./DriveCard', () => ({
-  default: ({ drive, selected, onSelect, onSelectToggle, onContextMenu, job, queuedJobs }: {
+  default: ({ drive, selected, onSelect, onSelectToggle, onContextMenu, job, queuedJobs, newResults = [] }: {
     drive: Drive
     selected: boolean
     onSelect: (e: React.MouseEvent) => void
@@ -15,6 +15,7 @@ vi.mock('./DriveCard', () => ({
     onContextMenu?: (guid: string, pos: { x: number; y: number }) => void
     job?: Job
     queuedJobs: Job[]
+    newResults?: Job[]
   }) => (
     <div data-testid={`drive-card-${drive.guid}`} data-selected={selected}>
       <span>{drive.model}</span>
@@ -23,6 +24,7 @@ vi.mock('./DriveCard', () => ({
       <button onClick={() => onContextMenu?.(drive.guid, { x: 0, y: 0 })}>{`context-${drive.guid}`}</button>
       <span data-testid={`active-job-${drive.guid}`}>{job?.id ?? 'none'}</span>
       <span data-testid={`queued-count-${drive.guid}`}>{queuedJobs.length}</span>
+      <span data-testid={`new-results-${drive.guid}`}>{newResults.map(j => j.id).join(',')}</span>
     </div>
   ),
 }))
@@ -150,6 +152,20 @@ describe('App', () => {
     render(<App />)
     await waitFor(() => expect(screen.getByTestId('active-job-d1')).toHaveTextContent('running-1'))
     expect(screen.getByTestId('queued-count-d1')).toHaveTextContent('1')
+  })
+
+  it("hands each drive card its own unseen finished jobs, newest first", async () => {
+    router.state.drives = [makeDrive({ guid: 'd1' }), makeDrive({ guid: 'd2' })]
+    router.state.settings = { footer_signals: {}, jobs_seen_at: '2026-11-11T12:00:00' }
+    router.state.jobs = [
+      makeJob({ id: 'seen', drive_guid: 'd1', status: 'completed', finished_at: '2026-11-11T11:00:00' }),
+      makeJob({ id: 'older', drive_guid: 'd1', status: 'failed', finished_at: '2026-11-11T13:00:00' }),
+      makeJob({ id: 'newer', drive_guid: 'd1', status: 'completed', finished_at: '2026-11-11T14:00:00' }),
+      makeJob({ id: 'still-running', drive_guid: 'd2', status: 'running' }),
+    ]
+    render(<App />)
+    await waitFor(() => expect(screen.getByTestId('new-results-d1')).toHaveTextContent('newer,older'))
+    expect(screen.getByTestId('new-results-d2')).toHaveTextContent('')
   })
 
   it('polls drives and jobs every 2 seconds', async () => {

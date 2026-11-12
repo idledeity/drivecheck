@@ -332,10 +332,23 @@
   border-radius: 99px;
   background: rgba(255, 255, 255, 0.06);
   border: 0.5px solid var(--bd);
+  white-space: nowrap;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
 .dc-queued-pill:hover { color: var(--t2); border-color: var(--bd2); }
+/* Same shape as the queued pill; yellow text marks results not yet seen
+   (the Activity tab's number uses the same color). Not clickable. */
+.dc-complete-pill {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--wa);
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(255, 178, 46, 0.08);
+  border: 0.5px solid rgba(255, 178, 46, 0.3);
+  white-space: nowrap;
+}
 
 .dc-tz-bar {
   height: 3px;

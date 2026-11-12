@@ -283,6 +283,17 @@ export default function App() {
     return { activeJobMap: active, queuedJobsMap: queued }
   }, [jobs])
 
+  // Unseen finished jobs per drive, newest first, for the drive cards' new-result dot.
+  const unseenByDrive = useMemo(() => {
+    const m = new Map<string, Job[]>()
+    for (const j of unseen) {
+      const arr = m.get(j.drive_guid)
+      if (arr) arr.push(j)
+      else m.set(j.drive_guid, [j])
+    }
+    return m
+  }, [unseen])
+
   const sortedDrives = useMemo(
     () => sortDrives(drives, sort, jobs),
     [drives, sort, jobs],
@@ -324,6 +335,7 @@ export default function App() {
                 footerSignals={settings?.footer_signals}
                 job={activeJobMap.get(d.guid)}
                 queuedJobs={queuedJobsMap.get(d.guid) ?? EMPTY_JOBS}
+                newResults={unseenByDrive.get(d.guid) ?? EMPTY_JOBS}
               />
             ))}
           </div>

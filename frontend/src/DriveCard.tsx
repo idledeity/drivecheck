@@ -19,6 +19,8 @@ interface Props {
   footerSignals?: Record<string, string[]>
   job?: Job
   queuedJobs: Job[]
+  /** Finished jobs on this drive the user hasn't seen yet, newest first. */
+  newResults?: Job[]
 }
 
 // How long the pointer has to sit still over a trigger before the hover
@@ -27,7 +29,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [] }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -226,6 +228,14 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     document.body,
   )
 
+  // Yellow text, never an outcome color: green/red on a drive card always
+  // means health. Which job and how it ended is on the Activity tab.
+  const completePill = newResults.length > 0 && (
+    <span className="dc-complete-pill" title={newResultsLabel(newResults)}>
+      {newResults.length} complete
+    </span>
+  )
+
   return (
     <div
       className={`drive-card bar-${health.bar}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
@@ -301,7 +311,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
               <IconLoader2 size={11} className="spinning" />
               <span>{job.operation_name}</span>
             </div>
-            {(job.progress.percent !== null || queuedJobs.length > 0) && (
+            {(job.progress.percent !== null || queuedJobs.length > 0 || completePill) && (
               <div className="dc-tn-right">
                 {queuedJobs.length > 0 && (
                   <button
@@ -314,6 +324,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
                     {queuedJobs.length} queued
                   </button>
                 )}
+                {completePill}
                 {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
               </div>
             )}
@@ -351,17 +362,20 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
               <IconClock size={11} />
               <span>Queued: {job.operation_name}</span>
             </div>
-            {queuedJobs.length > 0 && (
+            {(queuedJobs.length > 0 || completePill) && (
               <div className="dc-tn-right">
-                <button
-                  ref={pillRef}
-                  className="dc-queued-pill"
-                  onClick={supportsHover ? undefined : togglePopover("queued")}
-                  onMouseEnter={armHover("queued", true)}
-                  onMouseMove={armHover("queued", false)}
-                >
-                  {queuedJobs.length} queued
-                </button>
+                {queuedJobs.length > 0 && (
+                  <button
+                    ref={pillRef}
+                    className="dc-queued-pill"
+                    onClick={supportsHover ? undefined : togglePopover("queued")}
+                    onMouseEnter={armHover("queued", true)}
+                    onMouseMove={armHover("queued", false)}
+                  >
+                    {queuedJobs.length} queued
+                  </button>
+                )}
+                {completePill}
               </div>
             )}
           </div>
@@ -371,6 +385,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           <div className="dc-tn">
             <IconClock size={11} />
             <span>Idle</span>
+            {completePill && <div className="dc-tn-right">{completePill}</div>}
           </div>
         </div>
       )}
@@ -415,3 +430,7 @@ const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; l
   Unrated:  { bar: "grey",  label: "Unrated"  },
 }
 
+function newResultsLabel(jobs: Job[]): string {
+  if (jobs.length === 1) return `New result: ${jobs[0].operation_name} ${jobs[0].status}`
+  return `${jobs.length} new results`
+}
