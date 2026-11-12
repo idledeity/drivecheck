@@ -5,6 +5,7 @@ import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
 import { DriveAttributes } from "./SmartAttributesPanel"
+import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import "./HealthTab.css"
 
 type SubTab = "overview" | "report"
@@ -43,15 +44,6 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
   )
 }
 
-// ── Score helpers ─────────────────────────────────────────────────────────────
-
-function scoreColorCls(status: string | null): string {
-  if (status === "Healthy")  return "score-ok"
-  if (status === "Degraded") return "score-warn"
-  if (status === "Failing")  return "score-fail"
-  return "score-unrated"
-}
-
 // ── Overview ──────────────────────────────────────────────────────────────────
 
 function OverviewPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids: string[] }) {
@@ -64,60 +56,6 @@ function OverviewPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGui
         const drive = drives.find(d => d.guid === guid)
         return drive ? <DriveOverview key={guid} drive={drive} /> : null
       })}
-    </div>
-  )
-}
-
-function DriveOverview({ drive }: { drive: Drive }) {
-  const score    = drive.health_pct
-  const status   = drive.health_status
-  const colorCls = scoreColorCls(status)
-  const liveTemp = drive.vitals.temp ?? drive.temp
-
-  const flagged = Object.entries(drive.signal_flags ?? {})
-    .filter(([key, sev]) => REPORT_SIGNALS.includes(key) && (sev === "warn" || sev === "crit"))
-    .sort(([, a], [, b]) => (a === "crit" ? -1 : b === "crit" ? 1 : 0))
-
-  return (
-    <div className="hov-section">
-      <DriveChipHeader drive={drive} />
-
-      <div className="hov-score-row">
-        <div className="hov-score-track">
-          <div
-            className={`hov-score-fill ${colorCls}`}
-            style={{ width: score !== null ? `${score}%` : "0%" }}
-          />
-        </div>
-        <span className={`hov-score-num ${colorCls}`}>{score ?? "—"}</span>
-        <span className={`hov-score-label ${colorCls}`}>{status ?? "Unrated"}</span>
-      </div>
-
-      <div className="hov-stats">
-        <HealthStat drive={drive} signal="temp" value={liveTemp} />
-        <HealthStat drive={drive} signal="power_on_hours" value={drive.power_on_hours} />
-      </div>
-
-      {flagged.length > 0 ? (
-        <div className="hov-flags">
-          {flagged.map(([key, sev]) => (
-            <span key={key} className={`hov-flag-chip ${sev}`}>
-              {signalLabel(key)}: {formatSignal(key, drive[key as keyof Drive] as number | null)}
-            </span>
-          ))}
-        </div>
-      ) : score !== null ? (
-        <p className="hov-no-flags">No flagged signals</p>
-      ) : null}
-    </div>
-  )
-}
-
-function HealthStat({ drive, signal, value }: { drive: Drive; signal: string; value: number | null }) {
-  return (
-    <div className="hov-stat">
-      <div className="hov-stat-label">{signalLabel(signal)}</div>
-      <SignalValue className="hov-stat-value" signal={signal} value={value} flag={drive.signal_flags?.[signal]} />
     </div>
   )
 }
@@ -157,9 +95,6 @@ function ReportPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids
 }
 
 function DriveReport({ drive }: { drive: Drive }) {
-  const score    = drive.health_pct
-  const status   = drive.health_status
-  const colorCls = scoreColorCls(status)
   const liveTemp = drive.vitals.temp ?? drive.temp
 
   return (
@@ -178,16 +113,7 @@ function DriveReport({ drive }: { drive: Drive }) {
       </div>
 
       <h4 className="rep-section-title">Health</h4>
-      <div className="hov-score-row">
-        <div className="hov-score-track">
-          <div
-            className={`hov-score-fill ${colorCls}`}
-            style={{ width: score !== null ? `${score}%` : "0%" }}
-          />
-        </div>
-        <span className={`hov-score-num ${colorCls}`}>{score ?? "—"}</span>
-        <span className={`hov-score-label ${colorCls}`}>{status ?? "Unrated"}</span>
-      </div>
+      <HealthScoreBar drive={drive} />
 
       <h4 className="rep-section-title">Signals</h4>
       <div className="rep-signals">
