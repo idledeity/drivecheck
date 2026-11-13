@@ -64,6 +64,12 @@ _ROLLUP_INTERVAL = 60
 # vitals row that is still being recorded when the minute ends isn't left out.
 _ROLLUP_GRACE = 60
 
+
+
+def _floor_to_half_hour(dt: datetime) -> datetime:
+    return dt.replace(minute=dt.minute - dt.minute % 30, second=0, microsecond=0)
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -617,7 +623,8 @@ class Collector:
 
     def _rollup_vitals(self, now: float) -> None:
         """Roll every finished minute of raw vitals not yet rolled up into
-        drive_vitals_rollup. The first call after start-up continues from the
+        drive_vitals_rollup, then the half-hours they fall in into
+        drive_vitals_rollup_30m. The first call after start-up continues from the
         newest rolled-up minute — or, on a database with no rollup yet, rolls up
         all raw vitals still kept."""
         end = datetime.fromtimestamp(now - _ROLLUP_GRACE).replace(second=0, microsecond=0).isoformat()
@@ -630,6 +637,13 @@ class Collector:
             return
         written = db.rollup_vitals(end, start_iso=self._rollup_from or None)
         logger.debug("rolled up %d vitals minute(s) from %s to %s", written, self._rollup_from or "the start", end)
+        # Re-roll each half-hour those minutes fall in, from all of its minutes
+        # so far — the current half-hour is replaced again on each roll.
+        half_hour = (
+            _floor_to_half_hour(datetime.fromisoformat(self._rollup_from)).isoformat()
+            if self._rollup_from else None
+        )
+        db.rollup_vitals_30m(end, start_iso=half_hour)
         self._rollup_from = end
 
     def _run_vitals(self, state: DriveState, now: float) -> None:

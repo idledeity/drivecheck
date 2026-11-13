@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS drive_records (
     locked         INTEGER NOT NULL DEFAULT 0
 );
 
+-- One row per signal value *change* (see record_signals): a value holds from its
+-- captured_at until the drive's next row for that signal. Presence over time is
+-- in drive_heartbeats.
 CREATE TABLE IF NOT EXISTS drive_signals (
     id          INTEGER PRIMARY KEY,
     drive_guid  TEXT NOT NULL,
@@ -89,6 +92,24 @@ CREATE INDEX IF NOT EXISTS idx_drive_vitals_guid_captured
 -- non-null samples; temp_n / io_n count them, so coarser buckets can be
 -- weighted correctly.
 CREATE TABLE IF NOT EXISTS drive_vitals_rollup (
+    drive_guid          TEXT NOT NULL,
+    captured_at         TEXT NOT NULL,
+    temp_n              INTEGER NOT NULL,
+    temp_min            INTEGER,
+    temp_avg            REAL,
+    temp_max            INTEGER,
+    io_n                INTEGER NOT NULL,
+    read_iops_avg       REAL,
+    write_iops_avg      REAL,
+    read_bps_avg        REAL,
+    write_bps_avg       REAL,
+    busy_pct_avg        REAL,
+    PRIMARY KEY (drive_guid, captured_at)
+) WITHOUT ROWID;
+
+-- drive_vitals_rollup again in 30-minute buckets, for long chart ranges (see
+-- rollup_vitals_30m). Same columns and meaning; captured_at is the bucket start.
+CREATE TABLE IF NOT EXISTS drive_vitals_rollup_30m (
     drive_guid          TEXT NOT NULL,
     captured_at         TEXT NOT NULL,
     temp_n              INTEGER NOT NULL,
@@ -181,6 +202,25 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "queue_position" not in job_cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN queue_position INTEGER")
 
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version < 1:
+        # drive_signals used to get every signal on every poll; it now gets
+        # changes only. Drop the rows that repeat the value before them.
+        deleted = conn.execute(f"DELETE FROM drive_signals WHERE id IN ({_REPEATED_SIGNAL_IDS})").rowcount
+        logger.info("compacted drive_signals to value changes: removed %d repeated row(s)", deleted)
+        conn.execute("PRAGMA user_version = 1")
+
+
+# Rows of drive_signals whose value equals the drive's previous value of that signal.
+_REPEATED_SIGNAL_IDS = """
+    SELECT id FROM (
+        SELECT id, value,
+               LAG(value) OVER (PARTITION BY drive_guid, signal ORDER BY captured_at, id) AS prev,
+               LAG(id) OVER (PARTITION BY drive_guid, signal ORDER BY captured_at, id) AS prev_id
+          FROM drive_signals)
+     WHERE prev_id IS NOT NULL AND prev IS value
+"""
+
 
 # ---------------------------------------------------------------------------
 # Drive records
@@ -243,21 +283,39 @@ def set_drive_locked(guid: str, locked: bool) -> None:
 # ---------------------------------------------------------------------------
 
 def record_signals(guid: str, captured_at: str, signals: dict) -> None:
-    """Write one drive_signals row per non-null signal value."""
-    rows = [
-        (guid, captured_at, name, value)
-        for name, value in signals.items()
-        if value is not None
-    ]
-    if not rows:
+    """Write a drive_signals row for each non-null signal whose value differs
+    from the drive's latest stored value of it (or that has none yet). An
+    unchanged value is not written again: it holds until the next row."""
+    candidates = {name: value for name, value in signals.items() if value is not None}
+    if not candidates:
         logger.debug("no non-null signals to record for drive %s", guid)
         return
-    logger.debug("recording %d signal(s) for drive %s", len(rows), guid)
     with _connection() as conn:
+        latest = _latest_signal_values(conn, guid, list(candidates))
+        rows = [
+            (guid, captured_at, name, value)
+            for name, value in candidates.items()
+            if name not in latest or latest[name] != value
+        ]
+        logger.debug("recording %d changed signal(s) of %d for drive %s", len(rows), len(candidates), guid)
         conn.executemany(
             "INSERT INTO drive_signals (drive_guid, captured_at, signal, value) VALUES (?, ?, ?, ?)",
             rows,
         )
+
+
+def _latest_signal_values(conn: sqlite3.Connection, guid: str, names: list[str]) -> dict:
+    """The drive's latest stored value of each named signal that has one."""
+    latest = {}
+    for name in names:
+        row = conn.execute(
+            "SELECT value FROM drive_signals WHERE drive_guid = ? AND signal = ?"
+            " ORDER BY captured_at DESC, id DESC LIMIT 1",
+            (guid, name),
+        ).fetchone()
+        if row is not None:
+            latest[name] = row[0]
+    return latest
 
 
 def record_heartbeat(
@@ -360,6 +418,45 @@ def rollup_vitals(end_iso: str, start_iso: str | None = None) -> int:
         return cursor.rowcount
 
 
+# 30-minute bucket of an ISO captured_at, read as UTC like SQLite's unixepoch()
+# ("2026-11-13T07:52:00" -> "2026-11-13T07:30:00").
+_HALF_HOUR_OF = "strftime('%Y-%m-%dT%H:%M:%S', unixepoch(captured_at) / 1800 * 1800, 'unixepoch')"
+
+
+def _weighted(column: str, n: str) -> str:
+    """Mean of per-row averages `column`, weighted by sample counts `n`, over
+    rows where it isn't NULL."""
+    return f"sum({column} * {n}) / nullif(sum(CASE WHEN {column} IS NULL THEN 0 ELSE {n} END), 0)"
+
+
+def rollup_vitals_30m(end_iso: str, start_iso: str | None = None) -> int:
+    """Roll drive_vitals_rollup minutes in [start_iso, end_iso) up into
+    drive_vitals_rollup_30m (None start: from the oldest minute). start_iso
+    should be a half-hour start, so each bucket rolled gets all of its minutes
+    up to end_iso; a bucket that end_iso cuts short is rolled from the minutes
+    it has so far and replaced by the next roll. Returns rows written."""
+    logger.debug("rolling up 30-minute vitals from %s to %s", start_iso or "the start", end_iso)
+    with _connection() as conn:
+        cursor = conn.execute(
+            f"""
+            INSERT OR REPLACE INTO drive_vitals_rollup_30m (
+                drive_guid, captured_at, temp_n, temp_min, temp_avg, temp_max,
+                io_n, read_iops_avg, write_iops_avg, read_bps_avg, write_bps_avg, busy_pct_avg
+            )
+            SELECT drive_guid, {_HALF_HOUR_OF},
+                   sum(temp_n), min(temp_min), {_weighted("temp_avg", "temp_n")}, max(temp_max),
+                   sum(io_n), {_weighted("read_iops_avg", "io_n")}, {_weighted("write_iops_avg", "io_n")},
+                   {_weighted("read_bps_avg", "io_n")}, {_weighted("write_bps_avg", "io_n")},
+                   {_weighted("busy_pct_avg", "io_n")}
+              FROM drive_vitals_rollup
+             WHERE captured_at >= ? AND captured_at < ?
+             GROUP BY drive_guid, {_HALF_HOUR_OF}
+            """,
+            (start_iso or "", end_iso),
+        )
+        return cursor.rowcount
+
+
 def get_last_vitals_rollup_at() -> str | None:
     """The start of the newest rolled-up minute across all drives, or None if
     nothing has been rolled up yet."""
@@ -371,7 +468,20 @@ def get_last_vitals_rollup_at() -> str | None:
 # Retention
 # ---------------------------------------------------------------------------
 
-_HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals_rollup", "drive_raw_snapshots")
+_HISTORY_TABLES = (
+    "drive_signals", "drive_heartbeats", "drive_vitals_rollup", "drive_vitals_rollup_30m", "drive_raw_snapshots",
+)
+
+# Each drive's newest drive_signals row per signal from before a cutoff: it holds
+# the value still current at the cutoff (drive_signals stores changes only), so
+# pruning keeps it.
+_SIGNAL_VALUES_AT_CUTOFF = """
+    SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+                   PARTITION BY drive_guid, signal ORDER BY captured_at DESC, id DESC) AS rn
+          FROM drive_signals WHERE captured_at < ?)
+     WHERE rn = 1
+"""
 
 
 # Raw snapshots a job's SMART summary points at (see Job.smart_before/smart_after).
@@ -397,6 +507,8 @@ def prune_history(
 
     With keep_job_snapshots, raw snapshots referenced by a job are kept past
     the cutoff, so a job's full before/after SMART reports don't expire.
+    drive_signals keeps each drive's newest row per signal from before the
+    cutoff, since it holds the value still current then.
     """
     raw_cutoff = max(cutoff_iso, raw_vitals_cutoff_iso or cutoff_iso)
     logger.info(
@@ -406,10 +518,13 @@ def prune_history(
     )
     with _connection() as conn:
         for table, cutoff in [*((t, cutoff_iso) for t in _HISTORY_TABLES), ("drive_vitals", raw_cutoff)]:
-            sql = f"DELETE FROM {table} WHERE captured_at < ?"
+            sql, args = f"DELETE FROM {table} WHERE captured_at < ?", [cutoff]
             if table == "drive_raw_snapshots" and keep_job_snapshots:
                 sql += f" AND id NOT IN ({_JOB_SNAPSHOT_IDS})"
-            deleted = conn.execute(sql, (cutoff,)).rowcount
+            if table == "drive_signals":
+                sql += f" AND id NOT IN ({_SIGNAL_VALUES_AT_CUTOFF})"
+                args.append(cutoff)
+            deleted = conn.execute(sql, args).rowcount
             logger.debug("pruned %d row(s) from %s", deleted, table)
 
 

@@ -3,7 +3,7 @@
 collector:
   scan_interval: 300  # seconds — drive discovery (scan + reconciliation)
   keep_history_days: 90  # days — retention window for time-series tables (drive_signals,
-                          # drive_heartbeats, drive_vitals_rollup, drive_raw_snapshots)
+                          # drive_heartbeats, drive_vitals_rollup[_30m], drive_raw_snapshots)
   keep_raw_vitals_days: 2  # days — raw 10s drive_vitals rows; charts use the per-minute rollup
   max_workers: 4      # thread pool size for per-drive channel polling
   probe_timeout: 30   # seconds — subprocess timeout for smartctl calls

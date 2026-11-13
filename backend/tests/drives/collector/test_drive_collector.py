@@ -325,3 +325,21 @@ def test_rollup_vitals_after_a_restart_re_rolls_the_newest_minute():
     _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:30"))
     with db._connection() as conn:
         assert conn.execute("SELECT temp_n, temp_avg FROM drive_vitals_rollup").fetchall() == [(2, 35.0)]
+
+
+def _rolled_half_hours():
+    with db._connection() as conn:
+        return conn.execute("SELECT captured_at, temp_n FROM drive_vitals_rollup_30m ORDER BY captured_at").fetchall()
+
+
+def test_rollup_vitals_keeps_the_current_half_hour_up_to_date():
+    db.init()
+    _raw_vitals("guid-1", "2026-01-01T09:59:30", 30)
+    _raw_vitals("guid-1", "2026-01-01T10:00:30", 30)
+    collector = _make_collector()
+    collector._rollup_vitals(_epoch("2026-01-01T10:02:00"))
+    assert _rolled_half_hours() == [("2026-01-01T09:30:00", 1), ("2026-01-01T10:00:00", 1)]
+
+    _raw_vitals("guid-1", "2026-01-01T10:01:30", 30)
+    collector._rollup_vitals(_epoch("2026-01-01T10:03:00"))
+    assert _rolled_half_hours() == [("2026-01-01T09:30:00", 1), ("2026-01-01T10:00:00", 2)]

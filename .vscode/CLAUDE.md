@@ -587,7 +587,8 @@ Created → Running → Completed
 ### Two-layer approach
 
 **Layer 1 — dc_signals table (narrow, queryable)**
-One row per signal per poll. Enables "what changed over X period" and trend queries.
+One row per signal value **change** — a value holds from its `captured_at` until the
+drive's next row for that signal. Enables "what changed over X period" and trend queries.
 Only the normalized DCSignals fields. Protocol differences are already resolved here.
 
 ```sql
@@ -601,7 +602,13 @@ CREATE TABLE drive_signals (
 CREATE INDEX idx_drive_signals_lookup ON drive_signals (drive_guid, signal, captured_at);
 ```
 
-Implemented in `backend/db.py`; written every poll via `db.record_signals()`.
+Implemented in `backend/db.py`; `db.record_signals()` runs every poll but writes only
+values that differ from the drive's latest stored one (in practice mostly
+`power_on_hours`, once an hour). The value at time T is the latest row at or before T.
+Databases from before this change are compacted once in `db._migrate`
+(`PRAGMA user_version` 1). Pruning keeps each drive's newest row per signal from
+before the cutoff, since it still holds the current value. Whether a drive was
+being observed at all is in `drive_heartbeats` / the vitals rollups, not here.
 
 **Layer 2 — raw snapshots (periodic JSON blobs)**
 Full smartctl JSON output stored periodically. Enables "what were all attributes at
@@ -652,6 +659,9 @@ older rows; "what was the raw data near time T" queries should look up
 (`captured_at` = the minute's start): temp min/avg/max and average IO rates over
 the minute's non-null samples, with `temp_n` / `io_n` sample counts so coarser
 buckets can be weighted. History charts read this, never raw `drive_vitals`.
+`drive_vitals_rollup_30m` holds the same in 30-minute buckets for long ranges
+(7d and up), re-rolled from the minute table after each minute rollup — the
+current half-hour is replaced on every roll.
 About once a minute (`_ROLLUP_INTERVAL`) the collector rolls every finished
 minute (60s grace, `_ROLLUP_GRACE`) up from raw rows via `db.rollup_vitals()`;
 the first pass after start-up re-rolls the newest rolled-up minute, and on a
@@ -661,8 +671,8 @@ from raw rows while they last — a cache of facts, not judgements.
 ### History retention
 Configurable window (`collector.keep_history_days`, default 90). Once per day
 (`_PRUNE_INTERVAL` in `collector.py`), the collector deletes rows older than the
-cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals_rollup`, and
-`drive_raw_snapshots` via `db.prune_history()`. Raw 10s `drive_vitals` rows have
+cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals_rollup`,
+`drive_vitals_rollup_30m` and `drive_raw_snapshots` via `db.prune_history()`. Raw 10s `drive_vitals` rows have
 their own, shorter window (`collector.keep_raw_vitals_days`, default 2 — never
 longer than `keep_history_days`); they only back the live view and the rollup. `drive_records` is never pruned —
 it's one row per drive, not a time series.
@@ -675,12 +685,19 @@ the first prune is deferred a full interval rather than running on cold start.
 
 ### Querying patterns
 
-"What changed over 30 days":
+"What changed over 30 days" (rows are changes, plus the value carried in from before):
 ```sql
 SELECT captured_at, signal, value
 FROM drive_signals
 WHERE drive_guid = ? AND captured_at > ?
 ORDER BY captured_at
+```
+
+"Value of a signal at time T":
+```sql
+SELECT value FROM drive_signals
+WHERE drive_guid = ? AND signal = ? AND captured_at <= ?
+ORDER BY captured_at DESC LIMIT 1
 ```
 
 "All attributes at time T":

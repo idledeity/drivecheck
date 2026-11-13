@@ -16,7 +16,7 @@ def test_init_creates_schema_and_enables_wal():
     with db._connection() as conn:
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"drive_records", "drive_signals", "drive_raw_snapshots",
-                "drive_heartbeats", "drive_vitals", "drive_vitals_rollup", "collector_state",
+                "drive_heartbeats", "drive_vitals", "drive_vitals_rollup", "drive_vitals_rollup_30m", "collector_state",
                 "jobs"} <= tables
         mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert mode == "wal"
@@ -104,12 +104,70 @@ def test_record_vitals():
 
 
 def test_prune_history_deletes_rows_before_cutoff():
-    db.record_signals("guid-1", "2026-01-01T00:00:00", {"temp": 1})
-    db.record_signals("guid-1", "2026-06-01T00:00:00", {"temp": 2})
+    db.record_heartbeat("guid-1", "2026-01-01T00:00:00", 30)
+    db.record_heartbeat("guid-1", "2026-06-01T00:00:00", 31)
     db.prune_history("2026-03-01T00:00:00")
     with db._connection() as conn:
-        remaining = conn.execute("SELECT captured_at FROM drive_signals").fetchall()
+        remaining = conn.execute("SELECT captured_at FROM drive_heartbeats").fetchall()
     assert remaining == [("2026-06-01T00:00:00",)]
+
+
+def _signal_rows():
+    with db._connection() as conn:
+        return conn.execute(
+            "SELECT drive_guid, captured_at, signal, value FROM drive_signals ORDER BY drive_guid, signal, captured_at"
+        ).fetchall()
+
+
+def test_record_signals_writes_only_values_that_changed():
+    db.record_signals("guid-1", "2026-01-01T00:00:00", {"reallocated": 0, "smart_passed": True, "pending": None})
+    db.record_signals("guid-1", "2026-01-01T00:05:00", {"reallocated": 0, "smart_passed": True, "pending": None})
+    db.record_signals("guid-1", "2026-01-01T00:10:00", {"reallocated": 2, "smart_passed": True, "pending": 1})
+    db.record_signals("guid-2", "2026-01-01T00:10:00", {"reallocated": 2})   # another drive's own history
+    assert _signal_rows() == [
+        ("guid-1", "2026-01-01T00:10:00", "pending", 1.0),
+        ("guid-1", "2026-01-01T00:00:00", "reallocated", 0.0),
+        ("guid-1", "2026-01-01T00:10:00", "reallocated", 2.0),
+        ("guid-1", "2026-01-01T00:00:00", "smart_passed", 1.0),
+        ("guid-2", "2026-01-01T00:10:00", "reallocated", 2.0),
+    ]
+
+
+def test_record_signals_writes_a_value_again_when_it_changes_back():
+    for at, v in (("00:00", 0), ("00:05", 3), ("00:10", 0)):
+        db.record_signals("guid-1", f"2026-01-01T{at}:00", {"pending": v})
+    assert [r[3] for r in _signal_rows()] == [0.0, 3.0, 0.0]
+
+
+def test_init_compacts_signals_stored_on_every_poll_once():
+    with db._connection() as conn:
+        conn.executemany(
+            "INSERT INTO drive_signals (drive_guid, captured_at, signal, value) VALUES (?, ?, ?, ?)",
+            [("guid-1", f"2026-01-01T00:0{m}:00", "pending", v) for m, v in enumerate([0, 0, 3, 3, 0])]
+            + [("guid-2", "2026-01-01T00:00:00", "pending", 0)],
+        )
+        conn.execute("PRAGMA user_version = 0")
+    db.init()
+    assert _signal_rows() == [
+        ("guid-1", "2026-01-01T00:00:00", "pending", 0.0),
+        ("guid-1", "2026-01-01T00:02:00", "pending", 3.0),
+        ("guid-1", "2026-01-01T00:04:00", "pending", 0.0),
+        ("guid-2", "2026-01-01T00:00:00", "pending", 0.0),
+    ]
+    with db._connection() as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+
+
+def test_prune_history_keeps_the_signal_value_still_current_at_the_cutoff():
+    db.record_signals("guid-1", "2026-01-01T00:00:00", {"reallocated": 1, "pending": 0})
+    db.record_signals("guid-1", "2026-02-01T00:00:00", {"reallocated": 4, "pending": 0})
+    db.record_signals("guid-1", "2026-06-01T00:00:00", {"reallocated": 9, "pending": 0})
+    db.prune_history("2026-03-01T00:00:00")
+    assert _signal_rows() == [
+        ("guid-1", "2026-01-01T00:00:00", "pending", 0.0),       # never changed: its only row stays
+        ("guid-1", "2026-02-01T00:00:00", "reallocated", 4.0),   # the value current at the cutoff
+        ("guid-1", "2026-06-01T00:00:00", "reallocated", 9.0),
+    ]
 
 
 def _vitals(guid, captured_at, temp_c, read_bps=None, write_bps=None):
@@ -156,6 +214,26 @@ def test_rollup_vitals_leaves_out_the_end_minute_and_re_rolls_a_minute_in_place(
     assert [(r[1], r[2], r[4]) for r in _rollup_rows()] == [
         ("2026-01-01T00:00:00", 2, 32.0),
         ("2026-01-01T00:01:00", 1, 40.0),
+    ]
+
+
+def test_rollup_vitals_30m_weights_each_minute_by_its_samples():
+    _vitals("guid-1", "2026-01-01T00:29:10", 30, read_bps=100.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:29:20", 30, read_bps=100.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:29:30", 30, read_bps=100.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:05:00", 34, read_bps=500.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:31:00", 40)                  # next half-hour
+    db.rollup_vitals("2026-01-01T01:00:00")
+
+    assert db.rollup_vitals_30m("2026-01-01T01:00:00") == 2
+    with db._connection() as conn:
+        rows = conn.execute(
+            "SELECT captured_at, temp_n, temp_min, temp_avg, temp_max, io_n, read_bps_avg"
+            " FROM drive_vitals_rollup_30m ORDER BY captured_at"
+        ).fetchall()
+    assert rows == [
+        ("2026-01-01T00:00:00", 4, 30, 31.0, 34, 4, 200.0),
+        ("2026-01-01T00:30:00", 1, 40, 40.0, 40, 0, None),   # no IO reading that minute
     ]
 
 
