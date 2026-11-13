@@ -44,8 +44,9 @@ CREATE TABLE IF NOT EXISTS drive_signals (
     value       REAL
 );
 
-CREATE INDEX IF NOT EXISTS idx_drive_signals_lookup
-    ON drive_signals (drive_guid, signal, captured_at);
+-- Covers value too, so history reads never touch the table (see _migrate v2).
+CREATE INDEX IF NOT EXISTS idx_drive_signals_values
+    ON drive_signals (drive_guid, signal, captured_at, value);
 
 CREATE TABLE IF NOT EXISTS drive_raw_snapshots (
     id          INTEGER PRIMARY KEY,
@@ -209,6 +210,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         deleted = conn.execute(f"DELETE FROM drive_signals WHERE id IN ({_REPEATED_SIGNAL_IDS})").rowcount
         logger.info("compacted drive_signals to value changes: removed %d repeated row(s)", deleted)
         conn.execute("PRAGMA user_version = 1")
+    if version < 2:
+        # Superseded by idx_drive_signals_values (created by _SCHEMA), which also covers value.
+        conn.execute("DROP INDEX IF EXISTS idx_drive_signals_lookup")
+        conn.execute("PRAGMA user_version = 2")
 
 
 # Rows of drive_signals whose value equals the drive's previous value of that signal.
@@ -462,6 +467,159 @@ def get_last_vitals_rollup_at() -> str | None:
     nothing has been rolled up yet."""
     with _connection() as conn:
         return conn.execute("SELECT max(captured_at) FROM drive_vitals_rollup").fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# History reads (charts)
+# ---------------------------------------------------------------------------
+
+def _in(values: list[str]) -> str:
+    return ",".join("?" * len(values))
+
+
+def get_vitals_buckets(
+    guids: list[str], start_iso: str, end_iso: str, bucket_seconds: int,
+) -> list[sqlite3.Row]:
+    """Rolled-up vitals averaged into fixed-width buckets counted from
+    start_iso. One row per drive per bucket that has any rollup row, ordered by
+    drive then bucket; `bucket` is the bucket's index. Buckets of 30 minutes or
+    more (whole multiples of it, aligned to start_iso) are read from
+    drive_vitals_rollup_30m, shorter ones from the per-minute table. Averages
+    are weighted by sample counts; min/max are over the whole bucket."""
+    if not guids:
+        return []
+    table = "drive_vitals_rollup_30m" if bucket_seconds >= 1800 else "drive_vitals_rollup"
+    logger.debug("looking up vitals buckets for %d drive(s) from %s, %s to %s, %ds",
+                 len(guids), table, start_iso, end_iso, bucket_seconds)
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            SELECT drive_guid,
+                   CAST((unixepoch(captured_at) - unixepoch(?)) / ? AS INTEGER) AS bucket,
+                   sum(temp_n) AS temp_n,
+                   min(temp_min) AS temp_min,
+                   {_weighted("temp_avg", "temp_n")} AS temp_avg,
+                   max(temp_max) AS temp_max,
+                   sum(io_n) AS io_n,
+                   {_weighted("read_bps_avg", "io_n")} AS read_bps,
+                   {_weighted("write_bps_avg", "io_n")} AS write_bps,
+                   {_weighted("busy_pct_avg", "io_n")} AS busy_pct
+              FROM {table}
+             WHERE drive_guid IN ({_in(guids)}) AND captured_at >= ? AND captured_at < ?
+             GROUP BY drive_guid, bucket
+             ORDER BY drive_guid, bucket
+            """,
+            (start_iso, bucket_seconds, *guids, start_iso, end_iso),
+        ).fetchall()
+
+
+def get_signal_changes(
+    guids: list[str], signals: list[str], start_iso: str, end_iso: str,
+) -> list[sqlite3.Row]:
+    """Each drive's values of the named signals where they change, ordered by
+    drive, time and signal: the last value recorded before start_iso (if any),
+    then each row in [start_iso, end_iso) whose value differs from the row
+    before it. Naming the signals lets every lookup seek the
+    (drive_guid, signal, captured_at) index instead of scanning a drive's
+    whole history."""
+    if not guids or not signals:
+        return []
+    logger.debug("looking up signal changes for %d drive(s), %s to %s", len(guids), start_iso, end_iso)
+    pairs = [(g, name) for g in guids for name in signals]
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            WITH pairs(drive_guid, signal) AS (VALUES {",".join(["(?, ?)"] * len(pairs))}),
+            before AS (
+                SELECT p.drive_guid, p.signal, s.captured_at, s.value
+                  FROM pairs p
+                  JOIN drive_signals s ON s.id = (
+                      SELECT id FROM drive_signals
+                       WHERE drive_guid = p.drive_guid AND signal = p.signal AND captured_at < ?
+                       ORDER BY captured_at DESC LIMIT 1)
+            ),
+            seq AS (
+                SELECT drive_guid, signal, captured_at, value,
+                       LAG(value) OVER w AS prev, LAG(captured_at) OVER w AS prev_at
+                  FROM (SELECT drive_guid, signal, captured_at, value FROM before
+                        UNION ALL
+                        SELECT drive_guid, signal, captured_at, value FROM drive_signals
+                         WHERE drive_guid IN ({_in(guids)}) AND signal IN ({_in(signals)})
+                           AND captured_at >= ? AND captured_at < ?)
+                WINDOW w AS (PARTITION BY drive_guid, signal ORDER BY captured_at)
+            )
+            SELECT drive_guid, signal, captured_at, value FROM seq
+             WHERE prev_at IS NULL OR prev IS NOT value
+             ORDER BY drive_guid, captured_at, signal
+            """,
+            (*(v for pair in pairs for v in pair), start_iso, *guids, *signals, start_iso, end_iso),
+        ).fetchall()
+
+
+def get_signal_buckets(
+    guids: list[str], signals: list[str], start_iso: str, end_iso: str, bucket_seconds: int,
+) -> list[sqlite3.Row]:
+    """The named signals per drive per fixed-width bucket (counted from
+    start_iso) that has any change: the highest value (`max_value`) and the
+    last one (`last_value`, which holds after the bucket). For signals too
+    frequent to read every change of. Each drive's last value from before
+    start_iso (if any) comes first, with `bucket` NULL and both values equal.
+    Ordered by drive, signal, bucket."""
+    if not guids or not signals:
+        return []
+    pairs = [(g, name) for g in guids for name in signals]
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            WITH pairs(drive_guid, signal) AS (VALUES {",".join(["(?, ?)"] * len(pairs))}),
+            buckets AS (
+                SELECT drive_guid, signal,
+                       CAST((unixepoch(captured_at) - unixepoch(?)) / ? AS INTEGER) AS bucket,
+                       max(value) AS max_value, max(captured_at) AS last_at
+                  FROM drive_signals
+                 WHERE drive_guid IN ({_in(guids)}) AND signal IN ({_in(signals)})
+                   AND captured_at >= ? AND captured_at < ?
+                 GROUP BY drive_guid, signal, bucket
+            )
+            SELECT p.drive_guid, p.signal, NULL AS bucket, s.value AS max_value, s.value AS last_value
+              FROM pairs p
+              JOIN drive_signals s ON s.id = (
+                  SELECT id FROM drive_signals
+                   WHERE drive_guid = p.drive_guid AND signal = p.signal AND captured_at < ?
+                   ORDER BY captured_at DESC LIMIT 1)
+            UNION ALL
+            SELECT b.drive_guid, b.signal, b.bucket, b.max_value,
+                   (SELECT value FROM drive_signals
+                     WHERE drive_guid = b.drive_guid AND signal = b.signal AND captured_at = b.last_at
+                     LIMIT 1) AS last_value
+              FROM buckets b
+             ORDER BY 1, 2, 3 NULLS FIRST
+            """,
+            (*(v for pair in pairs for v in pair), start_iso, bucket_seconds,
+             *guids, *signals, start_iso, end_iso, start_iso),
+        ).fetchall()
+
+
+def get_jobs_between(guids: list[str], start_iso: str, end_iso: str) -> list[sqlite3.Row]:
+    """Jobs on these drives that ran at any point in [start_iso, end_iso):
+    started before end_iso and finished at or after start_iso, or not finished.
+    Never-started (queued) jobs are left out. Ordered by start time."""
+    if not guids:
+        return []
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            SELECT * FROM jobs
+             WHERE drive_guid IN ({_in(guids)}) AND started_at IS NOT NULL AND started_at < ?
+               AND (finished_at IS NULL OR finished_at >= ?)
+             ORDER BY started_at
+            """,
+            (*guids, end_iso, start_iso),
+        ).fetchall()
 
 
 # ---------------------------------------------------------------------------

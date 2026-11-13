@@ -155,7 +155,20 @@ def test_init_compacts_signals_stored_on_every_poll_once():
         ("guid-2", "2026-01-01T00:00:00", "pending", 0.0),
     ]
     with db._connection() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] >= 1
+
+
+def test_init_replaces_the_old_signals_index_with_a_covering_one():
+    with db._connection() as conn:
+        conn.execute("CREATE INDEX idx_drive_signals_lookup ON drive_signals (drive_guid, signal, captured_at)")
+        conn.execute("PRAGMA user_version = 1")
+    db.init()
+    with db._connection() as conn:
+        indexes = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
+        plan = " ".join(r[3] for r in conn.execute(
+            "EXPLAIN QUERY PLAN SELECT value FROM drive_signals WHERE drive_guid = 'g' AND signal = 's'"))
+    assert "idx_drive_signals_lookup" not in indexes and "idx_drive_signals_values" in indexes
+    assert "COVERING INDEX idx_drive_signals_values" in plan
 
 
 def test_prune_history_keeps_the_signal_value_still_current_at_the_cutoff():

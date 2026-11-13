@@ -24,6 +24,7 @@ from operations.operation_registry import OPERATIONS, discover as discover_opera
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
 from analysis.health import score_signals
+from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
 from analysis.smart_delta import compare_signals
 from database import db
@@ -244,6 +245,28 @@ def patch_drive(guid):
         result["locked"] = locked
 
     return jsonify(result)
+
+
+@app.route("/api/drives/history")
+def drives_history():
+    """Chart history for one or more drives: guids (comma-separated, required),
+    range (one of HISTORY_RANGES, default 24h). See analysis.drive_history."""
+    guids = list(dict.fromkeys(_csv_arg("guids") or []))
+    if not guids:
+        return jsonify({"error": "'guids' must list at least one drive"}), 400
+    range_key = request.args.get("range", "24h")
+    if range_key not in HISTORY_RANGES:
+        return jsonify({"error": f"'range' must be one of {', '.join(HISTORY_RANGES)}"}), 400
+
+    def describe_job(row):
+        op_cls = OPERATIONS.get(row["operation"])
+        return {
+            "operation_name": op_cls.name if op_cls else row["operation"],
+            "summary": _job_summary(row["operation"], row["status"], _json_or_none(row["result_json"])),
+            "error": row["error"],
+        }
+
+    return jsonify(build_history(guids, range_key, describe_job=describe_job))
 
 
 @app.route("/api/drives/<guid>/raw/latest")

@@ -30,24 +30,29 @@ SIGNAL_WEIGHTS: dict[str, dict[str, int]] = {
 # individual signal deductions — the drive firmware is already telling us it's done.
 SMART_FAIL_CAP = 40
 
+# Value at or above which a signal is flagged warn / crit. Published as data
+# (GET /api/drives/history) so charts draw the same lines the score uses.
+SIGNAL_THRESHOLDS: dict[str, dict[str, float | None]] = {
+    "reallocated":        {"warn_gte": 1,       "crit_gte": None},
+    "pending":            {"warn_gte": 1,       "crit_gte": None},
+    "uncorrected":        {"warn_gte": None,    "crit_gte": 1},
+    "crc_errors":         {"warn_gte": 1,       "crit_gte": None},
+    "power_on_hours":     {"warn_gte": 40_000,  "crit_gte": 60_000},
+    "load_unload_cycles": {"warn_gte": 500_000, "crit_gte": 700_000},
+    "temp":               {"warn_gte": 45,      "crit_gte": None},
+}
+
 # Score → status boundaries.
-_HEALTHY_GTE  = 90
-_DEGRADED_GTE = 60
+HEALTH_BANDS = {"healthy_gte": 90, "degraded_gte": 60}
+_HEALTHY_GTE  = HEALTH_BANDS["healthy_gte"]
+_DEGRADED_GTE = HEALTH_BANDS["degraded_gte"]
 
 
 def score_health(signals: DCSignals) -> DriveHealth:
     """Classify signals into per-field flags, a 0–100 health score, and overall status."""
-    flags = {
-        "reallocated":        flag(signals.reallocated,        warn_gte=1),
-        "pending":            flag(signals.pending,            warn_gte=1),
-        "uncorrected":        flag(signals.uncorrected,        crit_gte=1),
-        "crc_errors":         flag(signals.crc_errors,         warn_gte=1),
-        "power_on_hours":     flag(signals.power_on_hours,     warn_gte=40_000, crit_gte=60_000),
-        "load_unload_cycles": flag(signals.load_unload_cycles, warn_gte=500_000, crit_gte=700_000),
-        "temp":               flag(signals.temp,               warn_gte=45),
-        # Not weighted below: a failed verdict caps the score instead (SMART_FAIL_CAP).
-        "smart_passed":       "crit" if signals.smart_passed is False else "ok",
-    }
+    flags = {key: flag(getattr(signals, key), **limits) for key, limits in SIGNAL_THRESHOLDS.items()}
+    # Not weighted below: a failed verdict caps the score instead (SMART_FAIL_CAP).
+    flags["smart_passed"] = "crit" if signals.smart_passed is False else "ok"
 
     if signals.smart_passed is None:
         health_pct = None

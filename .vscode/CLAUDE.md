@@ -599,7 +599,7 @@ CREATE TABLE drive_signals (
     signal      TEXT NOT NULL,   -- e.g. "reallocated", "temp"
     value       REAL
 );
-CREATE INDEX idx_drive_signals_lookup ON drive_signals (drive_guid, signal, captured_at);
+CREATE INDEX idx_drive_signals_values ON drive_signals (drive_guid, signal, captured_at, value);  -- covering
 ```
 
 Implemented in `backend/db.py`; `db.record_signals()` runs every poll but writes only
@@ -692,6 +692,20 @@ FROM drive_signals
 WHERE drive_guid = ? AND captured_at > ?
 ORDER BY captured_at
 ```
+
+**Chart history route** — `GET /api/drives/history?guids=a,b&range=1h|24h|7d|30d|90d`
+(`analysis/drive_history.py`). Per drive: `vitals` as columnar arrays (`t`,
+`temp_avg/min/max`, `read_bps`, `write_bps`, `busy_pct`) in ~300 aligned buckets
+(1h: 60 one-minute buckets; 7d and up read `drive_vitals_rollup_30m`) — buckets
+with no rollup rows are omitted, i.e. not observed; `signals` as step series of
+change points (value carried in from before the range placed at `start`; `temp`
+and `power_on_hours` not sent); `health` as a step series scored when served —
+at each counter change, and per bucket for `temp` / `power_on_hours` (their worst
+value in the bucket, `db.get_signal_buckets`), since reading every change of
+those costs far more than a bucket-accurate health line is worth. Plus `jobs` overlapping the range (running ones have no `finished_at`)
+and `thresholds` (`analysis.health.SIGNAL_THRESHOLDS`, `HEALTH_BANDS`) so charts
+draw the same lines the score uses. Vitals lag live by up to ~2 minutes (rollup
+grace).
 
 "Value of a signal at time T":
 ```sql
