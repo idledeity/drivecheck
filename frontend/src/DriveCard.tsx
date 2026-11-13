@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { createPortal } from "react-dom"
 import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
-import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
+import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { JobRow } from "./JobRow"
 import CancelJobButton from "./CancelJobButton"
@@ -12,6 +12,7 @@ import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
 import { useEdgeFade } from "./useEdgeFade"
 import { useHoverPopover } from "./useHoverPopover"
+import { useJobTiming } from "./useJobTiming"
 import { useLongPress } from "./useLongPress"
 import Serial from "./Serial"
 import "./DriveCard.css"
@@ -43,22 +44,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   const liveTemp = drive.vitals.temp ?? drive.temp
   const io = drive.vitals.io
 
-  // Ticks once a second only while a job is actually running — elapsed/ETA
-  // text below is derived from this plus job.started_at, not from polled
-  // job data (which only changes every few seconds at best).
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (job?.status !== "running") return
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [job?.status])
-
-  const elapsedSeconds = job?.status === "running" && job.started_at
-    ? (now - new Date(job.started_at).getTime()) / 1000
-    : null
-  // The backend already fills this in (operation's own estimate, or a
-  // percent/elapsed extrapolation) — see JobRegistry.get_progress().
-  const remainingSeconds = job?.progress.eta_seconds ?? null
+  const timing = useJobTiming(job)
 
   // Each scrollable row (mobile/touch only — see DriveCard.css) gets its own
   // overflow check, so the edge-fade only shows up on a row that's actually
@@ -207,27 +193,27 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
                 </button>
               )}
               {completePill}
-              {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
               <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
             </div>
           </div>
-          <div className="dc-tz-bar">
-            {job.progress.percent === null
-              ? <div className="dc-tz-bar-fill indeterminate" />
-              : <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
+          {/* The percent sits at the end of the bar it describes, leaving the
+              name row room for the name, the pills and the ×. */}
+          <div className="dc-tz-bar-row">
+            <div className="dc-tz-bar">
+              {job.progress.percent === null
+                ? <div className="dc-tz-bar-fill indeterminate" />
+                : <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
+            </div>
+            {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
           </div>
-          {(job.progress.message || elapsedSeconds !== null) && (
+          {(job.progress.message || timing.text) && (
             <div className="dc-tz-msg">
               {job.progress.message && (
                 <span ref={tzMsgFadeRef} className={`dc-tz-msg-text${tzMsgFaded ? " dc-edge-fade" : ""}`}>
                   {job.progress.message}
                 </span>
               )}
-              {elapsedSeconds !== null && (
-                <span className="dc-tz-time">
-                  {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}
-                </span>
-              )}
+              {timing.text && <span className="dc-tz-time">{timing.text}</span>}
             </div>
           )}
         </div>

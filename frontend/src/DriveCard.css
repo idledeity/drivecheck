@@ -323,17 +323,31 @@
   gap: 6px;
 }
 
+/* The × glyph is 6.5px inside a 17px button (icon inset + padding), which
+   left it 5px short of the card's right content edge, low in the row, and
+   16px from the pill before it. Shifted visually (top/right, so the row's
+   height doesn't change), and the negative margin brings the pills up to
+   the same 6px from the glyph as they are from each other. */
+.dc-tn-right .queue-cancel {
+  position: relative;
+  top: -3px;
+  right: -5px;
+  margin-left: -10px;
+}
+
 .dc-tz-pct {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 500;
   color: var(--cy2);
 }
 
+/* Medium weight and tight sides: the name row is crowded, and the pills
+   shouldn't outshout the job name. */
 .dc-queued-pill {
   font-size: 9.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--t3);
-  padding: 1px 6px;
+  padding: 1px 4px;
   border-radius: 99px;
   background: rgba(255, 255, 255, 0.06);
   border: 0.5px solid var(--bd);
@@ -346,9 +360,9 @@
    (the Activity tab's number uses the same color). Opens those results. */
 .dc-complete-pill {
   font-size: 9.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--wa);
-  padding: 1px 6px;
+  padding: 1px 4px;
   border-radius: 99px;
   background: rgba(255, 178, 46, 0.08);
   border: 0.5px solid rgba(255, 178, 46, 0.3);
@@ -358,7 +372,19 @@
 }
 .dc-complete-pill:hover { border-color: rgba(255, 178, 46, 0.55); }
 
+/* Only as tall as the bar: the percent is centred on it and overhangs into
+   the padding of the rows above and below, so the task zone keeps its height. */
+.dc-tz-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 3px;
+}
+.dc-tz-bar-row .dc-tz-pct { line-height: 1; flex-shrink: 0; }
+
 .dc-tz-bar {
+  flex: 1;
+  min-width: 0;
   height: 3px;
   border-radius: 99px;
   background: rgba(255,255,255,0.07);

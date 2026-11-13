@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2 } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { formatDuration, formatRelativeTime, jobResultText } from "./format"
 import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
+import { useJobTiming } from "./useJobTiming"
 import DriveChip from "./DriveChip"
 import CancelJobButton from "./CancelJobButton"
 import "./JobRow.css"
@@ -29,22 +30,7 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
     ? formatDuration((new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000)
     : null
 
-  // Ticks once a second only while this row's job is running — elapsed/ETA
-  // text below is derived from this plus job.started_at, not from polled
-  // job data (which only changes every few seconds at best).
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (job.status !== "running") return
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [job.status])
-
-  const elapsedSeconds = job.status === "running" && job.started_at
-    ? (now - new Date(job.started_at).getTime()) / 1000
-    : null
-  // The backend already fills this in (operation's own estimate, or a
-  // percent/elapsed extrapolation) — see JobRegistry.get_progress().
-  const remainingSeconds = job.progress.eta_seconds ?? null
+  const timing = useJobTiming(job)
 
   // Mobile/touch only (see JobRow.css) — only fade the message's edge when
   // it's actually scrollable, same as DriveCard's scrollable rows.
@@ -86,18 +72,14 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
             </div>
             {job.progress.percent !== null && <span className="queue-pct">{job.progress.percent.toFixed(1)}%</span>}
           </div>
-          {(job.progress.message || elapsedSeconds !== null) && (
+          {(job.progress.message || timing.text) && (
             <div className="queue-msg-row">
               {job.progress.message && (
                 <span ref={msgFadeRef} className={`queue-msg${msgFaded ? " queue-edge-fade" : ""}`}>
                   {job.progress.message}
                 </span>
               )}
-              {elapsedSeconds !== null && (
-                <span className="queue-progress-time">
-                  {formatDuration(elapsedSeconds)} · {remainingSeconds !== null ? `${formatDuration(remainingSeconds)} left` : "—"}
-                </span>
-              )}
+              {timing.text && <span className="queue-progress-time">{timing.text}</span>}
             </div>
           )}
         </div>
