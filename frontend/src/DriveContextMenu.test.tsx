@@ -13,6 +13,7 @@ vi.mock('./clipboard', () => ({ copyText: vi.fn().mockResolvedValue(true) }))
 function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(guid => makeDrive({ guid }))) {
   const cancelJob = vi.fn()
   const onClose = vi.fn()
+  const onRunTask = vi.fn()
   render(
     <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}>
       <ConfirmProvider>
@@ -22,13 +23,30 @@ function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(gu
           drives={drives}
           onClose={onClose}
           onSetLocked={vi.fn()}
+          onRunTask={onRunTask}
           activeJobs={activeJobs}
         />
       </ConfirmProvider>
     </JobsContext.Provider>,
   )
-  return { cancelJob, onClose }
+  return { cancelJob, onClose, onRunTask }
 }
+
+describe('tasks group', () => {
+  it('puts Run task and Cancel task first, under a Tasks label', () => {
+    renderMenu([makeJob({ id: 'j1', status: 'running' })])
+    const group = screen.getByRole('group', { name: 'Tasks' })
+    expect(within(group).getAllByRole('button').map(b => b.textContent)).toEqual(['Run task…', 'Cancel task'])
+    expect(group.compareDocumentPosition(screen.getByText('Rename drive')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("closes the menu and opens Run task for the menu's drives", () => {
+    const { onClose, onRunTask } = renderMenu([], ['guid-1', 'guid-2'])
+    fireEvent.click(screen.getByRole('button', { name: 'Run task…' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(onRunTask).toHaveBeenCalledWith(['guid-1', 'guid-2'])
+  })
+})
 
 describe('cancel task', () => {
   it('is absent when no drive has an active task', () => {

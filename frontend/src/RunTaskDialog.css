@@ -1,0 +1,28 @@
+/* The .confirm-scrim backdrop (SettingsOverlay.css) with a card roomy enough
+   for the Run Task form's operation list beside its fields. */
+.run-task-dialog {
+  width: 640px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: var(--bt);
+  border: 1px solid var(--bd2);
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+
+.rtd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.rtd-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t1);
+  margin: 0;
+}

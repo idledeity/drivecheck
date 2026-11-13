@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import DriveCard from "./DriveCard"
 import DriveContextMenu from "./DriveContextMenu"
+import RunTaskDialog from "./RunTaskDialog"
 import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
@@ -66,6 +67,7 @@ export default function App() {
   const [sort, setSort] = useState<SortState>({ key: "device", dir: "asc" })
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const [runTaskGuids, setRunTaskGuids] = useState<string[] | null>(null)
 
   const handleDriveContextMenu = (guid: string, pos: { x: number; y: number }) => {
     if (selected.includes(guid) && selected.length > 1) {
@@ -352,8 +354,12 @@ export default function App() {
           onClose={closeContextMenu}
           onSetLocked={handleSetLocked}
           onRename={handleRename}
+          onRunTask={setRunTaskGuids}
           activeJobs={contextMenu.guids.map(g => activeJobMap.get(g)).filter((j): j is Job => j !== undefined)}
         />
+      )}
+      {runTaskGuids && (
+        <RunTaskDialog drives={drives} guids={runTaskGuids} onClose={() => setRunTaskGuids(null)} />
       )}
       <WorkspacePanel drives={drives} selected={selected} />
     </div>

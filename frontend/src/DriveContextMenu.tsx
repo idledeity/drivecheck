@@ -15,6 +15,8 @@ interface Props {
   onClose: () => void
   onSetLocked: (guids: string[], locked: boolean) => void
   onRename?: (guids: string[], label: string | null) => void
+  /** Opens the Run Task form for these drives; the menu closes first. */
+  onRunTask?: (guids: string[]) => void
   /** The running (or next queued) job on each of the menu's drives that has one. */
   activeJobs?: Job[]
 }
@@ -25,7 +27,7 @@ const MENU_H = 180
 // How long a copy item says "Copied" before the menu closes itself.
 const COPIED_MS = 600
 
-export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename, activeJobs = [] }: Props) {
+export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename, onRunTask, activeJobs = [] }: Props) {
   const { cancelJob } = useJobs()
   const confirm = useConfirm()
   const [confirmingUnlock, setConfirmingUnlock] = useState(false)
@@ -99,6 +101,12 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
     void confirm(request).then(ok => { if (ok) cancelAll() })
   }
 
+  const handleRunTask = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onClose()
+    onRunTask?.(guids)
+  }
+
   // Says whether it worked in place of the item's text, then closes.
   const handleCopy = (field: DriveCopyField, text: string) => async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -161,6 +169,20 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
           {guids.length > 1 && (
             <span className="dc-ctx-count">{guids.length} drives selected</span>
           )}
+          {/* The most used: first, and at the top level rather than in a submenu. */}
+          {(onRunTask || activeJobs.length > 0) && (
+            <div className="dc-ctx-group" role="group" aria-labelledby="dc-ctx-tasks">
+              <span className="dc-ctx-group-label" id="dc-ctx-tasks">Tasks</span>
+              {onRunTask && (
+                <button className="dc-ctx-item" onClick={handleRunTask}>Run task…</button>
+              )}
+              {activeJobs.length > 0 && (
+                <button className="dc-ctx-item dc-ctx-item-danger" onClick={handleCancel}>
+                  {activeJobs.length === 1 ? "Cancel task" : `Cancel ${activeJobs.length} tasks`}
+                </button>
+              )}
+            </div>
+          )}
           <button className="dc-ctx-item" onClick={handleRenameClick}>
             Rename drive{guids.length > 1 ? "s" : ""}
           </button>
@@ -172,11 +194,6 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
           {anyLocked && (
             <button className="dc-ctx-item dc-ctx-item-warn" onClick={handleUnlockRequest}>
               Unlock drive{guids.length > 1 ? "s" : ""}
-            </button>
-          )}
-          {activeJobs.length > 0 && (
-            <button className="dc-ctx-item dc-ctx-item-danger" onClick={handleCancel}>
-              {activeJobs.length === 1 ? "Cancel task" : `Cancel ${activeJobs.length} tasks`}
             </button>
           )}
           {copyItems.length > 0 && (
