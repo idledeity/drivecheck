@@ -82,7 +82,12 @@
 }
 
 
+/* Not the popover's 160px cap or scrolling: the whole menu shows, and a
+   submenu panel (ContextSubmenu) can sit outside its box. Above the cards'
+   hover popovers (z-index 50) should one be open. Two classes so it wins
+   over .dc-popover, which comes later in this file. */
 .dc-ctx-menu { min-width: 180px; }
+.dc-popover.dc-ctx-menu { max-height: none; overflow: visible; z-index: 60; }
 
 .dc-ctx-item {
   display: block;

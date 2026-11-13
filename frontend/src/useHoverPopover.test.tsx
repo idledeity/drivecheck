@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useHoverPopover } from './useHoverPopover'
 
@@ -8,8 +8,8 @@ const CLOSE = 300 // the hook's default closeDelayMs
 
 // An outer trigger ("a") with a nested trigger ("b") inside it, plus a
 // neutral element elsewhere on the page.
-function Surface({ supportsHover = true }: { supportsHover?: boolean }) {
-  const pop = useHoverPopover<'a' | 'b'>({ supportsHover, delayMs: DELAY })
+function Surface({ supportsHover = true, disabled = false }: { supportsHover?: boolean; disabled?: boolean }) {
+  const pop = useHoverPopover<'a' | 'b'>({ supportsHover, delayMs: DELAY, disabled })
   return (
     <div>
       <div data-testid="a" {...pop.trigger('a')}>
@@ -232,6 +232,19 @@ describe('useHoverPopover', () => {
       fireEvent.click(a)
       fireEvent.mouseLeave(a)
       expect(openKey()).toBe('a')
+    })
+  })
+
+  describe('disabled', () => {
+    it('ignores hover and taps', () => {
+      render(<Surface disabled />)
+      fireEvent.mouseEnter(screen.getByTestId('a'), { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      expect(openKey()).toBeNull()
+      cleanup()
+      render(<Surface supportsHover={false} disabled />)
+      fireEvent.click(screen.getByTestId('a'))
+      expect(openKey()).toBeNull()
     })
   })
 

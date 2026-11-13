@@ -4,6 +4,9 @@ import type { Drive, Job } from "./types"
 import { useJobs } from "./jobsContext"
 import { useConfirm } from "./confirmContext"
 import { jobCancelConfirmation } from "./jobCancelConfirmation"
+import { DRIVE_COPY_FIELDS, driveCopyText, type DriveCopyField } from "./driveCopyText"
+import { copyText } from "./clipboard"
+import ContextSubmenu from "./ContextSubmenu"
 
 interface Props {
   pos: { x: number; y: number }
@@ -17,7 +20,10 @@ interface Props {
 }
 
 const MENU_W = 180
-const MENU_H = 160
+// A rough height for keeping it off the bottom edge.
+const MENU_H = 180
+// How long a copy item says "Copied" before the menu closes itself.
+const COPIED_MS = 600
 
 export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename, activeJobs = [] }: Props) {
   const { cancelJob } = useJobs()
@@ -26,13 +32,23 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
   const [renamingInMenu, setRenamingInMenu] = useState(false)
   const [renameInput, setRenameInput] = useState("")
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const [copyResult, setCopyResult] = useState<{ key: DriveCopyField["key"]; ok: boolean } | null>(null)
+  const closeTimerRef = useRef<number | null>(null)
+  useEffect(() => () => { if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current) }, [])
 
+  // A page scroll closes it (it's position:fixed and would drift from the
+  // card), but not a scroll of the menu itself on a very short screen.
+  const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && menuRef.current?.contains(e.target)) return
+      onClose()
+    }
     document.addEventListener("click", onClose)
-    window.addEventListener("scroll", onClose, true)
+    window.addEventListener("scroll", onScroll, true)
     return () => {
       document.removeEventListener("click", onClose)
-      window.removeEventListener("scroll", onClose, true)
+      window.removeEventListener("scroll", onScroll, true)
     }
   }, [onClose])
 
@@ -83,6 +99,18 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
     void confirm(request).then(ok => { if (ok) cancelAll() })
   }
 
+  // Says whether it worked in place of the item's text, then closes.
+  const handleCopy = (field: DriveCopyField, text: string) => async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const ok = await copyText(text)
+    setCopyResult({ key: field.key, ok })
+    closeTimerRef.current = window.setTimeout(onClose, COPIED_MS)
+  }
+
+  const copyItems = DRIVE_COPY_FIELDS
+    .map(field => ({ field, text: driveCopyText(field, selectedDrives) }))
+    .filter((item): item is { field: DriveCopyField; text: string } => item.text !== null)
+
   const handleRenameClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     setRenameInput(guids.length === 1 ? (selectedDrives[0]?.label ?? "") : "")
@@ -96,7 +124,7 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
   }
 
   return createPortal(
-    <div className="dc-popover dc-ctx-menu" style={style} onClick={e => e.stopPropagation()}>
+    <div ref={menuRef} className="dc-popover dc-ctx-menu" style={style} onClick={e => e.stopPropagation()}>
       {renamingInMenu ? (
         <div className="dc-ctx-confirm">
           <span className="dc-ctx-confirm-msg">
@@ -150,6 +178,16 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
             <button className="dc-ctx-item dc-ctx-item-danger" onClick={handleCancel}>
               {activeJobs.length === 1 ? "Cancel task" : `Cancel ${activeJobs.length} tasks`}
             </button>
+          )}
+          {copyItems.length > 0 && (
+            <ContextSubmenu label="Copy">
+              {guids.length > 1 && <span className="ctx-sub-note">One line per drive</span>}
+              {copyItems.map(({ field, text }) => (
+                <button key={field.key} className="dc-ctx-item" onClick={handleCopy(field, text)} title={text}>
+                  {copyResult?.key === field.key ? (copyResult.ok ? "Copied" : "Couldn't copy") : field.label}
+                </button>
+              ))}
+            </ContextSubmenu>
           )}
         </>
       )}

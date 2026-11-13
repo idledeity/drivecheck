@@ -444,6 +444,26 @@ describe('popovers (hover-capable device)', () => {
     expect(onSelect).toHaveBeenCalledOnce()
   })
 
+  it('closes its popover, and cancels a pending one, when the drive menu opens', async () => {
+    const onContextMenu = vi.fn()
+    renderCard({ onContextMenu })
+    const badge = screen.getByText('SMART OK')
+    fireEvent.mouseEnter(badge, { clientX: 10, clientY: 10 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(400) })
+    expect(document.querySelector('.dc-popover')).toBeInTheDocument()
+
+    fireEvent.contextMenu(badge, { clientX: 10, clientY: 10 })
+    expect(onContextMenu).toHaveBeenCalled()
+    expect(document.querySelector('.dc-popover')).not.toBeInTheDocument()
+  })
+
+  it('opens no popovers while a drive menu is open', async () => {
+    renderCard({ menuOpen: true })
+    fireEvent.mouseEnter(screen.getByText('SMART OK'), { clientX: 10, clientY: 10 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(document.querySelector('.dc-popover')).not.toBeInTheDocument()
+  })
+
   describe('complete pill', () => {
     const pill = () => screen.queryByText(/\d+ complete$/)
 

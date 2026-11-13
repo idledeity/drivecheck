@@ -1,0 +1,36 @@
+.ctx-sub-wrap { position: relative; }
+
+.ctx-sub-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ctx-sub-trigger.open { background: var(--bd); color: var(--t1); }
+.ctx-sub-chevron { color: var(--t4); flex-shrink: 0; }
+
+/* Beside the menu, its first item level with the one that opened it: the
+   menu's 8px side padding plus its 1px border separate the item from the
+   menu's edge, and 6px top padding + 1px border sit above the panel's first
+   item. Overrides .dc-popover's fixed position and height cap. */
+.dc-popover.ctx-sub {
+  position: absolute;
+  top: -7px;
+  left: calc(100% + 9px);
+  min-width: 140px;
+  max-height: none;
+  overflow: visible;
+}
+.dc-popover.ctx-sub.ctx-sub-left {
+  left: auto;
+  right: calc(100% + 9px);
+}
+
+/* A short note at the top of a panel, e.g. "One line per drive". */
+.ctx-sub-note {
+  font-size: 10.5px;
+  color: var(--t4);
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 2px;
+}

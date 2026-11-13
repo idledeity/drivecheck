@@ -338,6 +338,7 @@ export default function App() {
                 job={activeJobMap.get(d.guid)}
                 queuedJobs={queuedJobsMap.get(d.guid) ?? EMPTY_JOBS}
                 newResults={unseenByDrive.get(d.guid) ?? EMPTY_JOBS}
+                menuOpen={contextMenu !== null}
               />
             ))}
           </div>

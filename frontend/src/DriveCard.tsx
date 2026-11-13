@@ -28,6 +28,8 @@ interface Props {
   queuedJobs: Job[]
   /** Finished jobs on this drive the user hasn't seen yet, newest first. */
   newResults?: Job[]
+  /** A drive menu is open: no hover popovers, so none can open over it. */
+  menuOpen?: boolean
 }
 
 // How long the pointer has to sit still over a trigger before the hover
@@ -36,7 +38,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [] }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], menuOpen = false }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -69,15 +71,22 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // (its rounded left corners only render right when the accent bar is
   // clipped to the card's radius), which would clip an inline popover
   // whenever there isn't much card below the task zone.
-  const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS })
+  const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS, disabled: menuOpen })
   const { cancelJob } = useJobs()
 
+  // The menu opens at the pointer, where this card's popover would open
+  // too, on top of it: close that (and any pending one) first.
+  const openMenu = (pos: { x: number; y: number }) => {
+    pop.close()
+    onContextMenu?.(drive.guid, pos)
+  }
+
   // Touch has no right-click: press and hold opens the same menu.
-  const longPress = useLongPress(pos => onContextMenu?.(drive.guid, pos), !supportsHover)
+  const longPress = useLongPress(openMenu, !supportsHover)
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    onContextMenu?.(drive.guid, { x: e.clientX, y: e.clientY })
+    openMenu({ x: e.clientX, y: e.clientY })
   }
 
   const jobRows = (jobs: Job[]) => jobs.map(j => <JobRow key={j.id} job={j} drive={drive} onCancel={cancelJob} compact />)

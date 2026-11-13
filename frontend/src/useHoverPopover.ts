@@ -29,6 +29,9 @@ const CLOSE_DELAY_MS = 300
  * Triggers can nest (a pill inside a task bar): the innermost one under the
  * pointer wins, since each stops its mousemove from reaching the outer.
  *
+ * While `disabled` (e.g. a menu is open over the surface) triggers do
+ * nothing; the caller closes any open popover with `close()` first.
+ *
  * Positioned at the pointer itself rather than the trigger's rect: anchoring
  * to an element's corner looks disconnected from the cursor when you enter
  * it further along. If the popover, once rendered, would run off the bottom
@@ -36,7 +39,7 @@ const CLOSE_DELAY_MS = 300
  * a portal at `pos`, since a card clips overflow) and spreads `popoverProps`
  * onto it.
  */
-export function useHoverPopover<K extends string>({ supportsHover, delayMs, closeDelayMs = CLOSE_DELAY_MS }: { supportsHover: boolean; delayMs: number; closeDelayMs?: number }) {
+export function useHoverPopover<K extends string>({ supportsHover, delayMs, closeDelayMs = CLOSE_DELAY_MS, disabled = false }: { supportsHover: boolean; delayMs: number; closeDelayMs?: number; disabled?: boolean }) {
   const [open, setOpenState] = useState<K | null>(null)
   const [pos, setPos] = useState<PopoverPos>({ top: 0, left: 0 })
   const openRef = useRef<K | null>(null)
@@ -98,7 +101,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
   // starts the delay again.
   const arm = (key: K, entering: boolean) => (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (pinnedRef.current || !supportsHover) return
+    if (pinnedRef.current || !supportsHover || disabled) return
     // Back on (or still on) the trigger of the open popover: keep it.
     if (openRef.current === key) {
       cancelClose()
@@ -130,6 +133,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
 
   const toggle = (key: K) => (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (disabled) return
     cancelOpen()
     cancelClose()
     if (openRef.current === key && pinnedRef.current) {
