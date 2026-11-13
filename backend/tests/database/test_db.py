@@ -16,7 +16,8 @@ def test_init_creates_schema_and_enables_wal():
     with db._connection() as conn:
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"drive_records", "drive_signals", "drive_raw_snapshots",
-                "drive_heartbeats", "drive_vitals", "collector_state", "jobs"} <= tables
+                "drive_heartbeats", "drive_vitals", "drive_vitals_rollup", "collector_state",
+                "jobs"} <= tables
         mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert mode == "wal"
 
@@ -109,6 +110,75 @@ def test_prune_history_deletes_rows_before_cutoff():
     with db._connection() as conn:
         remaining = conn.execute("SELECT captured_at FROM drive_signals").fetchall()
     assert remaining == [("2026-06-01T00:00:00",)]
+
+
+def _vitals(guid, captured_at, temp_c, read_bps=None, write_bps=None):
+    io = DriveIOActivity(read_iops=1.0 if read_bps is not None else None,
+                         write_iops=1.0 if write_bps is not None else None,
+                         read_bytes_per_sec=read_bps, write_bytes_per_sec=write_bps,
+                         busy_pct=10.0 if read_bps is not None else None)
+    db.record_vitals(guid, captured_at, temp_c=temp_c, temp_source="hwmon", io=io)
+
+
+def _rollup_rows():
+    with db._connection() as conn:
+        return conn.execute(
+            "SELECT drive_guid, captured_at, temp_n, temp_min, temp_avg, temp_max, io_n, read_bps_avg, write_bps_avg"
+            " FROM drive_vitals_rollup ORDER BY drive_guid, captured_at"
+        ).fetchall()
+
+
+def test_rollup_vitals_averages_each_drive_minute_over_its_non_null_samples():
+    _vitals("guid-1", "2026-01-01T00:00:05.120000", 30, read_bps=100.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:00:15.120000", 32, read_bps=300.0, write_bps=0.0)
+    _vitals("guid-1", "2026-01-01T00:00:25.120000", None)           # no reading this tick
+    _vitals("guid-1", "2026-01-01T00:01:05.120000", 40, read_bps=0.0, write_bps=50.0)
+    _vitals("guid-2", "2026-01-01T00:00:59.999999", 50)
+
+    assert db.rollup_vitals("2026-01-01T00:02:00") == 3
+    assert _rollup_rows() == [
+        ("guid-1", "2026-01-01T00:00:00", 2, 30, 31.0, 32, 2, 200.0, 0.0),
+        ("guid-1", "2026-01-01T00:01:00", 1, 40, 40.0, 40, 1, 0.0, 50.0),
+        ("guid-2", "2026-01-01T00:00:00", 1, 50, 50.0, 50, 0, None, None),
+    ]
+    assert db.get_last_vitals_rollup_at() == "2026-01-01T00:01:00"
+
+
+def test_rollup_vitals_leaves_out_the_end_minute_and_re_rolls_a_minute_in_place():
+    _vitals("guid-1", "2026-01-01T00:00:05", 30)
+    _vitals("guid-1", "2026-01-01T00:01:05", 40)
+    db.rollup_vitals("2026-01-01T00:01:00")
+    assert [r[1] for r in _rollup_rows()] == ["2026-01-01T00:00:00"]
+
+    # A late sample for minute 00:00 lands; re-rolling from that minute updates its row.
+    _vitals("guid-1", "2026-01-01T00:00:55", 34)
+    db.rollup_vitals("2026-01-01T00:02:00", start_iso="2026-01-01T00:00:00")
+    assert [(r[1], r[2], r[4]) for r in _rollup_rows()] == [
+        ("2026-01-01T00:00:00", 2, 32.0),
+        ("2026-01-01T00:01:00", 1, 40.0),
+    ]
+
+
+def test_get_last_vitals_rollup_at_is_none_before_any_rollup():
+    assert db.get_last_vitals_rollup_at() is None
+
+
+def test_prune_history_keeps_raw_vitals_on_their_own_shorter_window():
+    for day in ("2026-01-01", "2026-02-01", "2026-03-01"):
+        _vitals("guid-1", f"{day}T00:00:00", 30)
+    db.rollup_vitals("2026-04-01T00:00:00")
+    db.prune_history("2026-01-15T00:00:00", raw_vitals_cutoff_iso="2026-02-15T00:00:00")
+    with db._connection() as conn:
+        raw = conn.execute("SELECT captured_at FROM drive_vitals").fetchall()
+    assert raw == [("2026-03-01T00:00:00",)]
+    assert [r[1] for r in _rollup_rows()] == ["2026-02-01T00:00:00", "2026-03-01T00:00:00"]
+
+
+def test_prune_history_never_keeps_raw_vitals_longer_than_the_history_window():
+    _vitals("guid-1", "2026-01-01T00:00:00", 30)
+    db.prune_history("2026-02-01T00:00:00", raw_vitals_cutoff_iso="2025-01-01T00:00:00")
+    with db._connection() as conn:
+        assert conn.execute("SELECT count(*) FROM drive_vitals").fetchone()[0] == 0
 
 
 def test_last_pruned_at_roundtrips():

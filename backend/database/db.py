@@ -82,6 +82,28 @@ CREATE TABLE IF NOT EXISTS drive_vitals (
 CREATE INDEX IF NOT EXISTS idx_drive_vitals_guid_captured
     ON drive_vitals (drive_guid, captured_at);
 
+-- Per-minute rollup of drive_vitals, the source for history charts. Rebuildable
+-- from drive_vitals while the raw rows last (see rollup_vitals); kept for the
+-- full history window, while raw rows have their own, shorter one.
+-- captured_at is the minute's start. *_avg are means over the minute's
+-- non-null samples; temp_n / io_n count them, so coarser buckets can be
+-- weighted correctly.
+CREATE TABLE IF NOT EXISTS drive_vitals_rollup (
+    drive_guid          TEXT NOT NULL,
+    captured_at         TEXT NOT NULL,
+    temp_n              INTEGER NOT NULL,
+    temp_min            INTEGER,
+    temp_avg            REAL,
+    temp_max            INTEGER,
+    io_n                INTEGER NOT NULL,
+    read_iops_avg       REAL,
+    write_iops_avg      REAL,
+    read_bps_avg        REAL,
+    write_bps_avg       REAL,
+    busy_pct_avg        REAL,
+    PRIMARY KEY (drive_guid, captured_at)
+) WITHOUT ROWID;
+
 -- Single-row table of collector bookkeeping that must survive restarts.
 CREATE TABLE IF NOT EXISTS collector_state (
     last_pruned_at TEXT
@@ -307,11 +329,49 @@ def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
         ).fetchone()
 
 
+# Minute bucket of an ISO captured_at ("2026-11-13T07:52:26.437121" -> "2026-11-13T07:52:00").
+_MINUTE_OF = "substr(captured_at, 1, 16) || ':00'"
+
+
+def rollup_vitals(end_iso: str, start_iso: str | None = None) -> int:
+    """Roll raw drive_vitals rows up into drive_vitals_rollup, one row per drive
+    per minute, for minutes starting at or after start_iso (None: from the
+    oldest raw row) and before end_iso. Both bounds should be minute starts, so
+    no minute is rolled from part of its samples. Re-rolling a minute replaces
+    its row. Returns the number of rollup rows written."""
+    logger.debug("rolling up vitals from %s to %s", start_iso or "the start", end_iso)
+    with _connection() as conn:
+        cursor = conn.execute(
+            f"""
+            INSERT OR REPLACE INTO drive_vitals_rollup (
+                drive_guid, captured_at, temp_n, temp_min, temp_avg, temp_max,
+                io_n, read_iops_avg, write_iops_avg, read_bps_avg, write_bps_avg, busy_pct_avg
+            )
+            SELECT drive_guid, {_MINUTE_OF},
+                   count(temp_c), min(temp_c), avg(temp_c), max(temp_c),
+                   count(read_bytes_per_sec), avg(read_iops), avg(write_iops),
+                   avg(read_bytes_per_sec), avg(write_bytes_per_sec), avg(busy_pct)
+              FROM drive_vitals
+             WHERE captured_at >= ? AND captured_at < ?
+             GROUP BY drive_guid, {_MINUTE_OF}
+            """,
+            (start_iso or "", end_iso),
+        )
+        return cursor.rowcount
+
+
+def get_last_vitals_rollup_at() -> str | None:
+    """The start of the newest rolled-up minute across all drives, or None if
+    nothing has been rolled up yet."""
+    with _connection() as conn:
+        return conn.execute("SELECT max(captured_at) FROM drive_vitals_rollup").fetchone()[0]
+
+
 # ---------------------------------------------------------------------------
 # Retention
 # ---------------------------------------------------------------------------
 
-_HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals", "drive_raw_snapshots")
+_HISTORY_TABLES = ("drive_signals", "drive_heartbeats", "drive_vitals_rollup", "drive_raw_snapshots")
 
 
 # Raw snapshots a job's SMART summary points at (see Job.smart_before/smart_after).
@@ -324,22 +384,32 @@ _JOB_SNAPSHOT_IDS = """
 """
 
 
-def prune_history(cutoff_iso: str, keep_job_snapshots: bool = True) -> None:
+def prune_history(
+    cutoff_iso: str,
+    keep_job_snapshots: bool = True,
+    raw_vitals_cutoff_iso: str | None = None,
+) -> None:
     """Delete time-series rows captured before cutoff_iso (ISO 8601 string).
+
+    Raw drive_vitals rows have their own cutoff, raw_vitals_cutoff_iso (the
+    later of the two wins; None means cutoff_iso) — charts read the per-minute
+    drive_vitals_rollup, which follows cutoff_iso.
 
     With keep_job_snapshots, raw snapshots referenced by a job are kept past
     the cutoff, so a job's full before/after SMART reports don't expire.
     """
+    raw_cutoff = max(cutoff_iso, raw_vitals_cutoff_iso or cutoff_iso)
     logger.info(
-        "pruning history older than %s from %s%s", cutoff_iso, ", ".join(_HISTORY_TABLES),
+        "pruning history older than %s from %s, and raw vitals older than %s%s",
+        cutoff_iso, ", ".join(_HISTORY_TABLES), raw_cutoff,
         " (keeping snapshots referenced by jobs)" if keep_job_snapshots else "",
     )
     with _connection() as conn:
-        for table in _HISTORY_TABLES:
+        for table, cutoff in [*((t, cutoff_iso) for t in _HISTORY_TABLES), ("drive_vitals", raw_cutoff)]:
             sql = f"DELETE FROM {table} WHERE captured_at < ?"
             if table == "drive_raw_snapshots" and keep_job_snapshots:
                 sql += f" AND id NOT IN ({_JOB_SNAPSHOT_IDS})"
-            deleted = conn.execute(sql, (cutoff_iso,)).rowcount
+            deleted = conn.execute(sql, (cutoff,)).rowcount
             logger.debug("pruned %d row(s) from %s", deleted, table)
 
 

@@ -58,6 +58,12 @@ _TICK_INTERVAL = 1.0
 # How often to check whether history pruning is due.
 _PRUNE_INTERVAL = 86400
 
+# How often finished minutes of raw vitals are rolled up into drive_vitals_rollup.
+_ROLLUP_INTERVAL = 60
+# A minute is rolled up only once this long has passed since it ended, so a
+# vitals row that is still being recorded when the minute ends isn't left out.
+_ROLLUP_GRACE = 60
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -70,6 +76,13 @@ cfg.register("collector.scan_interval",
 cfg.register("collector.keep_history_days",
     default=90, type="int", label="History retention",
     section="Collector", description="Days of time-series history to retain before pruning.",
+    min=1, max=3650, restart_required=True,
+)
+cfg.register("collector.keep_raw_vitals_days",
+    default=2, type="int", label="Raw vitals retention",
+    section="Collector",
+    description="Days to keep every individual vitals reading. History charts use per-minute "
+                "averages, which are kept for the full history retention.",
     min=1, max=3650, restart_required=True,
 )
 cfg.register("collector.keep_job_snapshots",
@@ -166,6 +179,7 @@ class Collector:
         keep_history_days: int,
         max_workers: int,
         probe_timeout: int,
+        keep_raw_vitals_days: int | None = None,
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
@@ -184,6 +198,8 @@ class Collector:
             for loaded in (scan, traits, telemetry, vitals)
         }
         self._keep_history_days = keep_history_days
+        # None: raw vitals follow keep_history_days.
+        self._keep_raw_vitals_days = keep_raw_vitals_days
         self._probe_timeout = probe_timeout
         self._drive_states: dict[str, DriveState] = {}
         # Latest saved raw snapshot summary per drive (scheduled or forced), so a
@@ -194,6 +210,10 @@ class Collector:
         # Initialized lazily on the first tick, from db.get_last_pruned_at() — db.init()
         # hasn't necessarily run yet at construction time.
         self._prune_due: float | None = None
+        # Start of the next minute of raw vitals to roll up, as an ISO string;
+        # None until the first rollup tick reads it from the database.
+        self._rollup_from: str | None = None
+        self._rollup_due: float = time.time()
         # Per-drive, per-channel ("telemetry", "snapshot", "vitals") next-due times,
         # epoch seconds. Collector-internal scheduling state, not part of DriveState.
         self._schedules: dict[str, dict[str, float]] = {}
@@ -227,6 +247,7 @@ class Collector:
             telemetry_probes=cfg.get("collector.telemetry_probes"),
             vitals_probes=cfg.get("collector.vitals_probes"),
             keep_history_days=cfg.get("collector.keep_history_days"),
+            keep_raw_vitals_days=cfg.get("collector.keep_raw_vitals_days"),
             max_workers=cfg.get("collector.max_workers"),
             probe_timeout=cfg.get("collector.probe_timeout"),
         )
@@ -392,9 +413,21 @@ class Collector:
 
         if now >= self._prune_due:
             cutoff = datetime.fromtimestamp(now - self._keep_history_days * 86400).isoformat()
-            db.prune_history(cutoff, keep_job_snapshots=cfg.get("collector.keep_job_snapshots"))
+            raw_vitals_cutoff = (
+                datetime.fromtimestamp(now - self._keep_raw_vitals_days * 86400).isoformat()
+                if self._keep_raw_vitals_days is not None else None
+            )
+            db.prune_history(
+                cutoff,
+                keep_job_snapshots=cfg.get("collector.keep_job_snapshots"),
+                raw_vitals_cutoff_iso=raw_vitals_cutoff,
+            )
             db.set_last_pruned_at(datetime.fromtimestamp(now).isoformat())
             self._prune_due = now + _PRUNE_INTERVAL
+
+        if now >= self._rollup_due:
+            self._rollup_vitals(now)
+            self._rollup_due = now + _ROLLUP_INTERVAL
 
         with self._lock:
             active_states = list(self._drive_states.values())
@@ -581,6 +614,23 @@ class Collector:
             drive_type=traits.drive_type.value if traits.drive_type else None,
             first_seen=datetime.now().isoformat(),
         )
+
+    def _rollup_vitals(self, now: float) -> None:
+        """Roll every finished minute of raw vitals not yet rolled up into
+        drive_vitals_rollup. The first call after start-up continues from the
+        newest rolled-up minute — or, on a database with no rollup yet, rolls up
+        all raw vitals still kept."""
+        end = datetime.fromtimestamp(now - _ROLLUP_GRACE).replace(second=0, microsecond=0).isoformat()
+        if self._rollup_from is None:
+            last = db.get_last_vitals_rollup_at()
+            # Re-roll the newest minute: it may have been rolled from part of
+            # its samples before a restart.
+            self._rollup_from = last or ""
+        if self._rollup_from >= end:
+            return
+        written = db.rollup_vitals(end, start_iso=self._rollup_from or None)
+        logger.debug("rolled up %d vitals minute(s) from %s to %s", written, self._rollup_from or "the start", end)
+        self._rollup_from = end
 
     def _run_vitals(self, state: DriveState, now: float) -> None:
         """Run the vitals probe chain for a drive and record a vitals row."""

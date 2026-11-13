@@ -648,11 +648,23 @@ same-cycle snapshot to reference. The column stays in the schema (nullable) for
 older rows; "what was the raw data near time T" queries should look up
 `drive_raw_snapshots` by `captured_at` proximity instead.
 
+**Vitals rollup** — `drive_vitals_rollup`, one row per drive per minute
+(`captured_at` = the minute's start): temp min/avg/max and average IO rates over
+the minute's non-null samples, with `temp_n` / `io_n` sample counts so coarser
+buckets can be weighted. History charts read this, never raw `drive_vitals`.
+About once a minute (`_ROLLUP_INTERVAL`) the collector rolls every finished
+minute (60s grace, `_ROLLUP_GRACE`) up from raw rows via `db.rollup_vitals()`;
+the first pass after start-up re-rolls the newest rolled-up minute, and on a
+database with no rollup yet backfills from all raw rows still kept. Rebuildable
+from raw rows while they last — a cache of facts, not judgements.
+
 ### History retention
 Configurable window (`collector.keep_history_days`, default 90). Once per day
 (`_PRUNE_INTERVAL` in `collector.py`), the collector deletes rows older than the
-cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals`, and
-`drive_raw_snapshots` via `db.prune_history()`. `drive_records` is never pruned —
+cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals_rollup`, and
+`drive_raw_snapshots` via `db.prune_history()`. Raw 10s `drive_vitals` rows have
+their own, shorter window (`collector.keep_raw_vitals_days`, default 2 — never
+longer than `keep_history_days`); they only back the live view and the rollup. `drive_records` is never pruned —
 it's one row per drive, not a time series.
 
 The last prune time is persisted to the single-row `collector_state` table

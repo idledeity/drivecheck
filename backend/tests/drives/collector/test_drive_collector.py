@@ -284,3 +284,44 @@ def test_a_renamed_block_device_is_picked_up_on_the_next_scan(monkeypatch):
     collector._run_scan(1)
     assert state.context.block_device == "sdf"
     assert state.context.block_device_path == "/dev/sdf"
+
+
+def _raw_vitals(guid, captured_at, temp_c):
+    from drives.drive_models import DriveIOActivity
+    db.record_vitals(guid, captured_at, temp_c=temp_c, temp_source="hwmon", io=DriveIOActivity())
+
+
+def _rolled_minutes():
+    with db._connection() as conn:
+        return [r[0] for r in conn.execute("SELECT captured_at FROM drive_vitals_rollup ORDER BY captured_at")]
+
+
+def _epoch(iso):
+    from datetime import datetime
+    return datetime.fromisoformat(iso).timestamp()
+
+
+def test_rollup_vitals_backfills_then_rolls_only_minutes_past_the_grace_period():
+    db.init()
+    for minute in ("10:00", "10:01", "10:02", "10:03"):
+        _raw_vitals("guid-1", f"2026-01-01T{minute}:30", 30)
+    collector = _make_collector()
+
+    # 10:03:30 — minute 10:02 ended only 30s ago, so it waits; 10:00 and 10:01 roll.
+    collector._rollup_vitals(_epoch("2026-01-01T10:03:30"))
+    assert _rolled_minutes() == ["2026-01-01T10:00:00", "2026-01-01T10:01:00"]
+
+    collector._rollup_vitals(_epoch("2026-01-01T10:05:00"))
+    assert _rolled_minutes() == [f"2026-01-01T10:0{m}:00" for m in range(4)]
+
+
+def test_rollup_vitals_after_a_restart_re_rolls_the_newest_minute():
+    db.init()
+    _raw_vitals("guid-1", "2026-01-01T10:00:10", 30)
+    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:00"))
+    # A sample for 10:00 that arrived after that minute was rolled up.
+    _raw_vitals("guid-1", "2026-01-01T10:00:50", 40)
+
+    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:30"))
+    with db._connection() as conn:
+        assert conn.execute("SELECT temp_n, temp_avg FROM drive_vitals_rollup").fetchall() == [(2, 35.0)]
