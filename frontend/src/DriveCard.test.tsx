@@ -1,9 +1,10 @@
 import { act } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DriveCard from './DriveCard'
 import { JobsContext } from './jobsContext'
+import ConfirmProvider from './ConfirmProvider'
 import { makeDrive, makeJob } from './test/fixtures'
 
 function mockMatchMedia(matches: boolean) {
@@ -288,19 +289,55 @@ describe('popovers (click-only / no-hover device)', () => {
     expect(onSelectToggle).not.toHaveBeenCalled()
   })
 
+  function renderWithJobs(job: ReturnType<typeof makeJob>) {
+    const cancelJob = vi.fn()
+    render(
+      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
+        <DriveCard drive={makeDrive()} selected={false} onSelect={vi.fn()} onSelectToggle={vi.fn()} job={job} queuedJobs={[]} />
+      </ConfirmProvider></JobsContext.Provider>,
+    )
+    return cancelJob
+  }
+
+  it('cancels a running task from its popover after the confirm pop-up, and closes the popover', async () => {
+    const cancelJob = renderWithJobs(makeJob({ id: 'j1', status: 'running', operation_name: 'Badblocks' }))
+    await userEvent.click(document.querySelector('.dc-tz')!)
+    await userEvent.click(within(document.querySelector('.dc-popover') as HTMLElement).getByRole('button', { name: 'Cancel: Badblocks' }))
+    expect(cancelJob).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel task' }))
+    expect(cancelJob).toHaveBeenCalledWith('j1')
+    expect(document.querySelector('.dc-popover')).not.toBeInTheDocument()
+  })
+
+  it('has an × on the task row itself, which asks before ending a running task', async () => {
+    const cancelJob = renderWithJobs(makeJob({ id: 'j1', status: 'running', operation_name: 'Badblocks' }))
+    await userEvent.click(within(document.querySelector('.dc-tn') as HTMLElement).getByRole('button', { name: 'Cancel: Badblocks' }))
+    expect(document.querySelector('.dc-popover')).not.toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Cancel Badblocks?')
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }))
+    expect(cancelJob).not.toHaveBeenCalled()
+  })
+
+  it('cancels a task that is only queued from the task row without asking', async () => {
+    const cancelJob = renderWithJobs(makeJob({ id: 'j1', status: 'queued', operation_name: 'Badblocks' }))
+    await userEvent.click(within(document.querySelector('.dc-tn') as HTMLElement).getByRole('button', { name: 'Cancel: Badblocks' }))
+    expect(cancelJob).toHaveBeenCalledWith('j1')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
   it('cancels a queued job from the queued popover', async () => {
     const cancelJob = vi.fn()
     render(
-      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}>
+      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
         <DriveCard
           drive={makeDrive()} selected={false} onSelect={vi.fn()} onSelectToggle={vi.fn()}
           job={makeJob({ status: 'running' })}
           queuedJobs={[makeJob({ id: 'q1', status: 'queued', operation_name: 'Sleep (debug)' })]}
         />
-      </JobsContext.Provider>,
+      </ConfirmProvider></JobsContext.Provider>,
     )
     await userEvent.click(screen.getByText('1 queued'))
-    await userEvent.click(screen.getByTitle('Cancel'))
+    await userEvent.click(within(document.querySelector('.dc-popover') as HTMLElement).getByTitle('Cancel'))
     expect(cancelJob).toHaveBeenCalledWith('q1')
     expect(screen.getByText('Sleep (debug)')).toBeInTheDocument()
   })

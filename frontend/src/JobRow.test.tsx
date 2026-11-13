@@ -2,14 +2,36 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { JobRow } from './JobRow'
+import ConfirmProvider from './ConfirmProvider'
 import { makeDrive, makeJob } from './test/fixtures'
 
 describe('JobRow', () => {
-  it('shows a cancel button for running jobs and calls onCancel when clicked', async () => {
+  it('shows a cancel button for running jobs, and cancels once confirmed in the pop-up', async () => {
     const onCancel = vi.fn()
-    render(<JobRow job={makeJob({ id: 'r1', status: 'running' })} drive={undefined} onCancel={onCancel} />)
+    render(<ConfirmProvider><JobRow job={makeJob({ id: 'r1', status: 'running', operation_name: 'Badblocks' })} drive={undefined} onCancel={onCancel} /></ConfirmProvider>)
     await userEvent.click(screen.getByTitle('Cancel'))
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Cancel Badblocks?')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel task' }))
     expect(onCancel).toHaveBeenCalledWith('r1')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('cancels a queued job straight away', async () => {
+    const onCancel = vi.fn()
+    render(<ConfirmProvider><JobRow job={makeJob({ id: 'q1', status: 'queued' })} drive={undefined} onCancel={onCancel} /></ConfirmProvider>)
+    await userEvent.click(screen.getByTitle('Cancel'))
+    expect(onCancel).toHaveBeenCalledWith('q1')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the job, and leaves the row collapsed, on Keep running', async () => {
+    const onCancel = vi.fn()
+    render(<ConfirmProvider><JobRow job={makeJob({ status: 'running', category: 'Scan' })} drive={undefined} onCancel={onCancel} /></ConfirmProvider>)
+    await userEvent.click(screen.getByTitle('Cancel'))
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }))
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
   it('shows no cancel button for finished jobs', () => {

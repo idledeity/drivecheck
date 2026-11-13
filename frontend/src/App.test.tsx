@@ -298,6 +298,7 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Activity' }))
     await userEvent.click(screen.getByTitle('Cancel'))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel task' }))
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/jobs/job-1/cancel', expect.objectContaining({ method: 'POST' })))
   })
 

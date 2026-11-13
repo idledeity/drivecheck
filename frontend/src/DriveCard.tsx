@@ -7,6 +7,7 @@ import SignalValue from "./SignalValue"
 import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput } from "./format"
 import { JobDetailRows } from "./JobDetails"
 import { JobRow } from "./JobRow"
+import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
 import { useEdgeFade } from "./useEdgeFade"
@@ -95,7 +96,16 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
   const jobRows = (jobs: Job[]) => jobs.map(j => <JobRow key={j.id} job={j} drive={drive} onCancel={cancelJob} compact />)
   const popoverBody = {
-    task: job && <JobDetailRows job={job} />,
+    // Named here because the details rows don't say which job it is.
+    task: job && (
+      <>
+        <div className="dc-pop-head">
+          <span className="dc-pop-title">{job.operation_name}</span>
+          <CancelJobButton job={job} drive={drive} onCancel={id => { cancelJob(id); pop.close() }} />
+        </div>
+        <JobDetailRows job={job} />
+      </>
+    ),
     queued: queuedJobs.length > 0 && jobRows(queuedJobs),
     complete: newResults.length > 0 && jobRows(newResults),
     health: <DriveOverview drive={drive} header={false} />,
@@ -190,17 +200,16 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
               <IconLoader2 size={11} className="spinning" />
               <span>{job.operation_name}</span>
             </div>
-            {(job.progress.percent !== null || queuedJobs.length > 0 || completePill) && (
-              <div className="dc-tn-right">
-                {queuedJobs.length > 0 && (
-                  <button className="dc-queued-pill" {...pop.trigger("queued")}>
-                    {queuedJobs.length} queued
-                  </button>
-                )}
-                {completePill}
-                {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
-              </div>
-            )}
+            <div className="dc-tn-right">
+              {queuedJobs.length > 0 && (
+                <button className="dc-queued-pill" {...pop.trigger("queued")}>
+                  {queuedJobs.length} queued
+                </button>
+              )}
+              {completePill}
+              {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
+              <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
+            </div>
           </div>
           <div className="dc-tz-bar">
             {job.progress.percent === null
@@ -232,16 +241,15 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
               <IconClock size={11} />
               <span>Queued: {job.operation_name}</span>
             </div>
-            {(queuedJobs.length > 0 || completePill) && (
-              <div className="dc-tn-right">
-                {queuedJobs.length > 0 && (
-                  <button className="dc-queued-pill" {...pop.trigger("queued")}>
-                    {queuedJobs.length} queued
-                  </button>
-                )}
-                {completePill}
-              </div>
-            )}
+            <div className="dc-tn-right">
+              {queuedJobs.length > 0 && (
+                <button className="dc-queued-pill" {...pop.trigger("queued")}>
+                  {queuedJobs.length} queued
+                </button>
+              )}
+              {completePill}
+              <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
+            </div>
           </div>
         </div>
       ) : (

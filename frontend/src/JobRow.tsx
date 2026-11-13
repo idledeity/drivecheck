@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
-import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2 } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { formatDuration, formatRelativeTime, jobResultText } from "./format"
 import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
 import DriveChip from "./DriveChip"
+import CancelJobButton from "./CancelJobButton"
 import "./JobRow.css"
 
 const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
@@ -71,9 +72,7 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
             </span>
           )}
           {cancellable && (
-            <button className="queue-cancel" onClick={e => { e.stopPropagation(); onCancel(job.id) }} title="Cancel">
-              <IconX size={13} />
-            </button>
+            <CancelJobButton job={job} drive={drive} onCancel={onCancel} />
           )}
         </div>
       </div>

@@ -8,6 +8,7 @@ import { useAuth } from "./authContext"
 import { toLocalIso } from "./format"
 import { useUnseenResults } from "./jobHistory"
 import { JobsContext, type JobsContextValue } from "./jobsContext"
+import ConfirmProvider from "./ConfirmProvider"
 import type { Drive, Job, Settings, SortState } from "./types"
 import "./App.css"
 
@@ -303,6 +304,7 @@ export default function App() {
 
   return (
     <JobsContext.Provider value={jobsContext}>
+    <ConfirmProvider>
     <div>
       {error && <div className="status-error">{error}</div>}
       <div className="page-label">
@@ -341,9 +343,20 @@ export default function App() {
           </div>
       }
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpen(false)} />}
-      {contextMenu && <DriveContextMenu pos={contextMenu.pos} guids={contextMenu.guids} drives={drives} onClose={closeContextMenu} onSetLocked={handleSetLocked} onRename={handleRename} />}
+      {contextMenu && (
+        <DriveContextMenu
+          pos={contextMenu.pos}
+          guids={contextMenu.guids}
+          drives={drives}
+          onClose={closeContextMenu}
+          onSetLocked={handleSetLocked}
+          onRename={handleRename}
+          activeJobs={contextMenu.guids.map(g => activeJobMap.get(g)).filter((j): j is Job => j !== undefined)}
+        />
+      )}
       <WorkspacePanel drives={drives} selected={selected} />
     </div>
+    </ConfirmProvider>
     </JobsContext.Provider>
   )
 }

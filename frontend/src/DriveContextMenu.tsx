@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import type { Drive } from "./types"
+import type { Drive, Job } from "./types"
+import { useJobs } from "./jobsContext"
+import { useConfirm } from "./confirmContext"
+import { jobCancelConfirmation } from "./jobCancelConfirmation"
 
 interface Props {
   pos: { x: number; y: number }
@@ -9,12 +12,16 @@ interface Props {
   onClose: () => void
   onSetLocked: (guids: string[], locked: boolean) => void
   onRename?: (guids: string[], label: string | null) => void
+  /** The running (or next queued) job on each of the menu's drives that has one. */
+  activeJobs?: Job[]
 }
 
 const MENU_W = 180
 const MENU_H = 160
 
-export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename }: Props) {
+export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename, activeJobs = [] }: Props) {
+  const { cancelJob } = useJobs()
+  const confirm = useConfirm()
   const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const [renamingInMenu, setRenamingInMenu] = useState(false)
   const [renameInput, setRenameInput] = useState("")
@@ -62,6 +69,18 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
   const handleUnlockCancel = (e: React.MouseEvent) => {
     e.stopPropagation()
     setConfirmingUnlock(false)
+  }
+
+  // Only the job each drive is on now; anything queued behind it stays.
+  // The menu closes first: the question is the confirm pop-up's, not ours.
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onClose()
+    const jobs = activeJobs
+    const cancelAll = () => jobs.forEach(j => cancelJob(j.id))
+    const request = jobCancelConfirmation(jobs, drives)
+    if (!request) { cancelAll(); return }
+    void confirm(request).then(ok => { if (ok) cancelAll() })
   }
 
   const handleRenameClick = (e: React.MouseEvent) => {
@@ -125,6 +144,11 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
           {anyLocked && (
             <button className="dc-ctx-item dc-ctx-item-warn" onClick={handleUnlockRequest}>
               Unlock drive{guids.length > 1 ? "s" : ""}
+            </button>
+          )}
+          {activeJobs.length > 0 && (
+            <button className="dc-ctx-item dc-ctx-item-danger" onClick={handleCancel}>
+              {activeJobs.length === 1 ? "Cancel task" : `Cancel ${activeJobs.length} tasks`}
             </button>
           )}
         </>
