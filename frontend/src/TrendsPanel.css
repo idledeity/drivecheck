@@ -1,0 +1,43 @@
+.trends {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.trends-drives { flex: 1 1 320px; }
+/* Range and Show jobs line up with the first row of drive chips, not the
+   middle of a block that wraps to several rows. */
+.trends > .filter-row { align-items: flex-start; }
+.trends-key { flex: none; }
+
+/* A plain button around a DriveChip: the chip is the whole visual. */
+.trends-drive {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.trends-drive:hover .drive-chip { border-color: var(--bd2); }
+.trends-drive:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; }
+/* Hidden from the charts: dashed and faded, key included, so the legend
+   matches what's drawn. */
+.trends-drive[aria-pressed="false"] .drive-chip { border-style: dashed; opacity: 0.45; }
+
+.trends-jobs { color: var(--t3); cursor: pointer; margin-left: auto; }
+.trends-jobs input { accent-color: var(--cy); margin: 0; }
+
+.trends-charts {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .trends-jobs { margin-left: 0; }
+}

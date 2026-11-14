@@ -1,0 +1,110 @@
+.tsc {
+  position: relative;
+  min-width: 0;
+  /* Width comes from the container only, never from the SVG drawn at the
+     last measured width — otherwise a chart can't shrink inside a grid. */
+  contain: inline-size;
+}
+
+.tsc-svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  touch-action: pan-y;
+}
+.tsc-svg:focus { outline: none; }
+.tsc-svg:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 2px; }
+
+.tsc-svg text {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.tsc-tick {
+  font-size: 10.5px;
+  fill: var(--t4);
+  font-variant-numeric: tabular-nums;
+}
+
+.tsc-grid,
+.tsc-baseline,
+.tsc-crosshair {
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.tsc-grid      { stroke: var(--chart-grid); }
+.tsc-baseline  { stroke: var(--bd); }
+.tsc-crosshair { stroke: var(--t4); pointer-events: none; }
+
+.tsc-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.tsc-area { fill-opacity: 0.1; stroke: none; }
+
+/* 2px ring in the surface color keeps dots legible where they cross lines. */
+.tsc-dot { stroke: var(--chart); stroke-width: 2; pointer-events: none; }
+
+.tsc-end-label { font-size: 10.5px; fill: var(--t3); }
+
+.tsc-band.tone-ok   { fill: rgba(20, 192, 80, 0.07); }
+.tsc-band.tone-warn { fill: rgba(255, 178, 46, 0.06); }
+.tsc-band.tone-crit { fill: rgba(255, 112, 112, 0.06); }
+.tsc-band-label { font-size: 10px; fill: var(--t5); }
+
+.tsc-threshold line { stroke-width: 1; opacity: 0.7; shape-rendering: crispEdges; }
+.tsc-threshold text { font-size: 10px; }
+.tsc-threshold.tone-warn line { stroke: var(--wa); }
+.tsc-threshold.tone-warn text { fill: var(--wa); }
+.tsc-threshold.tone-crit line { stroke: var(--re); }
+.tsc-threshold.tone-crit text { fill: var(--re); }
+
+.tsc-span { fill: rgba(200, 204, 214, 0.055); }
+.tsc-span-edge { fill: var(--t5); }
+
+.tsc-tip {
+  position: absolute;
+  top: 6px;
+  z-index: 3;
+  min-width: 150px;
+  max-width: min(460px, 90%);
+  pointer-events: none;
+  background: #14161b;
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.tsc-tip-time { color: var(--t4); font-size: 11px; margin-bottom: 4px; }
+.tsc-tip-none { color: var(--t5); }
+.tsc-tip-row {
+  display: grid;
+  grid-template-columns: 12px auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  line-height: 1.6;
+}
+.tsc-tip-row.custom {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  line-height: 1.4;
+  padding: 1px 0;
+}
+.tsc-tip-row.custom > .tsc-tip-value { text-align: right; }
+.tsc-tip-row.custom > :last-child { justify-self: start; min-width: 0; }
+.tsc-tip-value { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tsc-tip-label { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsc-tip-extra {
+  color: var(--t4);
+  font-size: 11px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--bd);
+}
+
+/* Job lines in the tooltip footer (JobsDuring): name, then the drive's chip. */
+.jobs-during { display: grid; gap: 3px; }
+.jobs-during-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.jobs-during-name { color: var(--t3); }

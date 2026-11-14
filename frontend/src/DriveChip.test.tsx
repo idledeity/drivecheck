@@ -64,6 +64,13 @@ describe('DriveChip', () => {
     expect(screen.getByLabelText('locked')).toBeInTheDocument()
   })
 
+  it('leads with a given mark in place of the health dot, keeping health in the title', () => {
+    const { container } = render(<DriveChip drive={makeDrive({ health_status: 'Healthy', health_pct: 100 })} lead={<span data-testid="key" />} />)
+    expect(screen.getByTestId('key')).toBeInTheDocument()
+    expect(container.querySelector('.drive-chip-health')).toBeNull()
+    expect(container.querySelector('.drive-chip')).toHaveAttribute('title', expect.stringContaining('Healthy 100'))
+  })
+
   it('header puts the chip in a size container', () => {
     const { container } = render(<DriveChipHeader drive={makeDrive()} className="extra" />)
     expect(container.firstChild).toHaveClass('drive-chip-list', 'extra')

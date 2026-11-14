@@ -1,4 +1,5 @@
 import { IconBarcode, IconLock } from "@tabler/icons-react"
+import type { ReactNode } from "react"
 import type { Drive } from "./types"
 import { formatCapacity } from "./format"
 import "./DriveChip.css"
@@ -13,6 +14,10 @@ interface Props {
   // tight. "tail": always the last four characters, for rows where the chip
   // can't sit in a size container (the full serial stays in the title).
   serial?: "auto" | "tail"
+  // Shown first, in place of the health dot: e.g. a chart's line key, where
+  // the chip doubles as a legend entry and a second colored mark would compete
+  // with it. Health stays in the hover title.
+  lead?: ReactNode
 }
 
 const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Degraded: "warn", Failing: "crit" }
@@ -22,11 +27,11 @@ const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Degraded: "warn", 
 // shortens the serial to its last four characters when space is tight, then
 // drops the manufacturer (DriveChip.css). The full details are always in the
 // hover title.
-export default function DriveChip({ drive, blocked = false, serial = "auto" }: Props) {
+export default function DriveChip({ drive, blocked = false, serial = "auto", lead }: Props) {
   if (!drive) {
     return (
       <span className="drive-chip">
-        <span className="drive-chip-health none" role="img" aria-label="Not rated" />
+        {lead ?? <span className="drive-chip-health none" role="img" aria-label="Not rated" />}
         <span className="drive-chip-name">Unknown drive</span>
       </span>
     )
@@ -47,11 +52,13 @@ export default function DriveChip({ drive, blocked = false, serial = "auto" }: P
     .join(" · ")
   return (
     <span className={`drive-chip${blocked ? " blocked" : ""}`} title={title}>
-      <span
-        className={`drive-chip-health ${HEALTH_CLASS[drive.health_status ?? ""] ?? "none"}`}
-        role="img"
-        aria-label={health}
-      />
+      {lead ?? (
+        <span
+          className={`drive-chip-health ${HEALTH_CLASS[drive.health_status ?? ""] ?? "none"}`}
+          role="img"
+          aria-label={health}
+        />
+      )}
       {showMaker && <span className="drive-chip-maker">{maker}</span>}
       <span className="drive-chip-name">{name}</span>
       {capacity && <span className="drive-chip-meta">{capacity}</span>}

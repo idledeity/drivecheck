@@ -6,13 +6,15 @@ import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
 import { DriveAttributes } from "./SmartAttributesPanel"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
+import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
 
-type SubTab = "overview" | "report"
+type SubTab = "overview" | "report" | "trends"
 
 const SUBTABS: { id: SubTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "report",   label: "Report"   },
+  { id: "trends",   label: "Trends"   },
 ]
 
 interface Props {
@@ -39,6 +41,7 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
       <div className="health-subtab-body">
         {subTab === "overview" && <OverviewPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} />}
+        {subTab === "trends"   && <TrendsPanel drives={drives} selectedGuids={selectedGuids} />}
       </div>
     </div>
   )

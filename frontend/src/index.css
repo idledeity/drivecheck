@@ -23,6 +23,28 @@
   --ior: #48ccff;
   --iow: #b878ff;
 
+  /* Charts: the plot surface, and twelve drive series hues (see
+     charts/drivePalette.ts). Kept clear of the app's reserved colors — cyan,
+     amber, salmon, status green, selection/IO purples — by hue family and by
+     at least ΔE 14 (OKLab ×100) from each. Neighbors in the order are
+     separable under color-vision deficiency (worst adjacent ΔE 10.4) and all
+     clear 3:1 on --chart; non-neighbors may be close (s4/s10). Change one and
+     re-check; never reorder (the order is what keeps neighbors apart). */
+  --chart: #23252c;
+  --chart-grid: #30333c;
+  --s1:  #3987e5;  /* blue */
+  --s2:  #ba5f7b;  /* rose */
+  --s3:  #2b88c0;  /* ocean */
+  --s4:  #a3940f;  /* olive gold */
+  --s5:  #c24ba1;  /* magenta */
+  --s6:  #c95b0a;  /* burnt orange */
+  --s7:  #1d966d;  /* teal */
+  --s8:  #6d78c7;  /* periwinkle */
+  --s9:  #cf4680;  /* raspberry */
+  --s10: #938010;  /* dark mustard */
+  --s11: #a963a0;  /* orchid */
+  --s12: #6e8d35;  /* moss */
+
   font: 14px/150% system-ui, -apple-system, sans-serif;
   color: var(--t2);
   background: var(--bp);

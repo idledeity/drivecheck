@@ -1,0 +1,36 @@
+.chart-card {
+  background: var(--chart);
+  border: 1px solid var(--chart-grid);
+  border-radius: 6px;
+  padding: 10px 12px 8px;
+  min-width: 0;
+  transition: opacity 0.15s;
+}
+.chart-card.stale { opacity: 0.55; }
+
+.chart-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-bottom: 4px;
+}
+
+.chart-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+}
+
+.chart-card-sub,
+.chart-card-callout {
+  font-size: 11.5px;
+  color: var(--t4);
+}
+.chart-card-callout b { color: var(--t1); font-weight: 600; }
+.chart-card-callout .muted { color: var(--t5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-card { transition: none; }
+}

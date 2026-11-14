@@ -232,8 +232,10 @@ drivecheck/
 │       ├── App.tsx, App.css
 │       ├── DriveCard.tsx, DriveCard.css
 │       ├── WorkspacePanel.tsx, WorkspacePanel.css  (tab shells — Health implemented, others stubs)
-│       ├── HealthTab.tsx, HealthTab.css            (Health sub-tabs: Overview/SMART/Report)
+│       ├── HealthTab.tsx, HealthTab.css            (Health sub-tabs: Overview/Report/Trends)
+│       ├── TrendsPanel.tsx                         (Health > Trends: filter row + history charts)
 │       ├── SmartAttributesPanel.tsx                (SMART attributes sub-page)
+│       ├── charts/             (history charts — see Charts below)
 │       ├── signals.ts          (signal descriptors + footer signal defaults)
 │       ├── format.ts
 │       ├── types.ts
@@ -706,6 +708,42 @@ those costs far more than a bucket-accurate health line is worth. Plus `jobs` ov
 and `thresholds` (`analysis.health.SIGNAL_THRESHOLDS`, `HEALTH_BANDS`) so charts
 draw the same lines the score uses. Vitals lag live by up to ~2 minutes (rollup
 grace).
+
+**Charts** (`frontend/src/charts/`) — hand-rolled SVG, no chart library. Every
+history view (the Health > Trends sub-tab, and later drive-card popovers) is a
+small component over these:
+- `TimeSeriesChart` — generic: line/step series (step holds to the chart end),
+  area wash, `log1p` y scale, threshold lines, status bands, shaded spans (jobs),
+  end labels (only when they don't collide), crosshair + tooltip reading every
+  series at the hovered time, arrow-key stepping. `snapMs` snaps the crosshair
+  to bucket starts; it stops at the newest line point (the rollup lag).
+- `ChartHoverSync` — optional: charts inside share one crosshair; the tooltip
+  shows only in the chart under the pointer. A lone chart keeps hover local.
+- `useDriveHistory(guids, range)` — fetches the route, parses every time to ms
+  once, refetches about once a bucket (1–5 min); while a new range or drive set
+  loads it keeps the previous data with `stale: true`, so charts dim, not blank.
+- `drivePalette` — twelve series colors `--s1…--s12` (index.css), kept clear
+  of the app's reserved colors (cyan, amber, salmon, status green, selection
+  purple) by hue family and ΔE ≥ 14; neighbors in the order separable under
+  color-vision deficiency, all ≥ 3:1 on `--chart`. Assigned by each drive's
+  place among *all* drives ordered by `first_seen` (`driveColorOrder`), so a
+  drive's color doesn't change with selection, hiding, grid sort or restarts.
+  No dashes; a 13th drive repeats s1 (chips name every line). Never reorder;
+  change a hue and re-check.
+- `scales.ts` (nice ticks, log1p ticks, local-time x ticks), `chartGeometry.ts`
+  (path data, value-at-time).
+- Drive charts — `TemperatureChart`, `ThroughputChart`: each takes
+  `(data, drives: ChartDrive[], showJobs)` and draws nothing else, so a card
+  popover can reuse it as is. `ChartCard` is the dashboard frame (title,
+  subtitle, callout, dims when `stale`). `historySeries.ts` holds the glue:
+  `chartDrive` (name + serial tail), job spans and the tooltip's job line,
+  callout helpers.
+- Charts stacked under one `ChartHoverSync` must share the right margin
+  (`endLabels` on all or none), or their time axes — and crosshairs — won't
+  line up. Jobs are neutral (no drive color — overlapping
+  jobs of different drives would show whichever drew last): a light shade over
+  the plot plus a thin grey rail just above it, not on its top edge, where a job
+  spanning the range would look like data. The tooltip names job and drive.
 
 "Value of a signal at time T":
 ```sql
