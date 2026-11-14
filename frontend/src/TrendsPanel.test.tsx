@@ -50,7 +50,7 @@ describe('TrendsPanel', () => {
     expect(screen.getByText('45 °C warning')).toBeInTheDocument()
   })
 
-  it('reads temperature to the half degree, with the bucket\'s range when it adds anything', async () => {
+  it('reads temperature as the bucket average to the half degree, without its range', async () => {
     const h = history()
     h.drives.d1.vitals = { ...vitals([30.57, 30.6, 31, 32]), temp_min: [30, 29, 31, 31], temp_max: [31, 32, 31, 33] }
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(h))
@@ -58,13 +58,11 @@ describe('TrendsPanel', () => {
     await waitFor(() => expect(lines('Temperature over time')).toHaveLength(1))
     const svg = screen.getByRole('img', { name: 'Temperature over time' })
     fireEvent.focus(svg)                                               // newest bucket
-    expect(screen.getByRole('status')).toHaveTextContent('32.0 °C (31–33)')
+    const value = () => screen.getByRole('status').querySelector('.tsc-tip-value')
+    expect(value()).toHaveTextContent(/^32\.0 °C$/)
     fireEvent.keyDown(svg, { key: 'ArrowLeft' })
-    expect(screen.getByRole('status')).toHaveTextContent(/31\.0 °C(?! \()/)   // steady: no range
     fireEvent.keyDown(svg, { key: 'ArrowLeft' })
-    expect(screen.getByRole('status')).toHaveTextContent('30.5 °C (29–32)')    // wider than the .5 implies
-    fireEvent.keyDown(svg, { key: 'ArrowLeft' })
-    expect(screen.getByRole('status')).toHaveTextContent(/30\.5 °C(?! \()/)  // 30–31: already said by the .5
+    expect(value()).toHaveTextContent(/^30\.5 °C$/)    // 30.6 → nearest .5; no (29–32)
   })
 
   it('colors a drive by its place among all drives, whatever is selected', async () => {

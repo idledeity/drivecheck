@@ -18,7 +18,7 @@ import "./TrendsPanel.css"
 
 // Bucket width per range, as the chart subtitles say it ("average per 5 min").
 const BUCKET_TEXT: Record<HistoryRange, string> = {
-  "1h": "minute", "24h": "5 min", "7d": "30 min", "30d": "2 h", "90d": "6 h",
+  "1h": "minute", "8h": "2 min", "24h": "5 min", "7d": "30 min", "30d": "2 h", "90d": "6 h",
 }
 
 /**

@@ -78,15 +78,19 @@
   padding: 7px 9px;
   font-size: 12px;
 }
-/* On a narrow chart: under it, in the page flow, full width. Also a chip
-   list's size container, so the chips drop the maker when it's tight. */
+/* On a narrow chart: under it, in the page flow, full width — no box, just
+   a rule above, since every px of width counts there. Also a chip list's
+   size container, so the chips drop the maker when it's tight. */
 .tsc-tip.below {
   position: static;
   width: auto;
   max-width: none;
   margin-top: 6px;
+  padding: 6px 0 0;
   background: none;
-  border-color: var(--chart-grid);
+  border: 0;
+  border-top: 1px solid var(--chart-grid);
+  border-radius: 0;
   box-shadow: none;
   container: drive-chips / inline-size;
 }

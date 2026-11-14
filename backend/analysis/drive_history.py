@@ -21,9 +21,11 @@ from drives.drive_models import DCSignals
 logger = logging.getLogger(__name__)
 
 # Range key -> (span, bucket width), both seconds. Roughly 300 buckets each,
-# except 1h, which is limited by the rollup's one-minute resolution.
+# except 1h and 8h, which are limited by the rollup's one-minute resolution
+# (8h takes two-minute buckets).
 RANGES: dict[str, tuple[int, int]] = {
     "1h":  (3600,       60),
+    "8h":  (8 * 3600,   120),
     "24h": (86400,      300),
     "7d":  (7 * 86400,  1800),
     "30d": (30 * 86400, 7200),

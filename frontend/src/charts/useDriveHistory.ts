@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 // arrive as naive local ISO strings and are parsed to ms here, once, so charts
 // only ever deal in numbers.
 
-export const HISTORY_RANGES = ["1h", "24h", "7d", "30d", "90d"] as const
+export const HISTORY_RANGES = ["1h", "8h", "24h", "7d", "30d", "90d"] as const
 export type HistoryRange = typeof HISTORY_RANGES[number]
 
 type SignalValue = number | boolean | null
@@ -98,7 +98,7 @@ export function parseHistory(raw: RawHistory): DriveHistoryData {
 /** How often a range is refetched: each bucket's width, kept between one and
  *  five minutes — newer buckets only fill in as the collector rolls them up. */
 export function refreshMs(range: HistoryRange): number {
-  const bucket = { "1h": 60, "24h": 300, "7d": 1800, "30d": 7200, "90d": 21600 }[range] * 1000
+  const bucket = { "1h": 60, "8h": 120, "24h": 300, "7d": 1800, "30d": 7200, "90d": 21600 }[range] * 1000
   return Math.min(5 * 60e3, Math.max(60e3, bucket))
 }
 

@@ -4,14 +4,13 @@ import DriveChip from "../DriveChip"
 import JobsDuring from "./JobsDuring"
 import LineKey from "./LineKey"
 import type { ChartSeries } from "./TimeSeriesChart"
-import { bucketLabel, jobSpans, jobsDuring, roundTemp, vitalAt } from "./historySeries"
+import { bucketLabel, jobSpans, jobsDuring, roundTemp } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 
 /** Each drive's average temperature per bucket, to the nearest 0.5 °C (see
  *  roundTemp), with the warning threshold the health score uses. The tooltip
- *  adds the bucket's range of readings when they varied — a short spike shows
- *  there even when the line is smooth. */
+ *  gives the same average: the bucket's min/max were more noise than help. */
 function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
@@ -44,15 +43,7 @@ function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
       thresholds={warn === null ? undefined : [{ value: warn, label: `${warn} °C warning`, tone: "warn" }]}
       spans={showJobs ? jobSpans(data, drives) : undefined}
       formatY={v => `${v}°`}
-      formatValue={(v, s, t) => {
-        const min = vitalAt(data, s.id, "temp_min", t)
-        const max = vitalAt(data, s.id, "temp_max", t)
-        // A .5 already says "between these two degrees", so its range is only
-        // worth showing when the readings spread wider than that.
-        const implied = v % 1 !== 0 && min === Math.floor(v) && max === Math.ceil(v)
-        const range = min !== null && max !== null && max > min && !implied ? ` (${min}–${max})` : ""
-        return `${v.toFixed(1)} °C${range}`
-      }}
+      formatValue={v => `${v.toFixed(1)} °C`}
       formatTime={t => bucketLabel(t, data.bucketMs)}
       tooltipExtra={showJobs ? t => {
         const jobs = jobsDuring(data, drives, t)
