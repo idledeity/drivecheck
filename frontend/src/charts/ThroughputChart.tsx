@@ -1,8 +1,7 @@
 import { memo } from "react"
 import TimeSeriesChart from "./TimeSeriesChart"
-import DriveChip from "../DriveChip"
+import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
-import LineKey from "./LineKey"
 import type { ChartSeries } from "./TimeSeriesChart"
 import { bucketLabel, jobSpans, jobsDuring, vitalAt } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
@@ -12,10 +11,12 @@ import { formatThroughput } from "../format"
 /** Each drive's disk throughput (read + write) averaged per bucket: one line
  *  per drive rather than separate read and write lines, since with several
  *  drives charted doubled lines are unreadable — the tooltip gives the split. */
-function ThroughputChart({ data, drives, showJobs = true, height = 160 }: {
+function ThroughputChart({ data, drives, showJobs = true, highlight = null, height = 160 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
   showJobs?: boolean
+  /** A drive to bring forward (the others dim), e.g. while its legend chip is hovered. */
+  highlight?: string | null
   height?: number
 }) {
   const series: ChartSeries[] = drives.map(d => {
@@ -24,7 +25,7 @@ function ThroughputChart({ data, drives, showJobs = true, height = 160 }: {
       id: d.guid,
       label: d.label,
       ...d.style,
-      tipLabel: <DriveChip drive={d.drive} serial="tail" thin lead={<LineKey {...d.style} />} />,
+      tipLabel: <ChartDriveChip drive={d} />,
       points: v ? v.t.map((t, i) => ({ t, v: (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0) })) : [],
     }
   })
@@ -33,6 +34,7 @@ function ThroughputChart({ data, drives, showJobs = true, height = 160 }: {
     <TimeSeriesChart
       ariaLabel="Disk throughput over time"
       series={series}
+      highlight={highlight}
       start={data.start}
       end={data.end}
       snapMs={data.bucketMs}

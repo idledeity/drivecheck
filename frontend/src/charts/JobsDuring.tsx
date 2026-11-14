@@ -1,5 +1,4 @@
-import DriveChip from "../DriveChip"
-import LineKey from "./LineKey"
+import ChartDriveChip from "./ChartDriveChip"
 import type { ChartDrive } from "./historySeries"
 
 /** The tooltip's "jobs running in this bucket" lines: each job's name and its
@@ -10,7 +9,7 @@ export default function JobsDuring({ jobs }: { jobs: { id: string; name: string;
       {jobs.map(j => (
         <div key={j.id} className="jobs-during-row">
           <span className="jobs-during-name">{j.name}</span>
-          <DriveChip drive={j.drive.drive} serial="tail" thin lead={<LineKey {...j.drive.style} />} />
+          <ChartDriveChip drive={j.drive} />
         </div>
       ))}
     </div>

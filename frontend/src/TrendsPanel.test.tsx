@@ -103,8 +103,95 @@ describe('TrendsPanel', () => {
   it('shades jobs only while Show jobs is on', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
     renderPanel()
-    await waitFor(() => expect(document.querySelectorAll('.tsc-span')).toHaveLength(2))   // one per chart
+    await waitFor(() => expect(document.querySelectorAll('.tsc-span')).toHaveLength(3))   // one per chart: temperature, throughput, health
     fireEvent.click(screen.getByLabelText('Show jobs'))
     expect(document.querySelectorAll('.tsc-span')).toHaveLength(0)
+  })
+
+  // d1 (SATA-like) reports every counter; d2 (SAS-like) has no pending or CRC
+  // counts; d3 reports nothing at all (a virtual disk).
+  const withSignals = () => {
+    const h = history()
+    const at = (m: number) => `2026-11-13T12:0${m}:00`
+    ;(h.thresholds as { signals: Record<string, unknown> }).signals = { ...h.thresholds.signals, reallocated: { warn_gte: 1, crit_gte: null }, uncorrected: { warn_gte: null, crit_gte: 1 }, load_unload_cycles: { warn_gte: 500000, crit_gte: 700000 } }
+    Object.assign(h.drives.d1, {
+      signals: {
+        reallocated: [{ t: at(0), value: 0 }, { t: at(4), value: 3 }],
+        pending: [{ t: at(0), value: 0 }], uncorrected: [{ t: at(0), value: 0 }], crc_errors: [{ t: at(0), value: 0 }],
+        load_unload_cycles: [{ t: at(0), value: 2000 }, { t: at(6), value: 2001 }],
+      },
+      health: [{ t: at(0), health_pct: 95, health_status: 'Healthy' }, { t: at(4), health_pct: 80, health_status: 'Degraded' }],
+    })
+    Object.assign(h.drives.d2, {
+      signals: { reallocated: [{ t: at(0), value: 6 }], uncorrected: [{ t: at(0), value: 2 }] },
+      health: [{ t: at(0), health_pct: 70, health_status: 'Degraded' }],
+    })
+    ;(h.drives as Record<string, unknown>).d3 = { vitals: vitals([]), signals: {}, health: [{ t: at(0), health_pct: null, health_status: null }] }
+    return h
+  }
+  const allDrives = [...drives, makeDrive({ guid: 'd3', model: 'QEMU HARDDISK', serial: null })]
+  const card = (title: string) => screen.getByRole('heading', { name: title }).closest('section')!
+
+  it('charts health scores over the status bands, naming the biggest fall and drives never scored', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Health score over time')).toHaveLength(3))
+    const health = card('Health score')
+    expect(health).toHaveTextContent('Healthy ≥ 90 · Degraded 60–89 · Failing < 60')
+    expect(health).toHaveTextContent(/Fell 95 → 80.*Exos X16/)
+    expect(health.querySelector('.chart-card-foot')).toHaveTextContent(/^Not scored.*QEMU HARDDISK/)
+    expect(health.querySelectorAll('.tsc-band')).toHaveLength(3)
+  })
+
+  it('charts a counter that moved, and names its change', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
+    expect(card('Reallocated sectors')).toHaveTextContent(/\+3.*Exos X16/)
+    expect(screen.getByText('warning ≥ 1')).toBeInTheDocument()
+    // Steady but not zero: still charted, saying nothing changed.
+    expect(lines('Uncorrected errors over time')).toHaveLength(2)
+    expect(card('Uncorrected errors')).toHaveTextContent('No change in this range')
+  })
+
+  it('names a threshold far above the data instead of stretching the chart to it', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Load/unload cycles over time')).toHaveLength(1))
+    const cycles = card('Load/unload cycles')
+    expect(cycles).toHaveTextContent('Running total · warning ≥ 500,000 · critical ≥ 700,000')
+    expect(cycles.querySelector('.tsc-threshold')).toBeNull()
+    expect(cycles).toHaveTextContent(/\+1.*Exos X16/)
+  })
+
+  it('shrinks a counter that is 0 throughout to a line, naming drives without it (but not ones with no SMART at all)', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Pending sectors' })).toBeInTheDocument())
+    const pending = card('Pending sectors')
+    expect(pending).toHaveTextContent('0 throughout')
+    expect(pending.querySelector('svg.tsc-svg')).toBeNull()
+    expect(pending.querySelector('.chart-card-foot')).toHaveTextContent(/^Not reported by.*Ultrastar/)
+    expect(pending.querySelector('.chart-card-foot')).not.toHaveTextContent('QEMU')
+  })
+
+  it('leaves out a counter no charted drive reports', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d2', 'd3']} />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Reallocated sectors' })).toBeInTheDocument())
+    expect(screen.queryByRole('heading', { name: 'Pending sectors' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'CRC errors' })).toBeNull()
+  })
+
+  it('brings a drive forward in every chart while its legend chip has focus', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
+    renderPanel()
+    await waitFor(() => expect(lines('Temperature over time')).toHaveLength(2))
+    const chip = screen.getAllByRole('button', { pressed: true })[1]   // d2
+    fireEvent.focus(chip)
+    expect(document.querySelectorAll('[aria-label="Temperature over time"] .tsc-line.dim')).toHaveLength(1)
+    expect(document.querySelectorAll('[aria-label="Disk throughput over time"] .tsc-line.dim')).toHaveLength(1)
+    fireEvent.blur(chip)
+    expect(document.querySelectorAll('.tsc-line.dim')).toHaveLength(0)
   })
 })

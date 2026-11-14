@@ -1,8 +1,7 @@
 import { memo } from "react"
 import TimeSeriesChart from "./TimeSeriesChart"
-import DriveChip from "../DriveChip"
+import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
-import LineKey from "./LineKey"
 import type { ChartSeries } from "./TimeSeriesChart"
 import { bucketLabel, jobSpans, jobsDuring, roundTemp } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
@@ -11,10 +10,12 @@ import type { DriveHistoryData } from "./useDriveHistory"
 /** Each drive's average temperature per bucket, to the nearest 0.5 °C (see
  *  roundTemp), with the warning threshold the health score uses. The tooltip
  *  gives the same average: the bucket's min/max were more noise than help. */
-function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
+function TemperatureChart({ data, drives, showJobs = true, highlight = null, height = 200 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
   showJobs?: boolean
+  /** A drive to bring forward (the others dim), e.g. while its legend chip is hovered. */
+  highlight?: string | null
   height?: number
 }) {
   const warn = data.thresholds.signals.temp?.warn_gte ?? null
@@ -24,7 +25,7 @@ function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
       id: d.guid,
       label: d.label,
       ...d.style,
-      tipLabel: <DriveChip drive={d.drive} serial="tail" thin lead={<LineKey {...d.style} />} />,
+      tipLabel: <ChartDriveChip drive={d} />,
       points: v ? v.t.map((t, i) => ({ t, v: roundTemp(v.temp_avg[i]) })) : [],
     }
   })
@@ -33,6 +34,7 @@ function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
     <TimeSeriesChart
       ariaLabel="Temperature over time"
       series={series}
+      highlight={highlight}
       start={data.start}
       end={data.end}
       snapMs={data.bucketMs}

@@ -42,6 +42,13 @@
   stroke-linecap: round;
 }
 .tsc-area { fill-opacity: 0.1; stroke: none; }
+/* Another series is highlighted (a legend chip hovered): these step back. */
+.tsc-line.dim, .tsc-dot.dim { opacity: 0.2; }
+.tsc-area.dim { fill-opacity: 0.03; }
+.tsc-line, .tsc-dot { transition: opacity 0.12s; }
+@media (prefers-reduced-motion: reduce) {
+  .tsc-line, .tsc-dot { transition: none; }
+}
 
 /* 2px ring in the surface color keeps dots legible where they cross lines. */
 .tsc-dot { stroke: var(--chart); stroke-width: 2; pointer-events: none; }

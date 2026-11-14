@@ -38,6 +38,34 @@
   min-width: 0;
 }
 
+/* Error counters: small multiples, two across where there's room. */
+.trends-counters {
+  display: grid;
+  /* At most two across: each column at least 380px, or half the row. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(380px, calc((100% - 12px) / 2))), 1fr));
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Callouts that name drives: chips wrap as a unit with their numbers. */
+.trends-callout {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px 10px;
+}
+.trends-callout-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* A footnote's label on its own line, so the chips below read as one list
+   rather than the first one belonging to the label. */
+.trends-foot-label { flex-basis: 100%; }
+
+.health-bands-key .tone-ok   { color: var(--gn); }
+.health-bands-key .tone-warn { color: var(--wa); }
+.health-bands-key .tone-crit { color: var(--re); }
+
 @media (max-width: 640px) {
   .trends-jobs { margin-left: 0; }
 }

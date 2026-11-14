@@ -732,9 +732,17 @@ small component over these:
   change a hue and re-check.
 - `scales.ts` (nice ticks, log1p ticks, local-time x ticks), `chartGeometry.ts`
   (path data, value-at-time).
-- Drive charts — `TemperatureChart`, `ThroughputChart`: each takes
-  `(data, drives: ChartDrive[], showJobs)` and draws nothing else, so a card
-  popover can reuse it as is. `ChartCard` is the dashboard frame (title,
+- Drive charts — `TemperatureChart`, `ThroughputChart`, `HealthScoreChart`
+  (step lines over status bands; band names in the subtitle via
+  `HealthBandsKey`, never inside the plot), `CounterChart` (one error counter,
+  step lines, log1p, threshold lines; drawn as small multiples): each takes
+  `(data, drives: ChartDrive[], showJobs, highlight)` and draws nothing else, so
+  a card popover can reuse it as is. `highlight` (a guid) dims the other lines
+  — the Trends legend sets it while a chip is hovered or focused.
+  `ChartDriveChip` is how charts name a drive in dense places (thin chip, line
+  key, serial tail). Trends hides a counter no shown drive reports, shrinks one
+  that's 0 throughout to a line, and footnotes drives without it (drives with
+  no signals at all are noted once, under health). `ChartCard` is the dashboard frame (title,
   subtitle, callout, dims when `stale`). `historySeries.ts` holds the glue:
   `chartDrive` (name + serial tail), job spans and the tooltip's job line,
   callout helpers.

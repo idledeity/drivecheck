@@ -1,5 +1,5 @@
 import type { Drive } from "../types"
-import type { ChartSpan } from "./TimeSeriesChart"
+import type { ChartPoint, ChartSpan, ChartThreshold } from "./TimeSeriesChart"
 import type { SeriesStyle } from "./drivePalette"
 import type { DriveHistoryData, HistoryJob } from "./useDriveHistory"
 import { clockLabel } from "./scales"
@@ -95,4 +95,76 @@ export function peakThroughput(data: DriveHistoryData, drives: ChartDrive[]): { 
  *  and a real warm-up still shows. */
 export function roundTemp(avg: number | null): number | null {
   return avg === null ? null : Math.round(avg * 2) / 2
+}
+
+/** One signal of one drive as step points: numbers only (a boolean or null
+ *  value breaks the line). Empty if the drive doesn't report the signal. */
+export function signalPoints(data: DriveHistoryData, guid: string, name: string): ChartPoint[] {
+  return (data.drives[guid]?.signals[name] ?? []).map(p => ({ t: p.t, v: typeof p.value === "number" ? p.value : null }))
+}
+
+/** One drive's health score as step points (null before it was first scored). */
+export function healthPoints(data: DriveHistoryData, guid: string): ChartPoint[] {
+  return (data.drives[guid]?.health ?? []).map(h => ({ t: h.t, v: h.pct }))
+}
+
+/** A drive's health status as served at time t (the latest change at or before it). */
+export function healthStatusAt(data: DriveHistoryData, guid: string, t: number): string | null {
+  const health = data.drives[guid]?.health ?? []
+  return health.findLast(h => h.t <= t)?.status ?? null
+}
+
+/** First and last numeric values of a step series within the range, or null
+ *  when it has none. */
+function firstLast(points: ChartPoint[]): { from: number; to: number } | null {
+  const vals = points.flatMap(p => (p.v === null ? [] : [p.v]))
+  return vals.length ? { from: vals[0], to: vals[vals.length - 1] } : null
+}
+
+export interface DriveChange { drive: ChartDrive; from: number; to: number }
+
+/** Per charted drive, how one counter moved over the range, split into the
+ *  drives whose value changed (biggest change first), the ones that report it
+ *  without change, and the ones that don't report it at all (e.g. SAS drives
+ *  have no pending-sector or CRC counts). */
+export function counterSummary(data: DriveHistoryData, drives: ChartDrive[], name: string) {
+  const changed: DriveChange[] = [], steady: DriveChange[] = [], missing: ChartDrive[] = []
+  for (const d of drives) {
+    const fl = firstLast(signalPoints(data, d.guid, name))
+    if (!fl) missing.push(d)
+    else (fl.to !== fl.from ? changed : steady).push({ drive: d, ...fl })
+  }
+  changed.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
+  return { changed, steady, missing }
+}
+
+/** The health callout: drives whose score fell over the range (largest fall
+ *  first), and the lowest current score. */
+export function healthSummary(data: DriveHistoryData, drives: ChartDrive[]) {
+  const dropped: DriveChange[] = []
+  let lowest: { value: number; drive: ChartDrive } | null = null
+  for (const d of drives) {
+    const fl = firstLast(healthPoints(data, d.guid))
+    if (!fl) continue
+    if (fl.to < fl.from) dropped.push({ drive: d, ...fl })
+    if (!lowest || fl.to < lowest.value) lowest = { value: fl.to, drive: d }
+  }
+  dropped.sort((a, b) => (a.to - a.from) - (b.to - b.from))
+  return { dropped, lowest }
+}
+
+/** A counter's warning / critical lines, split by whether the chart should
+ *  reach for them. Error counters warn at 1, which is always worth keeping in
+ *  view. A wear counter's limit (load/unload cycles: 500,000) can sit hundreds
+ *  of times above every drive's value; stretching the axis to it would flatten
+ *  every line onto the baseline, so it's named in words instead. In view: up
+ *  to ten times the highest value charted (and always 10 or below). */
+export function counterThresholds(data: DriveHistoryData, drives: ChartDrive[], signal: string): { inView: ChartThreshold[]; beyond: ChartThreshold[] } {
+  const limits = data.thresholds.signals[signal]
+  const all: ChartThreshold[] = []
+  if (limits?.warn_gte != null) all.push({ value: limits.warn_gte, label: `warning ≥ ${limits.warn_gte.toLocaleString()}`, tone: "warn" })
+  if (limits?.crit_gte != null) all.push({ value: limits.crit_gte, label: `critical ≥ ${limits.crit_gte.toLocaleString()}`, tone: "crit" })
+  const max = Math.max(0, ...drives.flatMap(d => signalPoints(data, d.guid, signal).flatMap(p => (p.v === null ? [] : [p.v]))))
+  const reach = Math.max(10, max * 10)
+  return { inView: all.filter(th => th.value <= reach), beyond: all.filter(th => th.value > reach) }
 }

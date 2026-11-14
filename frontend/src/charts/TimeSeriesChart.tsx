@@ -52,6 +52,8 @@ interface Props {
   snapMs?: number
   /** Lines break across gaps between points longer than this; default 1.5 × snapMs. */
   gapMs?: number
+  /** A series to bring forward: drawn on top, the others dimmed. */
+  highlight?: string | null
   /** Extra tooltip lines for the hovered time, after the series rows. */
   tooltipExtra?: (t: number) => ReactNode
   formatTime?: (t: number) => string
@@ -129,7 +131,12 @@ export default function TimeSeriesChart(props: Props) {
   // collector stopped), so the line breaks there instead of bridging it. Half
   // a bucket of slack keeps neighbouring buckets joined.
   const gapMs = props.gapMs ?? (snapMs ? snapMs * 1.5 : Infinity)
-  const paths = series.map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
+  // A highlighted series is drawn last, so it's on top of any it overlaps.
+  const hl = props.highlight && series.some(s => s.id === props.highlight) ? props.highlight : null
+  const paths = series
+    .map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
+    .sort((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl))
+  const dim = (s: ChartSeries) => (hl && s.id !== hl ? " dim" : "")
 
   // ── hover ───────────────────────────────────────────────────────────────
   // The hovered time lives in the hover state (shared or local); everything
@@ -282,13 +289,13 @@ export default function TimeSeriesChart(props: Props) {
         })}
 
         {paths.map(({ s, area }) => area && (
-          <path key={`area-${s.id}`} className="tsc-area" d={area} fill={s.color} />
+          <path key={`area-${s.id}`} className={`tsc-area${dim(s)}`} d={area} fill={s.color} />
         ))}
         {paths.map(({ s, line }) => (
-          <path key={`line-${s.id}`} className="tsc-line" d={line} stroke={s.color} strokeDasharray={s.dash} />
+          <path key={`line-${s.id}`} className={`tsc-line${dim(s)}`} d={line} stroke={s.color} strokeDasharray={s.dash} />
         ))}
         {paths.map(({ s, last }) => last && (
-          <circle key={`end-${s.id}`} className="tsc-dot" cx={last.x} cy={last.y} r={4} fill={s.color} />
+          <circle key={`end-${s.id}`} className={`tsc-dot${dim(s)}`} cx={last.x} cy={last.y} r={4} fill={s.color} />
         ))}
 
         {hoverT !== null && (
