@@ -170,21 +170,31 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
 
   // The real size is only known once rendered: flip above the pointer when
   // it would run off the bottom, and pull it in from the right edge. Done on
-  // the element directly; `pos` stays the first estimate.
+  // the element directly; `pos` stays the first estimate. Placed again
+  // whenever its size changes: content that loads after opening (a history
+  // chart replacing "Loading…") can make it much taller.
   useLayoutEffect(() => {
     const el = popoverRef.current
     if (!open || !el) return
-    const { width, height } = el.getBoundingClientRect()
-    if (width === 0 && height === 0) return  // not laid out (or a test DOM)
-    const { x, y } = anchorRef.current
-    if (y + 12 + height > window.innerHeight - 8) {
-      // Above the pointer if it fits there, else as low as it can go.
-      const above = y - 12 - height
-      el.style.top = `${above >= 8 ? above : Math.max(8, window.innerHeight - 8 - height)}px`
+    const place = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width === 0 && height === 0) return  // not laid out (or a test DOM)
+      const { x, y } = anchorRef.current
+      const below = y + 12
+      if (below + height > window.innerHeight - 8) {
+        // Above the pointer if it fits there, else as low as it can go.
+        const above = y - 12 - height
+        el.style.top = `${above >= 8 ? above : Math.max(8, window.innerHeight - 8 - height)}px`
+      } else {
+        el.style.top = `${Math.min(below, window.innerHeight - 8 - height)}px`
+      }
+      el.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`
     }
-    if (x + width > window.innerWidth - 8) {
-      el.style.left = `${Math.max(8, window.innerWidth - width - 8)}px`
-    }
+    place()
+    if (typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(place)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [open, pos])
 
   // Click outside or scroll closes it; a position:fixed popover would

@@ -9,6 +9,7 @@ import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
 import CounterChart from "./charts/CounterChart"
 import ChartDriveChip from "./charts/ChartDriveChip"
+import { COUNTER_SIGNALS, counterScale, counterSubtitle } from "./charts/counters"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
@@ -21,11 +22,6 @@ import { SIGNALS } from "./signals"
 import "./TrendsPanel.css"
 
 // The error counters charted as small multiples, in this order.
-// Error counts first; load/unload cycles last, as the one wear count (head
-// parking: normal use adds a few a day, an aggressive idle timer hundreds).
-const COUNTERS = ["reallocated", "pending", "uncorrected", "crc_errors", "load_unload_cycles"]
-// Wear counts: charted on a linear scale fitted to the data (see CounterChart).
-const WEAR_COUNTERS = new Set(["load_unload_cycles"])
 
 // Bucket width per range, as the chart subtitles say it ("average per 5 min").
 const BUCKET_TEXT: Record<HistoryRange, string> = {
@@ -154,7 +150,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               <HealthScoreChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
             </ChartCard>
             <div className="trends-counters">
-              {COUNTERS.map(name => (
+              {COUNTER_SIGNALS.map(name => (
                 <CounterCard key={name} name={name} data={data} drives={shown} showJobs={showJobs} highlight={highlight} stale={stale} />
               ))}
             </div>
@@ -229,7 +225,7 @@ function CounterCard({ name, data, drives, showJobs, highlight, stale }: {
   return (
     <ChartCard
       title={title}
-      subtitle={[WEAR_COUNTERS.has(name) ? "Running total" : "Running total, log scale", ...beyond.map(th => th.label)].join(" · ")}
+      subtitle={counterSubtitle(name, beyond)}
       callout={changed.length ? (
         <span className="trends-callout">
           {changed.slice(0, CALLOUT_DRIVES).map(c => (
@@ -243,7 +239,7 @@ function CounterCard({ name, data, drives, showJobs, highlight, stale }: {
       stale={stale}
       footer={footer}
     >
-      <CounterChart data={data} drives={drives} signal={name} label={title} scale={WEAR_COUNTERS.has(name) ? "linear" : "log1p"} showJobs={showJobs} highlight={highlight} />
+      <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
     </ChartCard>
   )
 }

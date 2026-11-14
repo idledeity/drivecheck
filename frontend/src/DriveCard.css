@@ -508,6 +508,23 @@
   padding: 6px;
 }
 .dc-popover-wide .queue-row { margin-bottom: 0; }
+
+/* A value's history chart (DriveTrendPopover); wide enough for the chart to
+   float its readings, and tall enough for health's overview plus chart. */
+.dc-popover-chart {
+  width: min(440px, calc(100vw - 16px));
+  max-width: none;
+  max-height: min(560px, calc(100vh - 16px));
+  padding: 8px 10px;
+}
+.dc-popover-chart .hov-section { padding: 0; }
+.dc-pop-trend { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--bd); }
+
+/* Card values that open a chart: a faint wash on hover says there's more. */
+.dc-trend { border-radius: 3px; cursor: default; }
+@media (hover: hover) {
+  .dc-trend:hover { background: rgba(255, 255, 255, 0.06); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06); }
+}
 .dc-popover-wide .hov-section { padding: 0 4px; }
 .dc-popover-wide .hov-score-row { margin-top: 2px; }
 

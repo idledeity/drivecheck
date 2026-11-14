@@ -1,0 +1,22 @@
+/* A drive card value's history, in the card's hover popover (DriveTrendPopover). */
+.dtp { display: grid; gap: 4px; min-width: 0; transition: opacity 0.15s; }
+.dtp.stale { opacity: 0.55; }
+
+.dtp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.dtp-title { font-size: 12px; font-weight: 700; color: var(--t2); }
+/* The Trends range control, compacted for a popover. */
+.dtp-head .seg-btn { padding: 1px 6px; font-size: 10.5px; }
+
+.dtp-sub { font-size: 11px; color: var(--t4); }
+.dtp-sub b { color: var(--t1); font-weight: 600; }
+.dtp-note { font-size: 11.5px; color: var(--t5); padding: 8px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dtp { transition: none; }
+}

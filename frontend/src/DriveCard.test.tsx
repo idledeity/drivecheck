@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DriveCard from './DriveCard'
 import { JobsContext } from './jobsContext'
 import ConfirmProvider from './ConfirmProvider'
-import { makeDrive, makeJob } from './test/fixtures'
+import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -280,12 +280,59 @@ describe('popovers (click-only / no-hover device)', () => {
     expect(popover).toHaveTextContent('No bad blocks')
   })
 
+  // History for one drive ('d1'), as /api/drives/history serves it.
+  const history = (guid: string) => ({
+    range: '24h', start: '2026-11-13T12:00:00', end: '2026-11-13T12:10:00', bucket_seconds: 60,
+    thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null }, load_unload_cycles: { warn_gte: 500000, crit_gte: 700000 } },
+                  health: { healthy_gte: 90, degraded_gte: 60 } },
+    drives: { [guid]: {
+      vitals: { t: ['2026-11-13T12:00:00', '2026-11-13T12:01:00'], temp_avg: [31, 33], temp_min: [31, 33], temp_max: [31, 34],
+                read_bps: [0, 0], write_bps: [0, 0], busy_pct: [0, 0] },
+      signals: { load_unload_cycles: [{ t: '2026-11-13T12:00:00', value: 3580 }, { t: '2026-11-13T12:05:00', value: 3581 }] },
+      health: [{ t: '2026-11-13T12:00:00', health_pct: 87, health_status: 'Degraded' }],
+    } },
+    jobs: [],
+  })
+  const stubHistory = (guid: string) => {
+    const fetch = vi.fn().mockResolvedValue(fetchJsonResponse(history(guid)))
+    vi.stubGlobal('fetch', fetch)
+    return fetch
+  }
+
+  it('charts a card value\'s history in its popover: temperature', async () => {
+    const drive = makeDrive({ guid: 'd1', temp: 33 })
+    const fetch = stubHistory('d1')
+    renderCard({ drive })
+    await userEvent.click(screen.getByText('33°C'))
+    const popover = document.querySelector('.dc-popover')!
+    expect(popover).toHaveTextContent('Temperature')
+    expect(fetch).toHaveBeenCalledWith('/api/drives/history?guids=d1&range=24h', expect.anything())
+    await waitFor(() => expect(popover.querySelector('[aria-label="Temperature over time"] .tsc-line')).not.toBeNull())
+    expect(popover).toHaveTextContent('hottest 34 °C')
+  })
+
+  it('charts a footer counter with history, but not power-on hours', async () => {
+    const drive = makeDrive({ guid: 'd1', drive_type: 'SAS', load_unload_cycles: 3581, power_on_hours: 100 })
+    stubHistory('d1')
+    renderCard({ drive })
+    const stat = (label: string) => screen.getByText(label).closest('.dc-stat')!
+    expect(stat('Ld/UL')).toHaveClass('dc-trend')
+    expect(stat('Power-on')).not.toHaveClass('dc-trend')
+    await userEvent.click(stat('Ld/UL'))
+    const popover = document.querySelector('.dc-popover')!
+    await waitFor(() => expect(popover.querySelector('[aria-label="Load/unload cycles over time"] .tsc-line')).not.toBeNull())
+    expect(popover).toHaveTextContent('+1 in range')
+    expect(popover).toHaveTextContent('warning ≥ 500,000')
+  })
+
   it('shows the health overview from the health badge, without selecting the card', async () => {
+    stubHistory('d1')
     const { onSelectToggle } = renderCard({ drive: makeDrive({ health_pct: 87, health_status: 'Degraded' }) })
     await userEvent.click(screen.getByText('Degraded'))
     const popover = document.querySelector('.dc-popover')!
     expect(popover).toHaveTextContent('87')
     expect(popover).toHaveTextContent('No flagged signals')
+    expect(popover).toHaveTextContent('Health score')       // and its history under the overview
     expect(onSelectToggle).not.toHaveBeenCalled()
   })
 

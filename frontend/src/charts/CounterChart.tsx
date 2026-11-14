@@ -6,6 +6,9 @@ import { bucketLabel, counterThresholds, jobSpans, signalPoints } from "./histor
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 
+// The least a linear counter axis spans, in counts (see the yInclude below).
+const MIN_SPAN = 10
+
 /** One counter (an error count such as reallocated sectors, or a wear count
  *  such as load/unload cycles) per drive, as the running total it is: a step
  *  line. Error counts default to a log1p scale, so a drive with a thousand
@@ -13,8 +16,8 @@ import type { DriveHistoryData } from "./useDriveHistory"
  *  (usually the step that matters) still shows clearly. A wear count is never
  *  near 0 and climbs steadily, so it reads better on a linear scale fitted to
  *  the data (scale="linear"), where drives separate and slopes show. Drives
- *  that don't report the counter get no line. Threshold lines far above the data are left off (counterThresholds);
- *  the chart's frame names them. Small: these are drawn as small multiples,
+ *  that don't report the counter get no line. Threshold lines far above the
+ *  data are left off (counterThresholds); the chart's frame names them. Small: these are drawn as small multiples,
  *  so the job rail is shown but the tooltip leaves jobs out. */
 function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs = true, highlight = null, height = 130 }: {
   data: DriveHistoryData
@@ -41,6 +44,18 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
     }] : []
   })
   const { inView: thresholds } = counterThresholds(data, drives, signal)
+  // A fitted linear axis over a counter that barely moved (one drive, +1)
+  // would span a single count: fractional ticks, and a +1 drawn as a cliff.
+  // Keep it at least MIN_SPAN counts tall, centred on the data, never below 0.
+  const include = thresholds.map(th => th.value)
+  if (scale === "linear") {
+    const values = series.flatMap(s => s.points.flatMap(p => (p.v === null ? [] : [p.v])))
+    if (values.length) {
+      const lo = Math.min(...values), hi = Math.max(...values)
+      const pad = Math.max(0, (MIN_SPAN - (hi - lo)) / 2)
+      include.push(Math.max(0, Math.floor(lo - pad)), Math.ceil(hi + pad))
+    }
+  }
 
   return (
     <TimeSeriesChart
@@ -52,8 +67,8 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
       snapMs={data.bucketMs}
       height={height}
       yScale={scale}
-      // Keep the lines that are near the data in view (counterThresholds).
-      yInclude={thresholds.map(th => th.value)}
+      // Thresholds near the data, and a linear axis' least span (above).
+      yInclude={include}
       thresholds={thresholds}
       spans={showJobs ? jobSpans(data, drives) : undefined}
       formatValue={v => v.toLocaleString()}

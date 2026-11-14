@@ -15,6 +15,11 @@ import { useHoverPopover } from "./useHoverPopover"
 import { useJobTiming } from "./useJobTiming"
 import { useLongPress } from "./useLongPress"
 import Serial from "./Serial"
+import DriveTrendPopover from "./DriveTrendPopover"
+import { hasTrend } from "./charts/counters"
+import type { TrendMetric } from "./DriveTrendPopover"
+import { seriesStyle } from "./charts/drivePalette"
+import type { SeriesStyle } from "./charts/drivePalette"
 import "./DriveCard.css"
 
 interface Props {
@@ -30,6 +35,9 @@ interface Props {
   newResults?: Job[]
   /** A drive menu is open: no hover popovers, so none can open over it. */
   menuOpen?: boolean
+  /** This drive's line color in history charts (its Health > Trends color),
+   *  for the trend popovers on its values. */
+  trendStyle?: SeriesStyle
 }
 
 // How long the pointer has to sit still over a trigger before the hover
@@ -38,7 +46,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], menuOpen = false }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], menuOpen = false, trendStyle = DEFAULT_TREND_STYLE }: Props) {
   const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -103,11 +111,21 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     ),
     queued: queuedJobs.length > 0 && jobRows(queuedJobs),
     complete: newResults.length > 0 && jobRows(newResults),
-    health: <DriveOverview drive={drive} header={false} />,
-  }[pop.open ?? "task"]
-  const popoverContent = pop.open && popoverBody && createPortal(
-    <div className={`dc-popover${pop.open === "task" ? "" : " dc-popover-wide"}`} style={pop.pos} {...pop.popoverProps}>
-      {popoverBody}
+    // The overview, then the score's history.
+    health: <>
+      <DriveOverview drive={drive} header={false} />
+      <div className="dc-pop-trend"><DriveTrendPopover drive={drive} style={trendStyle} metric="health" /></div>
+    </>,
+  }[pop.open && !isTrendKey(pop.open) ? pop.open : "task"]
+  const trendMetric = pop.open && isTrendKey(pop.open) ? pop.open.slice(TREND.length) as TrendMetric : null
+  const popoverClass = trendMetric || pop.open === "health" ? " dc-popover-chart" : pop.open === "task" ? "" : " dc-popover-wide"
+  // A value with a chart opens its history: the same chart as Health >
+  // Trends, for this drive (DriveTrendPopover).
+  const trendTrigger = (metric: TrendMetric) => pop.trigger(`${TREND}${metric}`)
+  const popoverContent = pop.open && (trendMetric || popoverBody) && createPortal(
+    <div className={`dc-popover${popoverClass}`} style={pop.pos} {...pop.popoverProps}>
+      {trendMetric && <DriveTrendPopover drive={drive} style={trendStyle} metric={trendMetric} />}
+      {!trendMetric && popoverBody}
     </div>,
     document.body,
   )
@@ -171,7 +189,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
         {liveTemp !== null && (
           <>
             <span className="dc-tsep">·</span>
-            <span className="dc-si" title={drive.vitals.temp_source ? `Source: ${drive.vitals.temp_source}` : undefined}>
+            <span {...trendTrigger("temp")} className="dc-si dc-trend" title={drive.vitals.temp_source ? `Source: ${drive.vitals.temp_source}` : undefined}>
               <IconTemperature size={11} />
               <span className={`dc-sv${tempHot ? " hot" : ""}`}>{liveTemp}°C</span>
             </span>
@@ -269,7 +287,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
             const desc = SIGNALS[key]
             if (!desc) return null
             return (
-              <div key={key} className="dc-stat">
+              <div key={key} className={`dc-stat${hasTrend(key) ? " dc-trend" : ""}`} {...(hasTrend(key) ? trendTrigger(key) : {})}>
                 <div className="dc-stat-label">{desc.label}</div>
                 <SignalValue
                   className="dc-stat-value"
@@ -281,7 +299,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
             )
           })}
         </div>
-        <div className="dc-io">
+        <div {...trendTrigger("io")} className="dc-io dc-trend">
           <div className="dc-io-row rd">{formatThroughput(io.read_bytes_per_sec)}<IconArrowUp size={9} /></div>
           <div className="dc-io-row wr">{formatThroughput(io.write_bytes_per_sec)}<IconArrowDown size={9} /></div>
         </div>
@@ -290,7 +308,12 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   )
 }
 
-type PopoverKey = "task" | "queued" | "complete" | "health"
+// Trend popovers are keyed "trend:<metric>".
+const TREND = "trend:"
+type PopoverKey = "task" | "queued" | "complete" | "health" | `${typeof TREND}${TrendMetric}`
+const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => key.startsWith(TREND)
+// Without a color from the grid (e.g. in tests): the first series color.
+const DEFAULT_TREND_STYLE = seriesStyle(0)
 
 const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; label: string }> = {
   Healthy:  { bar: "green", label: "SMART OK" },

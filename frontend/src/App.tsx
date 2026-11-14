@@ -11,6 +11,7 @@ import { useUnseenResults } from "./jobHistory"
 import { JobsContext, type JobsContextValue } from "./jobsContext"
 import ConfirmProvider from "./ConfirmProvider"
 import type { Drive, Job, Settings, SortState } from "./types"
+import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import "./App.css"
 
 const EMPTY_JOBS: Job[] = []
@@ -302,6 +303,12 @@ export default function App() {
     [drives, sort, jobs],
   )
 
+  // Each drive's history-chart color, as Health > Trends assigns it, for the
+  // trend popovers on its card. Keyed on the order so the styles (and the
+  // memoized charts in an open popover) survive the 2s poll.
+  const colorKey = driveColorOrder(drives).join(",")
+  const trendStyles = useMemo(() => driveStyles(colorKey ? colorKey.split(",") : []), [colorKey])
+
   const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, runOperation, markJobsSeen }
 
   return (
@@ -341,6 +348,7 @@ export default function App() {
                 queuedJobs={queuedJobsMap.get(d.guid) ?? EMPTY_JOBS}
                 newResults={unseenByDrive.get(d.guid) ?? EMPTY_JOBS}
                 menuOpen={contextMenu !== null}
+                trendStyle={trendStyles[d.guid]}
               />
             ))}
           </div>
