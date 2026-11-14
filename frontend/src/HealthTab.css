@@ -114,6 +114,13 @@
   margin-bottom: 8px;
 }
 
+/* When the report shown was read. */
+.smart-asof {
+  font-size: 11px;
+  color: var(--t4);
+  margin: 0 0 6px;
+}
+
 /* ── Attribute list ── */
 .smart-empty {
   font-size: 12px;

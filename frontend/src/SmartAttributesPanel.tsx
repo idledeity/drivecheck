@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import type { Drive, RawSnapshot, SmartAttributeRow } from "./types"
 import { DriveChipHeader } from "./DriveChip"
+import AsOf from "./AsOf"
 
 interface Props {
   drives: Drive[]
@@ -14,12 +15,15 @@ export default function SmartAttributesPanel({ drives, selectedGuids }: Props) {
     <div className="smart-panel">
       {selectedGuids.length === 0 && <p className="smart-empty">Select one or more drives to view SMART attributes.</p>}
 
-      {selectedGuids.map(guid => (
-        <div key={guid} className="smart-drive-section">
-          <DriveHeader drive={drives.find(d => d.guid === guid)} />
-          <DriveAttributes guid={guid} />
-        </div>
-      ))}
+      {selectedGuids.map(guid => {
+        const drive = drives.find(d => d.guid === guid)
+        return (
+          <div key={guid} className="smart-drive-section">
+            <DriveHeader drive={drive} />
+            <DriveAttributes key={guid} guid={guid} refreshKey={drive?.last_polled_at} />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -28,13 +32,18 @@ function DriveHeader({ drive }: { drive?: Drive }) {
   return <DriveChipHeader drive={drive} className="smart-drive-header" />
 }
 
-export function DriveAttributes({ guid }: { guid: string }) {
+/**
+ * A drive's latest saved full SMART read (attributes and the drive's own
+ * self-test log), with when it was taken. Fetched again whenever refreshKey
+ * changes (the drive's last poll time), keeping the old one on screen meanwhile.
+ * Callers key it by guid, so another drive starts blank rather than showing
+ * the last one's report while it loads.
+ */
+export function DriveAttributes({ guid, refreshKey }: { guid: string; refreshKey?: string | null }) {
   const [snapshot, setSnapshot] = useState<RawSnapshot | null>(null)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    setSnapshot(null)
-    setNotFound(false)
     fetch(`/api/drives/${guid}/raw/latest`)
       .then(r => {
         if (r.status === 404) {
@@ -43,9 +52,13 @@ export function DriveAttributes({ guid }: { guid: string }) {
         }
         return r.json()
       })
-      .then(data => { if (data) setSnapshot(data) })
+      .then(data => {
+        if (!data) return
+        setNotFound(false)
+        setSnapshot(data)
+      })
       .catch(() => setNotFound(true))
-  }, [guid])
+  }, [guid, refreshKey])
 
   if (notFound) return <p className="smart-empty">No SMART data yet — waiting for next poll.</p>
 
@@ -59,6 +72,11 @@ export function DriveAttributes({ guid }: { guid: string }) {
 
   return (
     <>
+      {snapshot && (
+        <p className="smart-asof">
+          Full SMART read <AsOf at={snapshot.captured_at} />
+        </p>
+      )}
       {rows.length > 0 && (
         <AttrList rows={rows} />
       )}

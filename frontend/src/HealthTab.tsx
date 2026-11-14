@@ -134,7 +134,7 @@ function DriveReport({ drive }: { drive: Drive }) {
       </div>
 
       <h4 className="rep-section-title">SMART attributes</h4>
-      <DriveAttributes guid={drive.guid} />
+      <DriveAttributes key={drive.guid} guid={drive.guid} refreshKey={drive.last_polled_at} />
     </div>
   )
 }

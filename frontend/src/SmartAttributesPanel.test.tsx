@@ -36,6 +36,29 @@ describe('SmartAttributesPanel', () => {
     expect(screen.getByText('35°C')).toBeInTheDocument()
   })
 
+  it('says when the report shown was read, exact time on hover', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(snapshot({
+      smart_attributes: [{ key: 'temp', label: 'Temperature', value: '35°C', status: 'ok', detail: null }],
+    })))
+    render(<SmartAttributesPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
+    const time = await screen.findByText(/ago$/)
+    expect(time.closest('.smart-asof')).toHaveTextContent(/^Full SMART read \d+d ago$/)
+    expect(time).toHaveAttribute('dateTime', '2026-01-01T00:00:00Z')
+    expect(time.getAttribute('title')).toBeTruthy()
+  })
+
+  it('fetches again when the drive is polled, keeping the old report meanwhile', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(snapshot({
+      smart_attributes: [{ key: 'temp', label: 'Temperature', value: '35°C', status: 'ok', detail: null }],
+    })))
+    const drive = makeDrive({ guid: 'd1', last_polled_at: '2026-01-01T00:00:00Z' })
+    const { rerender } = render(<SmartAttributesPanel drives={[drive]} selectedGuids={['d1']} />)
+    await screen.findByText('Temperature')
+    rerender(<SmartAttributesPanel drives={[{ ...drive, last_polled_at: '2026-01-01T00:30:00Z' }]} selectedGuids={['d1']} />)
+    expect(screen.getByText('Temperature')).toBeInTheDocument()
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+  })
+
   it('sorts attribute rows by severity: crit, then warn, then ok', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(snapshot({
       smart_attributes: [
