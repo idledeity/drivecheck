@@ -8,8 +8,6 @@ export interface ChartPoint { t: number; v: number | null }
 export interface ChartSeries {
   id: string
   label: string
-  /** End-of-line label; defaults to label. */
-  shortLabel?: string
   color: string
   dash?: string
   points: ChartPoint[]

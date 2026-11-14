@@ -23,9 +23,8 @@ function ThroughputChart({ data, drives, showJobs = true, height = 160 }: {
     return {
       id: d.guid,
       label: d.label,
-      shortLabel: d.shortLabel,
       ...d.style,
-      tipLabel: <DriveChip drive={d.drive} serial="tail" lead={<LineKey {...d.style} />} />,
+      tipLabel: <DriveChip drive={d.drive} serial="tail" thin lead={<LineKey {...d.style} />} />,
       points: v ? v.t.map((t, i) => ({ t, v: (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0) })) : [],
     }
   })
@@ -38,9 +37,6 @@ function ThroughputChart({ data, drives, showJobs = true, height = 160 }: {
       end={data.end}
       snapMs={data.bucketMs}
       height={height}
-      // Same right margin as the other charts it's stacked with, so their
-      // time axes (and synced crosshairs) line up.
-      endLabels
       yMin={0}
       // At least 1 MB/s tall, so idle drives sit on the baseline instead of
       // a few KB/s of background reads filling the chart.

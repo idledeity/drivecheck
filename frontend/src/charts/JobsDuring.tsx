@@ -10,7 +10,7 @@ export default function JobsDuring({ jobs }: { jobs: { id: string; name: string;
       {jobs.map(j => (
         <div key={j.id} className="jobs-during-row">
           <span className="jobs-during-name">{j.name}</span>
-          <DriveChip drive={j.drive.drive} serial="tail" lead={<LineKey {...j.drive.style} />} />
+          <DriveChip drive={j.drive.drive} serial="tail" thin lead={<LineKey {...j.drive.style} />} />
         </div>
       ))}
     </div>

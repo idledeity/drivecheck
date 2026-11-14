@@ -46,8 +46,6 @@
 /* 2px ring in the surface color keeps dots legible where they cross lines. */
 .tsc-dot { stroke: var(--chart); stroke-width: 2; pointer-events: none; }
 
-.tsc-end-label { font-size: 10.5px; fill: var(--t3); }
-
 .tsc-band.tone-ok   { fill: rgba(20, 192, 80, 0.07); }
 .tsc-band.tone-warn { fill: rgba(255, 178, 46, 0.06); }
 .tsc-band.tone-crit { fill: rgba(255, 112, 112, 0.06); }
@@ -67,8 +65,11 @@
   position: absolute;
   top: 6px;
   z-index: 3;
+  /* Its own width, not whatever room is left beside the crosshair: it's
+     measured first, then placed (TimeSeriesChart). */
+  width: max-content;
   min-width: 150px;
-  max-width: min(460px, 90%);
+  max-width: min(460px, 100%);
   pointer-events: none;
   background: #14161b;
   border: 1px solid var(--bd2);
@@ -77,25 +78,33 @@
   padding: 7px 9px;
   font-size: 12px;
 }
+/* On a narrow chart: under it, in the page flow, full width. Also a chip
+   list's size container, so the chips drop the maker when it's tight. */
+.tsc-tip.below {
+  position: static;
+  width: auto;
+  max-width: none;
+  margin-top: 6px;
+  background: none;
+  border-color: var(--chart-grid);
+  box-shadow: none;
+  container: drive-chips / inline-size;
+}
 .tsc-tip-time { color: var(--t4); font-size: 11px; margin-bottom: 4px; }
 .tsc-tip-none { color: var(--t5); }
-.tsc-tip-row {
+/* One grid for all rows, so every value starts on the same line. The label
+   column gives way first: chip names ellipsize before values wrap. */
+.tsc-tip-rows {
   display: grid;
-  grid-template-columns: 12px auto minmax(0, 1fr);
-  gap: 7px;
+  grid-template-columns: minmax(0, max-content) auto;
+  gap: 3px 12px;
   align-items: center;
-  line-height: 1.6;
+  line-height: 1.5;
 }
-.tsc-tip-row.custom {
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  line-height: 1.4;
-  padding: 1px 0;
-}
-.tsc-tip-row.custom > .tsc-tip-value { text-align: right; }
-.tsc-tip-row.custom > :last-child { justify-self: start; min-width: 0; }
+.tsc-tip-row { display: contents; }
+.tsc-tip-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.tsc-tip-name { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsc-tip-value { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tsc-tip-label { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsc-tip-extra {
   color: var(--t4);
   font-size: 11px;

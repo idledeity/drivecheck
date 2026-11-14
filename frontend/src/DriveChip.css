@@ -13,6 +13,15 @@
   padding: 2px 11px 2px 9px;
 }
 
+/* Thin: the same contents without the pill, for dense lists (chart tooltips). */
+.drive-chip.thin {
+  gap: 5px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
 /* Health status dot; the status name is in the title and aria-label. */
 .drive-chip-health {
   width: 6px;

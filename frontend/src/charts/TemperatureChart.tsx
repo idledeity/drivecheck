@@ -24,9 +24,8 @@ function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
     return {
       id: d.guid,
       label: d.label,
-      shortLabel: d.shortLabel,
       ...d.style,
-      tipLabel: <DriveChip drive={d.drive} serial="tail" lead={<LineKey {...d.style} />} />,
+      tipLabel: <DriveChip drive={d.drive} serial="tail" thin lead={<LineKey {...d.style} />} />,
       points: v ? v.t.map((t, i) => ({ t, v: roundTemp(v.temp_avg[i]) })) : [],
     }
   })
@@ -39,7 +38,6 @@ function TemperatureChart({ data, drives, showJobs = true, height = 200 }: {
       end={data.end}
       snapMs={data.bucketMs}
       height={height}
-      endLabels
       // Keep the warning line in view (with a little headroom) even while
       // every drive runs well below it, so "how close" reads at a glance.
       yInclude={warn === null ? undefined : [warn + 2]}

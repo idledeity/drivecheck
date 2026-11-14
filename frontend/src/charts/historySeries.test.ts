@@ -15,7 +15,7 @@ const data = (jobs: HistoryJob[]) => ({ start: T0, end: T0 + 60 * MIN, bucketMs:
 
 describe('chartDrive', () => {
   it('names a drive by label or model plus its serial tail', () => {
-    expect(chartDrive('d1', makeDrive({ model: 'Exos X16', serial: 'ZTM0FF02' }), style)).toMatchObject({ label: 'Exos X16 FF02', shortLabel: 'FF02' })
+    expect(chartDrive('d1', makeDrive({ model: 'Exos X16', serial: 'ZTM0FF02' }), style)).toMatchObject({ label: 'Exos X16 FF02' })
     expect(chartDrive('d1', makeDrive({ label: 'booop', model: 'X316', serial: 'ZAD1V2H0' }), style).label).toBe('booop V2H0')
     expect(chartDrive('gone', undefined, style).label).toBe('Unknown drive')
   })

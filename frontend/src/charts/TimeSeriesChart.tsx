@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover } from "./chartHover"
+import { useChartHover, useLeftGutter } from "./chartHover"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
 import { seriesPaths, valueAt, nearest } from "./chartGeometry"
@@ -52,49 +52,56 @@ interface Props {
   snapMs?: number
   /** Lines break across gaps between points longer than this; default 1.5 × snapMs. */
   gapMs?: number
-  endLabels?: boolean
   /** Extra tooltip lines for the hovered time, after the series rows. */
   tooltipExtra?: (t: number) => ReactNode
   formatTime?: (t: number) => string
   className?: string
 }
 
-// Margins around the plot area, in px: the left one holds the y tick labels,
-// the bottom one the x tick labels. Everything is drawn in real pixels (the
-// viewBox matches the measured width), so text and 2px lines never scale.
-const M = { top: 10, right: 10, bottom: 22, left: 40 }
+// Margins around the plot area, in px: the bottom one holds the x tick
+// labels; the right one just fits the end dots. The left one holds the y tick
+// labels and is sized to them (yGutter). Everything is drawn in real pixels
+// (the viewBox matches the measured width), so text and 2px lines never scale.
+const M = { top: 10, right: 6, bottom: 22 }
+// Gap between a y tick label and the plot.
+const TICK_GAP = 6
 // Spans (jobs) are also marked in a thin neutral rail just above the plot —
 // not on its top edge, where a span covering the whole range would read as a
 // line of data. Overlapping spans simply merge into one bar.
 const RAIL = { gap: 3, height: 2 }
-// Extra right margin when line ends get a text label.
-const END_LABEL_ROOM = 50
 const FALLBACK_WIDTH = 600   // before the first measure (and in jsdom, which has no layout)
+// Below this chart width the tooltip would cover most of the plot (and run
+// off a phone screen), so the readings show under the chart instead.
+const TIP_BELOW_WIDTH = 520
 
 export default function TimeSeriesChart(props: Props) {
   const {
-    series, start, end, ariaLabel, height = 180, snapMs, endLabels = false,
+    series, start, end, ariaLabel, height = 180, snapMs,
     formatY = formatTick, formatValue = v => formatTick(v), formatTime = momentLabel,
   } = props
   // Identifies this chart as the hover source, so in a ChartHoverSync group
   // only the chart under the pointer shows its tooltip.
   const id = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
+  const tipRef = useRef<HTMLDivElement>(null)
   const width = useWidth(wrapRef)
   const { hover, setHover } = useChartHover()
 
   // Recomputed each render: a few hundred points per series is cheap, and
   // hover re-renders only move the crosshair's inputs.
-  const right = M.right + (endLabels ? END_LABEL_ROOM : 0)
-  const plotW = Math.max(40, width - M.left - right)
   const plotH = Math.max(20, height - M.top - M.bottom)
+  const domain = yDomain(props, plotH)
+  // Left margin: just wide enough for this chart's y tick labels — or, in a
+  // ChartHoverSync group, for the widest of any chart's, so every chart's
+  // plot starts at the same x and their crosshairs line up.
+  const ML = useLeftGutter(id, TICK_GAP + Math.ceil(Math.max(0, ...domain.ticks.map(v => tickTextWidth(formatY(v))))))
+  const plotW = Math.max(40, width - ML - M.right)
   // x: time (ms) → px, and toT, its inverse, for turning the pointer into a time.
-  const x = (t: number) => M.left + ((t - start) / (end - start || 1)) * plotW
-  const toT = (px: number) => start + ((px - M.left) / plotW) * (end - start)
+  const x = (t: number) => ML + ((t - start) / (end - start || 1)) * plotW
+  const toT = (px: number) => start + ((px - ML) / plotW) * (end - start)
   // y: value → px. SVG's y grows downwards, so the domain's low end maps to
   // the plot's bottom edge. Values outside a fixed yMin/yMax are clamped to
   // the edge rather than drawn outside the plot.
-  const domain = yDomain(props, plotH)
   const rawY = yScale(props.yScale ?? "linear", domain.lo, domain.hi, M.top + plotH, M.top)
   const y = (v: number) => Math.min(M.top + plotH, Math.max(M.top, rawY(v)))
   // Roughly one x tick per 60px of plot width.
@@ -113,9 +120,9 @@ export default function TimeSeriesChart(props: Props) {
   // Overlapping spans are merged first: the shade is translucent, so stacked
   // copies would add up to a bright streak wherever several jobs overlap.
   const spanBoxes = mergeSpans((props.spans ?? []).flatMap(sp => {
-    const a = Math.max(M.left, x(Math.max(sp.start, start)))
-    const b = Math.min(M.left + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < M.left || a > M.left + plotW ? [] : [{ id: sp.id, x: a, w: Math.max(2, b - a) }]
+    const a = Math.max(ML, x(Math.max(sp.start, start)))
+    const b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
+    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, x: a, w: Math.max(2, b - a) }]
   }))
 
   // A missing bucket between two points means no readings (drive absent,
@@ -186,19 +193,25 @@ export default function TimeSeriesChart(props: Props) {
   // draws the tooltip.
   const showTip = hoverT !== null && hover?.source === id
   const hx = hoverT === null ? 0 : x(hoverT)
+  const tipBelow = width < TIP_BELOW_WIDTH
 
-  // End labels only when none would collide: nudging labels apart detaches
-  // them from their lines, so when ends crowd together, the tooltip (and the
-  // chart's legend) carries identity instead.
-  const ends = endLabels ? paths.filter(p => p.last) : []
-  const endYs = ends.map(p => p.last!.y).sort((a, b) => a - b)
-  const endsClear = endYs.every((v, i) => i === 0 || v - endYs[i - 1] >= 12)
+  // A floating tooltip sits right of the crosshair, or left of it where it
+  // would run past the chart's right edge, and is kept inside the chart
+  // either way. Placed after layout, since that needs the tooltip's width;
+  // still before paint, so it never shows in the wrong place.
+  useLayoutEffect(() => {
+    const tip = tipRef.current
+    if (!tip || tipBelow) return
+    const w = tip.offsetWidth
+    const at = hx + 12 + w <= width ? hx + 12 : hx - 12 - w
+    tip.style.left = `${Math.max(0, Math.min(at, width - w))}px`
+  })
 
   return (
     <div ref={wrapRef} className={`tsc${props.className ? ` ${props.className}` : ""}`}>
       {/* Layers are painted in order, back to front: bands, job shading,
-          grid and axes, job rail, thresholds, areas, lines, end dots and
-          labels, then the hover crosshair on top. */}
+          grid and axes, job rail, thresholds, areas, lines, end dots, then
+          the hover crosshair on top. */}
       <svg
         className="tsc-svg"
         width={width}
@@ -209,7 +222,9 @@ export default function TimeSeriesChart(props: Props) {
         tabIndex={0}
         onPointerMove={e => hoverAt(snap(pointerT(e)))}
         onPointerDown={e => hoverAt(snap(pointerT(e)))}   // a tap on touch screens
-        onPointerLeave={() => hoverAt(null)}
+        // A lifted finger "leaves" too, which would clear a tap's reading as
+        // soon as it showed; on touch it stays until focus moves (a tap elsewhere).
+        onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
         onFocus={() => { if (!hover) hoverAt(latest()) }}   // keyboard users get a reading straight away
         onBlur={() => hoverAt(null)}
         onKeyDown={onKeyDown}
@@ -218,9 +233,9 @@ export default function TimeSeriesChart(props: Props) {
           const top = y(Math.max(b.from, b.to)), bottom = y(Math.min(b.from, b.to))
           return (
             <g key={`band-${i}`}>
-              <rect className={`tsc-band tone-${b.tone}`} x={M.left} y={top} width={plotW} height={Math.max(0, bottom - top)} />
+              <rect className={`tsc-band tone-${b.tone}`} x={ML} y={top} width={plotW} height={Math.max(0, bottom - top)} />
               {b.label && plotW > 360 && bottom - top >= 14 && (
-                <text className="tsc-band-label" x={M.left + 4} y={top + 11}>{b.label}</text>
+                <text className="tsc-band-label" x={ML + 4} y={top + 11}>{b.label}</text>
               )}
             </g>
           )
@@ -232,15 +247,15 @@ export default function TimeSeriesChart(props: Props) {
 
         {layout.ticks.map((v, i) => (
           <g key={`y-${v}`}>
-            <line className={i === 0 ? "tsc-baseline" : "tsc-grid"} x1={M.left} x2={M.left + plotW} y1={y(v)} y2={y(v)} />
-            {labelled.has(v) && <text className="tsc-tick" x={M.left - 6} y={y(v) + 3.5} textAnchor="end">{formatY(v)}</text>}
+            <line className={i === 0 ? "tsc-baseline" : "tsc-grid"} x1={ML} x2={ML + plotW} y1={y(v)} y2={y(v)} />
+            {labelled.has(v) && <text className="tsc-tick" x={ML - TICK_GAP} y={y(v) + 3.5} textAnchor="end">{formatY(v)}</text>}
           </g>
         ))}
 
         {layout.xTicks.map(tk => {
           const tx = x(tk.t)
           // Skip ticks so close to an edge that their label would hang off it.
-          if (tx < M.left + 14 || tx > M.left + plotW - 14) return null
+          if (tx < ML + 14 || tx > ML + plotW - 14) return null
           return (
             <g key={`x-${tk.t}`}>
               <line className="tsc-baseline" x1={tx} x2={tx} y1={M.top + plotH} y2={M.top + plotH + 4} />
@@ -260,8 +275,8 @@ export default function TimeSeriesChart(props: Props) {
           if (th.value < layout.lo || th.value > layout.hi) return null
           return (
             <g key={`th-${th.value}`} className={`tsc-threshold tone-${th.tone}`}>
-              <line x1={M.left} x2={M.left + plotW} y1={ty} y2={ty} />
-              <text x={M.left + 4} y={ty - 4}>{th.label}</text>
+              <line x1={ML} x2={ML + plotW} y1={ty} y2={ty} />
+              <text x={ML + 4} y={ty - 4}>{th.label}</text>
             </g>
           )
         })}
@@ -275,9 +290,6 @@ export default function TimeSeriesChart(props: Props) {
         {paths.map(({ s, last }) => last && (
           <circle key={`end-${s.id}`} className="tsc-dot" cx={last.x} cy={last.y} r={4} fill={s.color} />
         ))}
-        {endsClear && ends.map(({ s, last }) => (
-          <text key={`label-${s.id}`} className="tsc-end-label" x={last!.x + 8} y={last!.y + 3.5}>{s.shortLabel ?? s.label}</text>
-        ))}
 
         {hoverT !== null && (
           <g className="tsc-hover">
@@ -289,32 +301,30 @@ export default function TimeSeriesChart(props: Props) {
         )}
       </svg>
 
-      {/* HTML, not SVG, so text wraps and sizes naturally. It sits beside the
-          crosshair, flipping to the left side past 60% of the width so it
-          doesn't run off the right edge. */}
+      {/* HTML, not SVG, so text wraps and sizes naturally. Floats beside the
+          crosshair (placed above), or on a narrow chart sits under it in the
+          page flow, full width. Rows are label then value, on one grid so
+          the values line up in a column. */}
       {showTip && (
-        <div
-          className="tsc-tip"
-          role="status"
-          style={hx > width * 0.6 ? { right: width - hx + 12 } : { left: hx + 12 }}
-        >
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role="status">
           <div className="tsc-tip-time">{formatTime(hoverT)}</div>
           {readings.length === 0 && <div className="tsc-tip-none">No data</div>}
-          {/* Highest first, so rows line up with the lines' vertical order. */}
-          {[...readings].sort((a, b) => b.v - a.v).map(r => (
-            r.s.tipLabel ? (
-              <div key={r.s.id} className="tsc-tip-row custom">
-                <span className="tsc-tip-value">{formatValue(r.v, r.s, hoverT)}</span>
-                {r.s.tipLabel}
-              </div>
-            ) : (
-              <div key={r.s.id} className="tsc-tip-row">
-                <LineKey color={r.s.color} dash={r.s.dash} width={12} />
-                <span className="tsc-tip-value">{formatValue(r.v, r.s, hoverT)}</span>
-                <span className="tsc-tip-label">{r.s.label}</span>
-              </div>
-            )
-          ))}
+          {readings.length > 0 && (
+            <div className="tsc-tip-rows">
+              {/* Highest first, so rows line up with the lines' vertical order. */}
+              {[...readings].sort((a, b) => b.v - a.v).map(r => (
+                <div key={r.s.id} className="tsc-tip-row">
+                  <span className="tsc-tip-label">
+                    {r.s.tipLabel ?? <>
+                      <LineKey color={r.s.color} dash={r.s.dash} width={12} />
+                      <span className="tsc-tip-name">{r.s.label}</span>
+                    </>}
+                  </span>
+                  <span className="tsc-tip-value">{formatValue(r.v, r.s, hoverT)}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {props.tooltipExtra && <TipExtra>{props.tooltipExtra(hoverT)}</TipExtra>}
         </div>
       )}
@@ -328,6 +338,15 @@ function TipExtra({ children }: { children: ReactNode }) {
 }
 
 // ── geometry ─────────────────────────────────────────────────────────────────
+
+/** A y tick label's width in px at the .tsc-tick size (10.5px, tabular
+ *  digits), estimated per character — near enough for sizing the gutter, and
+ *  the same in tests (jsdom has no text layout) as in the browser. */
+function tickTextWidth(text: string): number {
+  let w = 0
+  for (const ch of text) w += /[0-9]/.test(ch) ? 6.2 : /[.,: ]/.test(ch) ? 3 : ch === "°" ? 4.5 : 7.5
+  return w
+}
 
 /** The y axis: its ticks and the [lo, hi] it spans. A log1p axis always runs
  *  from 0 to the decade at or above the largest value. A linear one fits the

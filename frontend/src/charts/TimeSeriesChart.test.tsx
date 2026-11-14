@@ -81,12 +81,44 @@ describe('TimeSeriesChart', () => {
     expect(screen.getByText('45 °C warning')).toBeInTheDocument()
   })
 
-  it('labels line ends only when they would not collide', () => {
-    const { rerender } = render(chart({ endLabels: true }))
-    expect(screen.getByText('Exos FF02', { selector: '.tsc-end-label' })).toBeInTheDocument()
-    const close: ChartSeries = { ...b, points: a.points.map(p => ({ t: p.t, v: (p.v ?? 0) + 0.01 })) }
-    rerender(chart({ series: [a, close], endLabels: true }))
-    expect(document.querySelector('.tsc-end-label')).toBeNull()
+  it('sizes the left margin to its tick labels, the widest of a synced group', () => {
+    const plotLeft = (svg: Element) => Number(svg.querySelector('.tsc-baseline')!.getAttribute('x1'))
+    render(<>{chart()}{chart({ ariaLabel: 'Wide', formatY: v => `${v * 1000}` })}</>)
+    const [narrow, wide] = svgs()
+    expect(plotLeft(narrow)).toBeLessThan(plotLeft(wide))
+
+    render(<ChartHoverSync>{chart({ ariaLabel: 'S1' })}{chart({ ariaLabel: 'S2', formatY: v => `${v * 1000}` })}</ChartHoverSync>)
+    expect(plotLeft(screen.getByRole('img', { name: 'S1' }))).toBe(plotLeft(wide))
+    expect(plotLeft(screen.getByRole('img', { name: 'S2' }))).toBe(plotLeft(wide))
+  })
+
+  it('puts the label before the value on each tooltip row', () => {
+    render(chart())
+    fireEvent.focus(svgs()[0])
+    const row = tip()!.querySelector('.tsc-tip-row')!
+    expect([...row.children].map(c => c.className)).toEqual(['tsc-tip-label', 'tsc-tip-value'])
+    expect(row).toHaveTextContent('booop40 °C')
+  })
+
+  it('keeps a tap\'s reading when the finger lifts, but clears when the mouse leaves', () => {
+    render(chart())
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'touch' })
+    fireEvent.pointerLeave(svgs()[0], { pointerType: 'touch' })
+    expect(tip()).not.toBeNull()
+    fireEvent.pointerLeave(svgs()[0], { pointerType: 'mouse' })
+    expect(tip()).toBeNull()
+  })
+
+  it('shows the readings under a narrow chart instead of floating over it', () => {
+    // jsdom has no layout (clientWidth is 0): shadow it with a phone-ish width.
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 360 })
+    try {
+      render(chart())
+      fireEvent.focus(svgs()[0])
+      expect(tip()).toHaveClass('below')
+    } finally {
+      delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth
+    }
   })
 
   it('merges overlapping spans into one shade', () => {

@@ -12,8 +12,6 @@ export interface ChartDrive {
   guid: string
   /** "Exos X16 FF02": name plus serial tail, for tooltips and the change log. */
   label: string
-  /** "FF02": for line-end labels, where room is short. */
-  shortLabel: string
   style: SeriesStyle
   /** The drive record, for drive chips (absent if the drive isn't known).
    *  Charts are memoized on names, so its live fields (health) can lag the
@@ -27,7 +25,6 @@ export function chartDrive(guid: string, drive: Drive | undefined, style: Series
   return {
     guid,
     label: tail ? `${name} ${tail}` : name,
-    shortLabel: tail ?? name.slice(0, 8),
     style,
     drive,
   }

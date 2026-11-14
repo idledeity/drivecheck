@@ -714,7 +714,7 @@ history view (the Health > Trends sub-tab, and later drive-card popovers) is a
 small component over these:
 - `TimeSeriesChart` — generic: line/step series (step holds to the chart end),
   area wash, `log1p` y scale, threshold lines, status bands, shaded spans (jobs),
-  end labels (only when they don't collide), crosshair + tooltip reading every
+  crosshair + tooltip reading every
   series at the hovered time, arrow-key stepping. `snapMs` snaps the crosshair
   to bucket starts; it stops at the newest line point (the rollup lag).
 - `ChartHoverSync` — optional: charts inside share one crosshair; the tooltip
@@ -738,9 +738,11 @@ small component over these:
   subtitle, callout, dims when `stale`). `historySeries.ts` holds the glue:
   `chartDrive` (name + serial tail), job spans and the tooltip's job line,
   callout helpers.
-- Charts stacked under one `ChartHoverSync` must share the right margin
-  (`endLabels` on all or none), or their time axes — and crosshairs — won't
-  line up. Jobs are neutral (no drive color — overlapping
+- Left margin is sized to each chart's y tick labels; under a `ChartHoverSync`
+  every chart takes the group's widest (`useLeftGutter`), so stacked plots and
+  crosshairs line up. Tooltip rows are drive chip (`thin`) then value, on one
+  grid; under 520px chart width the readings sit below the chart instead of
+  floating, and a touch reading stays until focus moves. Jobs are neutral (no drive color — overlapping
   jobs of different drives would show whichever drew last): a light shade over
   the plot plus a thin grey rail just above it, not on its top edge, where a job
   spanning the range would look like data. The tooltip names job and drive.

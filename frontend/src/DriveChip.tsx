@@ -18,6 +18,9 @@ interface Props {
   // the chip doubles as a legend entry and a second colored mark would compete
   // with it. Health stays in the hover title.
   lead?: ReactNode
+  // No pill (border, fill, padding): for dense lists like a chart tooltip,
+  // where a stack of outlined pills is more frame than content.
+  thin?: boolean
 }
 
 const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Degraded: "warn", Failing: "crit" }
@@ -27,10 +30,11 @@ const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Degraded: "warn", 
 // shortens the serial to its last four characters when space is tight, then
 // drops the manufacturer (DriveChip.css). The full details are always in the
 // hover title.
-export default function DriveChip({ drive, blocked = false, serial = "auto", lead }: Props) {
+export default function DriveChip({ drive, blocked = false, serial = "auto", lead, thin = false }: Props) {
+  const cls = `drive-chip${thin ? " thin" : ""}`
   if (!drive) {
     return (
-      <span className="drive-chip">
+      <span className={cls}>
         {lead ?? <span className="drive-chip-health none" role="img" aria-label="Not rated" />}
         <span className="drive-chip-name">Unknown drive</span>
       </span>
@@ -51,7 +55,7 @@ export default function DriveChip({ drive, blocked = false, serial = "auto", lea
     .filter(Boolean)
     .join(" · ")
   return (
-    <span className={`drive-chip${blocked ? " blocked" : ""}`} title={title}>
+    <span className={`${cls}${blocked ? " blocked" : ""}`} title={title}>
       {lead ?? (
         <span
           className={`drive-chip-health ${HEALTH_CLASS[drive.health_status ?? ""] ?? "none"}`}

@@ -31,6 +31,11 @@
 .chart-card-callout b { color: var(--t1); font-weight: 600; }
 .chart-card-callout .muted { color: var(--t5); }
 
+/* Phones: every px of width goes to the plot. */
+@media (max-width: 640px) {
+  .chart-card { padding: 8px 8px 6px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chart-card { transition: none; }
 }
