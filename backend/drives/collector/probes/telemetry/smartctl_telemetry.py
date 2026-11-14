@@ -72,6 +72,10 @@ def _map_ata(data: dict) -> DCSignals:
         uncorrected=attrs.get(0xC6),
         crc_errors=attrs.get(0xC7),
         reallocated_events=attrs.get(0xC4),
+        # 193 Load_Cycle_Count: heads parked onto / loaded off the ramp. A
+        # plain count on the drives seen (Seagate Exos, HP/WD). Not 192
+        # (Power-Off_Retract_Count), which counts emergency retracts only.
+        load_unload_cycles=attrs.get(0xC1),
         smart_passed=data.get("smart_status", {}).get("passed"),
     )
 

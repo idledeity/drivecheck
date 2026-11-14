@@ -127,6 +127,8 @@ class DCSignals:
     attr C6 raw         → uncorrected        ← scsi_error_counter_log uncorrected
     attr C7 raw         → crc_errors         ← non-medium error count
     attr C4 raw         → reallocated_events ← (ATA only; None for SAS)
+    attr C1 raw         → load_unload_cycles ← scsi_start_stop_cycle_counter
+                                                .accumulated_load_unload_cycles
     smart overall       → smart_passed       ← smart_status.passed
     """
     power_on_hours: int      | None = None
@@ -136,7 +138,7 @@ class DCSignals:
     uncorrected: int         | None = None
     crc_errors: int          | None = None
     reallocated_events: int  | None = None
-    load_unload_cycles: int  | None = None   # SAS only; None for ATA/NVMe
+    load_unload_cycles: int  | None = None   # ATA (0xC1) and SAS; None for NVMe
     smart_passed: bool       | None = None
 
 
