@@ -160,8 +160,10 @@ activity or job execution.
 
 **Polling intervals (per-channel, phase-staggered):**
 - Configurable in `config.yaml` under `collector.poll_intervals` — currently
-  `telemetry` (default 300s: signals + heartbeat), `snapshot` (default 14400s/4h:
-  raw smartctl JSON persistence), `vitals` (default 10s: cheap temperature +
+  `telemetry` (default 1800s: the attribute read, `smartctl -A -H`, via each
+  probe's optional `run_attributes()`; busy-gated, see below), `snapshot`
+  (default 21600s/6h: the full read, `smartctl -a`, saved as a raw snapshot,
+  runs even when idle), `vitals` (default 10s: cheap temperature +
   disk IO activity, written to drive_vitals), and `traits` (default 86400s/24h:
   re-run traits probes for already-known drives). Drive discovery runs on its own
   `collector.scan_interval` (default 300s), unstaggered.
@@ -173,6 +175,19 @@ activity or job execution.
   `collector.py`) — no separate cooldown or `last_run_at` tracking. If the natural
   next slot would land less than half an interval away (e.g. right after a forced
   refresh), it's pushed out by one more interval — this is the only debounce.
+- **SMART reads wear parked drives.** On a drive whose heads have parked (Exos
+  parks after ~2 min idle) every smartctl command except `-i` loads them — one
+  load/unload cycle per invocation, whatever it reads (measured 2026-11-13; the
+  old 5-min `-a` cost ~288 cycles/day per Exos). So the `telemetry` read only
+  runs when vitals saw I/O within `collector.smart_activity_window` (default
+  60s; 0 = ungated); otherwise it stays due until the drive is busy. A drive
+  vitals can't measure I/O on counts as busy. A full read (scheduled, a job's
+  capture, the Probe button / `/api/drives/refresh`) pushes both channels out.
+  SMART passthrough does not show up in `/sys/class/block/*/stat`, so our own
+  reads never make a drive look busy. On restart each drive's latest raw
+  snapshot is restored as its live state (`_restore_snapshot`), so a restart
+  reads nothing until the full read falls due. Never add frequent smartctl
+  polling of idle drives.
 - `POST /api/drives/refresh` marks the `telemetry` channel as due now and ticks
   immediately; the normal due-check + debounce handles the rest, so a manual
   refresh can't destroy staggering or double-fire. An optional JSON body
@@ -629,7 +644,7 @@ CREATE INDEX idx_drive_raw_snapshots_lookup ON drive_raw_snapshots (drive_guid, 
 
 Implemented in `backend/db.py`; written via `db.record_raw_snapshot()` from
 `snapshot.extras` (currently `{"smartctl": <full -a -j output>}`), on each drive's
-`snapshot` channel (default 14400s/4h) rather than every telemetry poll — this keeps
+`snapshot` channel's full read (default 21600s/6h) rather than every attribute read — this keeps
 table growth bounded. `/api/drives/<guid>/raw/latest` (and `SmartAttributesPanel`)
 can therefore lag the live signals by up to one `snapshot` interval. Splitting
 `smart_attributes` persistence onto the `telemetry` cadence is a possible future
@@ -849,8 +864,8 @@ collector:
   max_workers: 4          # thread pool size for per-drive channel polling
   probe_timeout: 30       # seconds — subprocess timeout for smartctl calls
   poll_intervals:
-    telemetry: 300     # seconds — signals + heartbeat, phase-staggered per drive
-    snapshot: 14400    # seconds — raw smartctl JSON persistence, phase-staggered per drive
+    telemetry: 1800    # seconds — attribute read (-A -H), only while the drive is busy
+    snapshot: 21600    # seconds — full read (-a), saved as a raw snapshot, even when idle
     vitals: 10         # seconds — cheap temp + disk IO activity, phase-staggered per drive
     traits: 86400      # seconds — re-run traits probes for already-known drives
   scan_probes:

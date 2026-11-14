@@ -12,6 +12,22 @@ the drive's position in the sorted GUID list — see _compute_next_due. Drive
 discovery (scan + reconciliation) runs on its own, non-staggered interval
 (collector.scan_interval).
 
+SMART reads are kept rare on purpose: on a drive whose heads have parked
+(Seagate Exos parks after ~2 min idle) every smartctl command except -i loads
+them again — one load/unload cycle per read, whatever the read asks for. So:
+  - "vitals" (10 s) never touches SMART where hwmon has the temperature: sysfs
+    I/O counters, hwmon, mounts.
+  - "telemetry" is the attribute read (smartctl -A -H, the probes'
+    run_attributes): due every poll_intervals.telemetry, but it only runs once
+    vitals has seen the drive do I/O within collector.smart_activity_window,
+    i.e. while its heads are loaded and the read is free. An idle drive's read
+    stays pending until it is busy again, or a full read covers it.
+  - "snapshot" is the full read (smartctl -a), saved as a raw snapshot, on a
+    fixed interval whatever the drive is doing; with jobs' before/after
+    captures and the Probe button, it is the only read that can wake a drive.
+  - After a restart each drive's latest saved snapshot is its live state, so
+    a restart doesn't read every drive again.
+
 GUIDs are derived from the drive's serial number (uuid5), so they are stable
 across reboots even if device paths change. Drives with no serial fall back
 to the device name as the key.
@@ -44,7 +60,9 @@ from database import db
 from analysis.descriptor_rank import score_descriptor
 from analysis.health import score_health
 from drives.tools.timeout import ProbeTimeout
-from drives.drive_models import DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTraits, DriveVitals
+from drives.drive_models import (
+    DCSignals, DriveContext, DriveDescriptor, DriveSnapshot, DriveState, DriveTelemetry, DriveTraits, DriveVitals,
+)
 from drives.collector.probes.vitals.block_device import run as resolve_block_device
 from drives.collector import probe_registry
 
@@ -110,14 +128,26 @@ cfg.register("collector.probe_timeout",
     min=1, max=600, restart_required=True,
 )
 cfg.register("collector.poll_intervals.telemetry",
-    default=300, type="int", label="Telemetry interval",
-    section="Collector", description="Seconds between signals + heartbeat polls.",
+    default=1800, type="int", label="Attribute read interval",
+    section="Collector",
+    description="Seconds between SMART attribute reads (smartctl -A). A read only runs while the "
+                "drive is busy (see the activity window), so it never wakes an idle drive.",
     min=1, max=86400, restart_required=True,
 )
 cfg.register("collector.poll_intervals.snapshot",
-    default=14400, type="int", label="Snapshot interval",
-    section="Collector", description="Seconds between raw smartctl JSON snapshot persistence.",
-    min=1, max=604800, restart_required=True,
+    default=21600, type="int", label="Full SMART read interval",
+    section="Collector",
+    description="Seconds between full SMART reads (smartctl -a, with the self-test and error logs), "
+                "each saved as a snapshot. Runs even on an idle drive, which on drives that park their "
+                "heads costs one load/unload cycle.",
+    min=60, max=604800, restart_required=True,
+)
+cfg.register("collector.smart_activity_window",
+    default=60, type="int", label="Activity window",
+    section="Collector",
+    description="An attribute read only runs if the drive did I/O within this many seconds, while its "
+                "heads are still loaded. 0 reads on schedule even when the drive is idle.",
+    min=0, max=3600, restart_required=True,
 )
 cfg.register("collector.poll_intervals.vitals",
     default=10, type="int", label="Vitals interval",
@@ -186,6 +216,7 @@ class Collector:
         max_workers: int,
         probe_timeout: int,
         keep_raw_vitals_days: int | None = None,
+        activity_window: int = 0,
     ):
         self._scan_interval = scan_interval
         self._poll_intervals = poll_intervals  # {"telemetry": ..., "snapshot": ...}
@@ -207,6 +238,11 @@ class Collector:
         # None: raw vitals follow keep_history_days.
         self._keep_raw_vitals_days = keep_raw_vitals_days
         self._probe_timeout = probe_timeout
+        # 0: attribute reads run on schedule, busy or not (see _is_busy).
+        self._activity_window = activity_window
+        # When vitals last saw each drive do I/O (epoch seconds; 0 = not since
+        # start-up). A drive vitals can't measure I/O on is absent.
+        self._last_io_at: dict[str, float] = {}
         self._drive_states: dict[str, DriveState] = {}
         # Latest saved raw snapshot summary per drive (scheduled or forced), so a
         # job can reuse a recent one instead of forcing a poll (see capture_smart).
@@ -256,6 +292,7 @@ class Collector:
             keep_raw_vitals_days=cfg.get("collector.keep_raw_vitals_days"),
             max_workers=cfg.get("collector.max_workers"),
             probe_timeout=cfg.get("collector.probe_timeout"),
+            activity_window=cfg.get("collector.smart_activity_window"),
         )
 
     def start(self) -> None:
@@ -354,9 +391,10 @@ class Collector:
             return state.locked if state else None
 
     def trigger_poll(self, guids: list[str] | None = None) -> bool:
-        """Force an immediate telemetry refresh, blocking until complete.
+        """Force an immediate full SMART read (and saved snapshot), blocking
+        until complete. Someone asked for it, so it runs on idle drives too.
 
-        If guids is given, only those drives' telemetry channels are marked
+        If guids is given, only those drives' snapshot channels are marked
         due, and False is returned if any guid is unknown. If guids is None,
         all known drives are refreshed.
         """
@@ -370,11 +408,11 @@ class Collector:
             target = guids
         else:
             target = list(known)
-        logger.info("triggering immediate telemetry poll for %d drive(s)", len(target))
+        logger.info("triggering immediate full SMART read for %d drive(s)", len(target))
         for g in target:
             sched = self._schedules.get(g)
             if sched:
-                sched["telemetry"] = now
+                sched["snapshot"] = now
         wait(self._tick())
         return True
 
@@ -467,10 +505,24 @@ class Collector:
                 return existing
             if now < sched[channel]:
                 return None
+            # Left due, not rescheduled: it runs on the first tick the drive is busy.
+            if channel == "telemetry" and not self._is_busy(guid, now):
+                return None
             sched[channel] = self._compute_next_due(guid, channel, now)
             future = self._executor.submit(self._run_channel_safe, state, channel, now)
             self._inflight[key] = future
             return future
+
+    def _is_busy(self, guid: str, now: float) -> bool:
+        """Whether an attribute read now is free: the drive did I/O within the
+        activity window, so its heads are loaded. A drive vitals can't measure
+        I/O on (no block device) counts as busy: nothing says it is idle, and
+        those are read for temperature every vitals tick anyway. Caller holds
+        self._lock."""
+        if self._activity_window <= 0:
+            return True
+        last = self._last_io_at.get(guid)
+        return last is None or now - last <= self._activity_window
 
     def _run_channel_safe(self, state: DriveState, channel: str, now: float) -> None:
         """Run a channel's probe(s), isolating errors so one drive can't disrupt others."""
@@ -479,7 +531,7 @@ class Collector:
         try:
             with ProbeTimeout(self._probe_timeout):
                 if channel == "telemetry":
-                    self._run_telemetry(state, now)
+                    self._run_telemetry(state, now, full=False)
                 elif channel == "snapshot":
                     self._run_snapshot(state, now)
                 elif channel == "vitals":
@@ -538,17 +590,32 @@ class Collector:
         self._reconcile_descriptors(descriptors, now)
         return True
 
-    def _run_telemetry(self, state: DriveState, now: float) -> DriveSnapshot:
+    def _run_telemetry(self, state: DriveState, now: float, full: bool = True) -> DriveSnapshot:
         """Run the telemetry probe chain for a drive, score its health, and record
-        signals + heartbeat."""
+        signals + heartbeat.
+
+        full=False is the attribute read: each probe's run_attributes() where it
+        has one (a probe without one does its full run()). The extras it leaves
+        out (the self-test log, the raw report) are kept from the last full read.
+        A full read also puts off the next scheduled reads of both kinds, since it
+        just did their work (e.g. a job's after-snapshot).
+        """
         snapshot = DriveSnapshot()
         for probe in self._telemetry_probes:
-            snapshot = probe.run(snapshot, state.context)
+            run = probe.run if full else getattr(probe, "run_attributes", probe.run)
+            snapshot = run(snapshot, state.context)
         # Scored here, after the whole chain, not by a probe: probes report facts,
         # and the last probe has final authority over every signal health is judged on.
         snapshot.health = score_health(snapshot.telemetry.signals)
+        guid = state.context.guid
         with self._lock:
+            if not full:
+                snapshot.extras = {**state.snapshot.extras, **snapshot.extras}
             state.snapshot = snapshot
+            sched = self._schedules.get(guid)
+            if sched is not None:
+                for channel in ("telemetry", "snapshot") if full else ("telemetry",):
+                    sched[channel] = max(sched[channel], self._compute_next_due(guid, channel, now))
 
         captured_at = snapshot.telemetry.last_polled_at.isoformat()
         db.record_signals(state.context.guid, captured_at, asdict(snapshot.telemetry.signals))
@@ -556,17 +623,8 @@ class Collector:
         return snapshot
 
     def _run_snapshot(self, state: DriveState, now: float) -> None:
-        """Persist the most recent telemetry run's raw probe output, if any."""
-        if not state.snapshot.extras:
-            # Telemetry and snapshot are both immediately due on first discovery,
-            # and run concurrently on the thread pool. If snapshot wins that race,
-            # extras are still empty. Reschedule 5 s out so we retry promptly
-            # once telemetry finishes rather than waiting the full snapshot interval.
-            if state.snapshot.telemetry.last_polled_at is None:
-                with self._lock:
-                    self._schedules[state.context.guid]["snapshot"] = now + 5
-            return
-        self._save_snapshot(state, state.snapshot)
+        """Take a full SMART read and save it as the drive's latest snapshot."""
+        self._save_snapshot(state, self._run_telemetry(state, now, full=True))
 
     def _save_snapshot(self, state: DriveState, snapshot: DriveSnapshot) -> dict:
         """Persist a telemetry run's raw report and remember it as the drive's
@@ -654,6 +712,13 @@ class Collector:
 
         with self._lock:
             state.vitals = vitals
+            io = vitals.io
+            # No rates (no block device, or the first reading) says nothing either way.
+            if io.read_iops is not None and io.write_iops is not None:
+                busy = io.read_iops > 0 or io.write_iops > 0
+                self._last_io_at[state.context.guid] = (
+                    vitals.captured_at.timestamp() if busy else self._last_io_at.get(state.context.guid, 0.0)
+                )
 
         db.record_vitals(state.context.guid, vitals.captured_at.isoformat(), vitals.temp, vitals.temp_source, vitals.io)
 
@@ -805,12 +870,17 @@ class Collector:
                 state.locked = bool(record["locked"]) if record else False
                 state.first_seen = record["first_seen"] if record else None
                 self._drive_states[guid] = state
-                # Telemetry/snapshot/vitals are due immediately so a newly discovered
-                # drive gets a baseline reading in this same tick. Traits were just
-                # populated by discovery, so its first refresh is a full interval out.
+                restored_at = self._restore_snapshot(state)
+                # Traits were just populated by discovery, so their first refresh is a
+                # full interval out. A drive with no saved snapshot gets its first
+                # full read in this same tick. One with a saved snapshot (a restart)
+                # carries on from it: no read until its full one falls due, and the
+                # first attribute read waits for a slot, by which time vitals know
+                # whether the drive is busy.
                 self._schedules[guid] = {
-                    "telemetry": now,
-                    "snapshot": now,
+                    "telemetry": self._compute_next_due(guid, "telemetry", now),
+                    "snapshot": now if restored_at is None
+                                else max(now, restored_at + self._poll_intervals["snapshot"]),
                     "vitals": now,
                     "traits": self._compute_next_due(guid, "traits", now),
                 }
@@ -824,6 +894,39 @@ class Collector:
             drive_type=best_traits.drive_type.value if best_traits.drive_type else None,
             first_seen=datetime.now().isoformat(),
         )
+
+    def _restore_snapshot(self, state: DriveState) -> float | None:
+        """Make the drive's latest saved snapshot its live state and its latest
+        snapshot for reuse (capture_smart). Returns when it was taken (epoch
+        seconds), or None if it has none, or none that can be read back. Caller
+        holds self._lock."""
+        guid = state.context.guid
+        row = db.get_latest_raw_snapshot(guid)
+        if row is None:
+            return None
+        try:
+            report = json.loads(row["raw_json"])
+            if not isinstance(report.get("signals"), dict):
+                raise ValueError("it has no signals")
+            # Only the fields DCSignals has now: a snapshot from an older version
+            # may lack some (left None) or have some since dropped.
+            known = {f.name for f in fields(DCSignals)}
+            signals = DCSignals(**{k: v for k, v in report["signals"].items() if k in known})
+            captured_at = datetime.fromisoformat(row["captured_at"])
+        except (ValueError, TypeError) as e:
+            logger.warning("couldn't restore the saved snapshot for %s, reading it again: %s", guid, e)
+            return None
+        snapshot = DriveSnapshot(
+            telemetry=DriveTelemetry(signals=signals, last_polled_at=captured_at),
+            extras={k: v for k, v in report.items() if k != "signals"},
+        )
+        snapshot.health = score_health(signals)
+        state.snapshot = snapshot
+        self._latest_snapshots[guid] = {
+            "snapshot_id": row["id"], "captured_at": row["captured_at"], "signals": asdict(signals),
+        }
+        logger.debug("restored %s from its snapshot of %s", guid, row["captured_at"])
+        return captured_at.timestamp()
 
     def _append_descriptors(self, state: DriveState, descriptors: list[DriveDescriptor]) -> None:
         """Add any descriptors not already recorded to a drive's attachment."""
@@ -852,3 +955,4 @@ class Collector:
                 )
                 del self._drive_states[g]
                 self._schedules.pop(g, None)
+                self._last_io_at.pop(g, None)

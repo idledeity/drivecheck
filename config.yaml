@@ -7,9 +7,13 @@ collector:
   keep_raw_vitals_days: 2  # days — raw 10s drive_vitals rows; charts use the per-minute rollup
   max_workers: 4      # thread pool size for per-drive channel polling
   probe_timeout: 30   # seconds — subprocess timeout for smartctl calls
+  # seconds — an attribute read waits until the drive has done I/O within this
+  # window (heads loaded, so the read doesn't cost a load/unload cycle). 0 reads
+  # on schedule even when idle.
+  smart_activity_window: 60
   poll_intervals:
-    telemetry: 300    # seconds — signals + heartbeat
-    snapshot: 14400   # seconds — raw smartctl JSON persistence
+    telemetry: 1800   # seconds — SMART attribute read (smartctl -A), only while the drive is busy
+    snapshot: 21600   # seconds — full SMART read (smartctl -a), saved as a snapshot; runs even when idle
     vitals: 10        # seconds — cheap temp + disk IO activity
     traits: 86400     # seconds — re-run traits probes for already-known drives
 

@@ -1,8 +1,9 @@
 """
-probes.telemetry.smartctl_telemetry — telemetry probe backed by smartctl -a.
+probes.telemetry.smartctl_telemetry — telemetry probe backed by smartctl.
 
-Accepts a DriveContext, queries live SMART data, and returns a populated
-DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
+run() is the full read (smartctl -a); run_attributes() the collector's
+lighter attribute read (smartctl -A -H) between full ones. Both return a
+populated DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
 The DCSignals mapping is documented in drives.drive_models.DCSignals.
 """
 
@@ -21,10 +22,26 @@ _PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 
 
 def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
-    """Query live SMART attributes for a drive and enrich the snapshot."""
+    """Full read (smartctl -a): signals, attribute rows, the self-test log and
+    the raw report. What a saved snapshot is made from."""
     descriptor = context.descriptor
     data = smartctl.attributes_all(descriptor.device_name, descriptor.access_type)
+    return _fill(snapshot, context, data, full=True)
 
+
+def run_attributes(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
+    """Attribute read (smartctl -A -H): signals and attribute rows only, for the
+    collector's frequent reads between full ones. The self-test log and raw
+    report are left out of extras, so the last full read's stay in place.
+    SAS adds -l error: its error counters (uncorrected) live there."""
+    descriptor = context.descriptor
+    data = smartctl.attributes_and_health(descriptor.device_name, descriptor.access_type,
+                                          error_counters=context.traits.drive_type == DriveType.SAS)
+    return _fill(snapshot, context, data, full=False)
+
+
+def _fill(snapshot: DriveSnapshot, context: DriveContext, data: dict, full: bool) -> DriveSnapshot:
+    descriptor = context.descriptor
     drive_type = context.traits.drive_type
     if drive_type == DriveType.NVME:
         signals = _map_nvme(data)
@@ -37,8 +54,9 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     # Facts only: health is scored by the collector after the whole chain, and
     # these rows are judged when served (analysis.smart_attributes).
     snapshot.extras["smart_attributes"] = [asdict(r) for r in parse_attributes(data, drive_type)]
-    snapshot.extras["self_test_log"] = [asdict(r) for r in parse_self_test_log(data, drive_type)]
-    snapshot.extras["smartctl"] = data
+    if full:
+        snapshot.extras["self_test_log"] = [asdict(r) for r in parse_self_test_log(data, drive_type)]
+        snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]
     snapshot.probe_log.append(ProbeRecord(probe=_PROBE_NAME, success=not errors, errors=errors))

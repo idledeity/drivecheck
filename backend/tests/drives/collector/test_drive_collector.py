@@ -343,3 +343,168 @@ def test_rollup_vitals_keeps_the_current_half_hour_up_to_date():
     _raw_vitals("guid-1", "2026-01-01T10:01:30", 30)
     collector._rollup_vitals(_epoch("2026-01-01T10:03:00"))
     assert _rolled_half_hours() == [("2026-01-01T09:30:00", 1), ("2026-01-01T10:00:00", 2)]
+
+
+# --- SMART read tiers: busy-gated attribute reads, full reads, restore ------
+
+class _Reads:
+    """Stand-ins for smartctl's full (-a) and attribute (-A -H) reads, counting each."""
+
+    def __init__(self, monkeypatch):
+        self.full = 0
+        self.attributes: list[bool] = []  # error_counters per call
+        monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_all", self._full)
+        monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_and_health", self._attributes)
+
+    def _full(self, _d, _a):
+        self.full += 1
+        return _SAS_DATA
+
+    def _attributes(self, _d, _a, error_counters=False):
+        self.attributes.append(error_counters)
+        # An attribute read has no self-test log.
+        return {k: v for k, v in _SAS_DATA.items() if not k.startswith("scsi_self_test")}
+
+
+def _tiered(monkeypatch, window=60):
+    db.init()
+    reads = _Reads(monkeypatch)
+    collector = _make_collector(activity_window=window)
+    context = DriveContext(guid="g1", descriptor=DriveDescriptor("/dev/sdz", "scsi", "/dev/sdz"),
+                           traits=DriveTraits(drive_type=DriveType.SAS))
+    collector._drive_states["g1"] = DriveState(context=context)
+    collector._schedules["g1"] = {"telemetry": 0, "snapshot": 10**10, "vitals": 10**10, "traits": 10**10}
+    # A tick (trigger_poll) would otherwise scan the real drives, prune and roll up.
+    collector._scan_due = collector._prune_due = collector._rollup_due = float("inf")
+    return collector, reads
+
+
+def _run(collector, channel, now):
+    future = collector._maybe_run_channel(collector._drive_states["g1"], channel, now)
+    if future is not None:
+        future.result()
+    return future is not None
+
+
+def test_an_idle_drive_s_attribute_read_waits_until_it_is_busy(monkeypatch):
+    collector, reads = _tiered(monkeypatch)
+    collector._last_io_at["g1"] = 1000.0
+    # Last I/O 2 minutes ago: heads may be parked, so no read, and it stays due.
+    assert not _run(collector, "telemetry", 1120.0)
+    assert collector._schedules["g1"]["telemetry"] == 0
+    # Busy again: the pending read runs, and the next is a slot away.
+    collector._last_io_at["g1"] = 1125.0
+    assert _run(collector, "telemetry", 1130.0)
+    assert reads.attributes == [True] and reads.full == 0
+    assert collector._schedules["g1"]["telemetry"] > 1130.0
+
+
+def test_a_drive_whose_io_can_t_be_measured_is_read_on_schedule(monkeypatch):
+    collector, reads = _tiered(monkeypatch)
+    assert _run(collector, "telemetry", 1000.0)
+    assert len(reads.attributes) == 1
+
+
+def test_window_zero_reads_on_schedule_even_when_idle(monkeypatch):
+    collector, reads = _tiered(monkeypatch, window=0)
+    collector._last_io_at["g1"] = 0.0
+    assert _run(collector, "telemetry", 1000.0)
+
+
+def test_vitals_mark_a_drive_busy_only_when_it_did_io(monkeypatch):
+    from datetime import datetime
+    from drives.drive_models import DriveIOActivity, DriveVitals
+    collector, _ = _tiered(monkeypatch)
+    state = collector._drive_states["g1"]
+    io = {"none": DriveIOActivity(), "idle": DriveIOActivity(0, 0, 0, 0, 0), "busy": DriveIOActivity(5, 0, 4096, 0, 1)}
+    def vitals(at, kind):
+        collector._vitals_probes = [SimpleNamespace(run=lambda v, _s: replace(v, io=io[kind]))]
+        monkeypatch.setattr("drives.collector.drive_collector.datetime",
+                            SimpleNamespace(now=lambda: datetime.fromtimestamp(at), fromtimestamp=datetime.fromtimestamp))
+        collector._run_vitals(state, at)
+    vitals(990.0, "none")  # no rates yet (first reading, or no block device)
+    assert "g1" not in collector._last_io_at
+    vitals(1000.0, "idle")
+    assert collector._last_io_at["g1"] == 0.0  # measurable, but not busy since start-up
+    vitals(1010.0, "busy")
+    vitals(1020.0, "idle")
+    assert collector._last_io_at["g1"] == 1010.0
+
+
+def test_an_attribute_read_keeps_the_last_full_read_s_self_test_log(monkeypatch):
+    collector, reads = _tiered(monkeypatch)
+    state = collector._drive_states["g1"]
+    collector._run_telemetry(state, 0)
+    log = state.snapshot.extras["self_test_log"]
+    assert log
+    collector._run_telemetry(state, 10, full=False)
+    assert state.snapshot.extras["self_test_log"] == log
+    assert state.snapshot.extras["smart_attributes"] is not None
+    assert (reads.full, len(reads.attributes)) == (1, 1)
+
+
+def test_a_full_read_puts_off_both_scheduled_reads(monkeypatch):
+    collector, _ = _tiered(monkeypatch)
+    collector._schedules["g1"].update(telemetry=1500.0, snapshot=2000.0)
+    collector.capture_smart("g1")
+    sched = collector._schedules["g1"]
+    import time
+    now = time.time()
+    assert sched["telemetry"] >= now + 0.5 * 300 and sched["snapshot"] >= now + 0.5 * 14400
+
+
+def test_the_scheduled_full_read_reads_and_saves(monkeypatch):
+    collector, reads = _tiered(monkeypatch)
+    collector._schedules["g1"]["snapshot"] = 0
+    collector._last_io_at["g1"] = 0.0  # idle: a full read runs anyway
+    assert _run(collector, "snapshot", 1000.0)
+    assert reads.full == 1
+    assert db.get_latest_raw_snapshot("g1") is not None
+
+
+def test_probe_button_does_a_full_read_of_an_idle_drive(monkeypatch):
+    collector, reads = _tiered(monkeypatch)
+    collector._last_io_at["g1"] = 0.0
+    collector._schedules["g1"]["telemetry"] = 10**10
+    assert collector.trigger_poll(["g1"])
+    assert reads.full == 1 and reads.attributes == []
+    assert db.get_latest_raw_snapshot("g1") is not None
+
+
+def test_a_restart_carries_on_from_the_saved_snapshot_without_reading(monkeypatch):
+    from drives.collector import drive_collector
+    monkeypatch.setattr(drive_collector, "resolve_block_device", lambda _serial: None)
+    before, reads = _tiered(monkeypatch)
+    saved = before.capture_smart("g1")
+
+    after = _make_collector(activity_window=60)
+    descriptor = DriveDescriptor("/dev/sdz", "scsi", "/dev/sdz")
+    now = _epoch(saved["captured_at"]) + 60
+    after._register_drive("g1", descriptor, DriveTraits(drive_type=DriveType.SAS), [descriptor], set(), now)
+
+    state = after._drive_states["g1"]
+    assert asdict_signals(state) == saved["signals"]
+    # Judged again from the restored signals, as it was before the restart.
+    assert state.snapshot.health == before._drive_states["g1"].snapshot.health
+    assert state.snapshot.extras["self_test_log"]
+    assert after._latest_snapshots["g1"]["snapshot_id"] == saved["snapshot_id"]
+    sched = after._schedules["g1"]
+    assert sched["snapshot"] == _epoch(saved["captured_at"]) + 14400
+    assert sched["telemetry"] > now
+    assert reads.full == 1  # only the one before the restart
+
+
+def test_a_drive_with_no_saved_snapshot_is_read_at_once(monkeypatch):
+    from drives.collector import drive_collector
+    monkeypatch.setattr(drive_collector, "resolve_block_device", lambda _serial: None)
+    db.init()
+    collector = _make_collector(activity_window=60)
+    descriptor = DriveDescriptor("/dev/sdz", "scsi", "/dev/sdz")
+    collector._register_drive("g1", descriptor, DriveTraits(), [descriptor], set(), 1000.0)
+    assert collector._schedules["g1"]["snapshot"] == 1000.0
+    assert collector._drive_states["g1"].snapshot.telemetry.last_polled_at is None
+
+
+def asdict_signals(state):
+    from dataclasses import asdict
+    return asdict(state.snapshot.telemetry.signals)
