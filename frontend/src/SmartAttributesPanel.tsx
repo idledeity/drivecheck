@@ -20,7 +20,7 @@ export default function SmartAttributesPanel({ drives, selectedGuids }: Props) {
         return (
           <div key={guid} className="smart-drive-section">
             <DriveHeader drive={drive} />
-            <DriveAttributes key={guid} guid={guid} refreshKey={drive?.last_polled_at} />
+            <DriveAttributes key={guid} guid={guid} refreshKey={drive?.last_polled_at} staleAfterS={drive?.stale_after_s.smart} />
           </div>
         )
       })}
@@ -39,7 +39,7 @@ function DriveHeader({ drive }: { drive?: Drive }) {
  * Callers key it by guid, so another drive starts blank rather than showing
  * the last one's report while it loads.
  */
-export function DriveAttributes({ guid, refreshKey }: { guid: string; refreshKey?: string | null }) {
+export function DriveAttributes({ guid, refreshKey, staleAfterS }: { guid: string; refreshKey?: string | null; staleAfterS?: number }) {
   const [snapshot, setSnapshot] = useState<RawSnapshot | null>(null)
   const [notFound, setNotFound] = useState(false)
 
@@ -72,9 +72,9 @@ export function DriveAttributes({ guid, refreshKey }: { guid: string; refreshKey
 
   return (
     <>
-      {snapshot && (
+      {snapshot?.captured_at && (
         <p className="smart-asof">
-          Full SMART read <AsOf at={snapshot.captured_at} />
+          Full SMART read <AsOf at={snapshot.captured_at} staleAfterS={staleAfterS} />
         </p>
       )}
       {rows.length > 0 && (

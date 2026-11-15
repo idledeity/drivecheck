@@ -1,0 +1,4 @@
+/* A reading's age (AsOf). Inherits its surroundings' size and colour; amber
+   once the reading is overdue. */
+.asof { white-space: nowrap; }
+.asof-stale { color: var(--wa); }

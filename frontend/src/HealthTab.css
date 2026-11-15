@@ -60,6 +60,16 @@
   margin: 12px 0 6px;
 }
 
+/* A section's read age, beside its title. */
+.rep-asof {
+  margin-left: 8px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10.5px;
+}
+.rep-signal-asof { display: block; font-size: 10px; }
+
 .rep-signals {
   display: flex;
   flex-wrap: wrap;

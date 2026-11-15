@@ -543,12 +543,18 @@
 .dc-stat-label { font-size: 7.5px; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; }
 .dc-stat-value { font-size: 10px; font-weight: 600; color: var(--t2); line-height: 1.3; }
 
+/* The footer stats' age: quieter than the values it dates. */
+.dc-asof .dc-stat-value { font-weight: 400; color: var(--t4); }
+.dc-asof .dc-stat-value.asof-stale { color: var(--wa); }
+
 /* ── Footer: stacked IO (read/write throughput) ── */
 .dc-io     { display: flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; }
 .dc-io-row { display: flex; align-items: center; gap: 2px; font-size: 8.5px; line-height: 1.4; white-space: nowrap; }
 .dc-io-row.rd { color: var(--ior); }
 .dc-io-row.wr { color: var(--iow); }
 .dc-io-row svg { flex-shrink: 0; }
+/* Overdue vitals: these rates are the last ones read, not current. */
+.dc-io.stale .dc-io-row { color: var(--wa); }
 
 /* Wrapper for the task-zone title icon+name, mirroring .dc-r1-id — lets the
    name scroll on touch while .dc-tn-right (pct/queued pill) stays pinned at

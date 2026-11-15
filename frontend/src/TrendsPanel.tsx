@@ -14,7 +14,7 @@ import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
-import { dateLabel } from "./charts/scales"
+import { momentLabel } from "./charts/scales"
 import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
@@ -164,13 +164,13 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
 function HottestCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
   const hot = hottest(data, drives)
   if (!hot) return <span className="muted">No readings in this range</span>
-  return <>Hottest <b>{hot.value} °C</b> · {hot.drive.label} · {dateLabel(hot.t)}</>
+  return <>Hottest <b>{hot.value} °C</b> · {hot.drive.label} · {momentLabel(hot.t)}</>
 }
 
 function PeakCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
   const peak = peakThroughput(data, drives)
   if (!peak || peak.value < 1e3) return <span className="muted">All drives idle in this range</span>
-  return <>Peak <b>{formatThroughput(peak.value)}</b> · {peak.drive.label}</>
+  return <>Peak <b>{formatThroughput(peak.value)}</b> · {peak.drive.label} · {momentLabel(peak.t)}</>
 }
 
 function HealthCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {

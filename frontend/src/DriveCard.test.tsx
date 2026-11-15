@@ -312,7 +312,8 @@ describe('popovers (click-only / no-hover device)', () => {
   })
 
   it('charts a footer counter with history, but not power-on hours', async () => {
-    const drive = makeDrive({ guid: 'd1', drive_type: 'SAS', load_unload_cycles: 3581, power_on_hours: 100 })
+    const drive = makeDrive({ guid: 'd1', drive_type: 'SAS', load_unload_cycles: 3581, power_on_hours: 100,
+      last_polled_at: new Date(Date.now() - 40 * 60_000).toISOString() })
     stubHistory('d1')
     renderCard({ drive })
     const stat = (label: string) => screen.getByText(label).closest('.dc-stat')!
@@ -323,6 +324,8 @@ describe('popovers (click-only / no-hover device)', () => {
     await waitFor(() => expect(popover.querySelector('[aria-label="Load/unload cycles over time"] .tsc-line')).not.toBeNull())
     expect(popover).toHaveTextContent('+1 in range')
     expect(popover).toHaveTextContent('warning ≥ 500,000')
+    // Dated by the SMART read the card's value came from.
+    expect(popover.querySelector('.dtp-title')).toHaveTextContent('Load/unload cycles· read 40m ago')
   })
 
   it('shows the health overview from the health badge, without selecting the card', async () => {
@@ -538,5 +541,36 @@ describe('popovers (hover-capable device)', () => {
       renderCard({ job: makeJob({ status: 'queued' }), newResults: [makeJob({ id: 'a' })] })
       expect(pill()).toHaveTextContent('1 complete')
     })
+  })
+})
+
+describe('reading ages', () => {
+  const ago = (s: number) => new Date(Date.now() - s * 1000).toISOString()
+  const vitals = (s: number) => ({ ...makeDrive().vitals, temp: 34, captured_at: ago(s) })
+
+  it('dates the footer stats with their SMART read', () => {
+    renderCard({ drive: makeDrive({ last_polled_at: ago(12 * 60) }) })
+    const age = screen.getByText('12m ago')
+    expect(age.closest('.dc-asof')).toHaveTextContent('SMART12m ago')
+    expect(age).not.toHaveClass('asof-stale')
+  })
+
+  it('marks the SMART age overdue past the smart threshold', () => {
+    renderCard({ drive: makeDrive({ last_polled_at: ago(3 * 3600), stale_after_s: { vitals: 60, smart: 3600 } }) })
+    expect(screen.getByText('3h ago')).toHaveClass('asof-stale')
+  })
+
+  it('gives fresh live values no age', () => {
+    const { container } = render(<DriveCard drive={makeDrive({ vitals: vitals(5) })} selected={false}
+      onSelect={vi.fn()} onSelectToggle={vi.fn()} queuedJobs={[]} />)
+    expect(container.querySelector('.dc-state .asof')).toBeNull()
+    expect(container.querySelector('.dc-io')).not.toHaveClass('stale')
+  })
+
+  it('shows overdue live values in amber with their age', () => {
+    const { container } = render(<DriveCard drive={makeDrive({ vitals: vitals(5 * 60) })} selected={false}
+      onSelect={vi.fn()} onSelectToggle={vi.fn()} queuedJobs={[]} />)
+    expect(container.querySelector('.dc-state .asof-stale')).toHaveTextContent('5m ago')
+    expect(container.querySelector('.dc-io')).toHaveClass('stale')
   })
 })

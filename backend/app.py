@@ -159,9 +159,22 @@ def _job_to_dict(job):
     }
 
 
+def _stale_after() -> dict:
+    """How old (seconds) each kind of reading may get before the UI marks it
+    overdue: vitals a few ticks late (the collector stalled or the drive went
+    away), SMART values past two full-read intervals (reads are failing). The
+    attribute read only runs while a drive is busy, so an idle drive's SMART
+    values are legitimately up to one full-read interval old."""
+    return {
+        "vitals": max(60, 3 * cfg.get("collector.poll_intervals.vitals")),
+        "smart": 2 * cfg.get("collector.poll_intervals.snapshot"),
+    }
+
+
 @app.route("/api/drives")
 def drives():
     collector.wait_for_scan()
+    stale_after = _stale_after()
     result = []
     for state in collector.get_drive_states():
         ctx = state.context
@@ -198,6 +211,8 @@ def drives():
             "health_status": health.health_status,
             "signal_flags": health.signal_flags,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
+            "last_full_read_at": collector.last_full_read_at(ctx.guid),
+            "stale_after_s": stale_after,
             "is_mounted": state.attachment.is_mounted,
             "label": state.label,
             "locked": state.locked,

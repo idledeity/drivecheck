@@ -53,6 +53,26 @@ describe('HealthTab', () => {
     expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument()
   })
 
+  it('dates the overview with its SMART read', () => {
+    const drive = makeDrive({ guid: 'd1', last_polled_at: new Date(Date.now() - 20 * 60_000).toISOString() })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    expect(screen.getByText('20m ago').closest('.hov-asof')).toHaveTextContent('SMART read 20m ago')
+  })
+
+  it('report: dates the health and signal sections, and lists both read times', async () => {
+    const drive = makeDrive({
+      guid: 'd1',
+      last_polled_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      last_full_read_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
+    expect(screen.getByRole('heading', { name: 'Health20m ago' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals20m ago' })).toBeInTheDocument()
+    expect(screen.getByText('Last SMART read')).toBeInTheDocument()
+    expect(screen.getByText('Last full read')).toBeInTheDocument()
+  })
+
   it('marks the active sub-tab button', async () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
     expect(screen.getByRole('button', { name: 'Overview' })).toHaveClass('active')

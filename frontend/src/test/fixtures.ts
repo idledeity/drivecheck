@@ -34,6 +34,8 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     health_status: 'Healthy',
     signal_flags: {},
     last_polled_at: null,
+    last_full_read_at: null,
+    stale_after_s: { vitals: 60, smart: 43200 },
     is_mounted: false,
     vitals: {
       temp: null,

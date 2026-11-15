@@ -179,7 +179,12 @@ export type Drive = {
   health_pct: number | null
   health_status: "Healthy" | "Degraded" | "Failing" | null
   signal_flags: Record<string, "ok" | "warn" | "crit">
+  /** The latest SMART read of either kind (attribute or full): health and the signals above. */
   last_polled_at: string | null
+  /** The latest full SMART read (attributes table, self-test log). */
+  last_full_read_at: string | null
+  /** Seconds a reading may age before it shows as overdue (see AsOf). */
+  stale_after_s: { vitals: number; smart: number }
   is_mounted: boolean
   vitals: DriveVitals
   label: string | null

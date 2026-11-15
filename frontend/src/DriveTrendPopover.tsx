@@ -11,9 +11,11 @@ import type { ChartDrive } from "./charts/historySeries"
 import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
+import { momentLabel } from "./charts/scales"
 import { SIGNALS } from "./signals"
 import { COUNTER_SIGNALS, counterScale, counterSubtitle } from "./charts/counters"
 import type { CounterSignal } from "./charts/counters"
+import AsOf from "./AsOf"
 import "./DriveTrendPopover.css"
 
 /** What a drive card value charts as: its two vitals, health, or one counter. */
@@ -43,10 +45,19 @@ export default function DriveTrendPopover({ drive, style, metric }: { drive: Dri
     [drive.guid, name, style.color],
   )
 
+  // When the card's value was read: a vitals tick for temperature and
+  // throughput, the latest SMART read for the rest.
+  const live = metric === "temp" || metric === "io"
+  const readAt = live ? drive.vitals.captured_at : drive.last_polled_at
+
   return (
     <div className={`dtp${stale ? " stale" : ""}`}>
       <div className="dtp-head">
-        <span className="dtp-title">{TITLE[metric]}</span>
+        <span className="dtp-title">
+          {TITLE[metric]}
+          {readAt && <AsOf className="dtp-asof" prefix="· read" at={readAt}
+            staleAfterS={live ? drive.stale_after_s.vitals : drive.stale_after_s.smart} />}
+        </span>
         <Segmented label="Range" value={range} onChange={setRange}
           options={HISTORY_RANGES.map(r => ({ value: r, label: r }))} />
       </div>
@@ -68,14 +79,14 @@ function Body({ data, drives, metric }: { data: DriveHistoryData; drives: ChartD
   if (metric === "temp") {
     const hot = hottest(data, drives)
     return <>
-      <div className="dtp-sub">{hot ? <>°C · hottest <b>{hot.value} °C</b></> : "No readings in this range"}</div>
+      <div className="dtp-sub">{hot ? <>°C · hottest <b>{hot.value} °C</b> · {momentLabel(hot.t)}</> : "No readings in this range"}</div>
       <TemperatureChart data={data} drives={drives} height={150} />
     </>
   }
   if (metric === "io") {
     const peak = peakThroughput(data, drives)
     return <>
-      <div className="dtp-sub">{peak && peak.value >= 1e3 ? <>MB/s read + write · peak <b>{formatThroughput(peak.value)}</b></> : "Idle in this range"}</div>
+      <div className="dtp-sub">{peak && peak.value >= 1e3 ? <>MB/s read + write · peak <b>{formatThroughput(peak.value)}</b> · {momentLabel(peak.t)}</> : "Idle in this range"}</div>
       <ThroughputChart data={data} drives={drives} height={130} />
     </>
   }

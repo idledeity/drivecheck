@@ -1006,6 +1006,19 @@ Task-first. History and monitoring are available but not the lead.
 
 Works in both landscape and portrait without special-casing.
 
+### Reading ages
+
+Every displayed drive value shows how old it is, via `AsOf` (relative age,
+exact time on hover, re-renders every 30s through `useNow`; amber
+`.asof-stale` once overdue). One age per group of values from the same
+source; a per-value age only where sources mix. Three sources, all on
+`/api/drives`: `vitals.captured_at` (live temp, I/O, mount: shown only once
+overdue), `last_polled_at` (latest SMART read of either kind: health,
+signals) and `last_full_read_at` (attributes table, self-test log). Overdue
+thresholds come from `stale_after_s` (app `_stale_after`: vitals
+max(60s, 3× vitals interval); SMART 2× the full-read interval). The age is
+"last read", not "last changed".
+
 ---
 
 ### Drive Cards

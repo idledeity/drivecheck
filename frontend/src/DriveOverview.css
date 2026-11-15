@@ -81,3 +81,11 @@
   color: var(--t5);
   margin: 0;
 }
+
+/* When the SMART values above were read. */
+.hov-asof {
+  font-size: 10.5px;
+  color: var(--t5);
+  margin: 6px 0 0;
+}
+.hov-stat-asof { display: block; font-size: 10px; }

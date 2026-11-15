@@ -508,3 +508,13 @@ def test_a_drive_with_no_saved_snapshot_is_read_at_once(monkeypatch):
 def asdict_signals(state):
     from dataclasses import asdict
     return asdict(state.snapshot.telemetry.signals)
+
+
+def test_last_full_read_at_follows_the_latest_saved_snapshot(monkeypatch):
+    collector, _ = _tiered(monkeypatch)
+    assert collector.last_full_read_at("g1") is None
+    state = collector._drive_states["g1"]
+    collector._run_telemetry(state, 0, full=False)
+    assert collector.last_full_read_at("g1") is None  # an attribute read isn't one
+    saved = collector.capture_smart("g1")
+    assert collector.last_full_read_at("g1") == saved["captured_at"]

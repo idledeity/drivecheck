@@ -4,7 +4,9 @@ import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTem
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
-import { formatCapacity, formatRelativeTime, formatThroughput } from "./format"
+import { formatCapacity, formatThroughput } from "./format"
+import AsOf from "./AsOf"
+import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
 import { JobRow } from "./JobRow"
 import CancelJobButton from "./CancelJobButton"
@@ -53,6 +55,11 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
   const liveTemp = drive.vitals.temp ?? drive.temp
   const io = drive.vitals.io
+  // Live values say nothing about their age while fresh; overdue ones turn
+  // amber with it (the collector stalled, or the drive stopped answering).
+  const now = useNow()
+  const vitalsAt = drive.vitals.captured_at
+  const vitalsStale = isStale(vitalsAt, drive.stale_after_s.vitals, now)
 
   const timing = useJobTiming(job)
 
@@ -200,6 +207,9 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           <span className="dc-mount-dot" />
           {drive.is_mounted ? "mounted" : "unmounted"}
         </span>
+        {vitalsStale && vitalsAt && (
+          <><span className="dc-tsep">·</span><AsOf className="dc-sv" at={vitalsAt} staleAfterS={drive.stale_after_s.vitals} /></>
+        )}
       </div>
 
       {/* Task zone */}
@@ -278,11 +288,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
       {/* Footer */}
       <div className="dc-ft">
-        <div
-          ref={fsFadeRef}
-          className={`dc-fs${fsFaded ? " dc-edge-fade" : ""}`}
-          title={drive.last_polled_at ? `Telemetry updated ${formatRelativeTime(drive.last_polled_at)}` : undefined}
-        >
+        <div ref={fsFadeRef} className={`dc-fs${fsFaded ? " dc-edge-fade" : ""}`}>
           {sigKeys.map(key => {
             const desc = SIGNALS[key]
             if (!desc) return null
@@ -299,7 +305,15 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
             )
           })}
         </div>
-        <div {...trendTrigger("io")} className="dc-io dc-trend">
+        {/* The age of every value to its left: one SMART read. Pinned outside
+            .dc-fs so a narrow card fades a stat, never the age. */}
+        {drive.last_polled_at && (
+          <div className="dc-stat dc-asof">
+            <div className="dc-stat-label">SMART</div>
+            <AsOf className="dc-stat-value" at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
+          </div>
+        )}
+        <div {...trendTrigger("io")} className={`dc-io dc-trend${vitalsStale ? " stale" : ""}`}>
           <div className="dc-io-row rd">{formatThroughput(io.read_bytes_per_sec)}<IconArrowUp size={9} /></div>
           <div className="dc-io-row wr">{formatThroughput(io.write_bytes_per_sec)}<IconArrowDown size={9} /></div>
         </div>

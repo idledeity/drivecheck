@@ -5,6 +5,8 @@ import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
 import { DriveAttributes } from "./SmartAttributesPanel"
+import AsOf from "./AsOf"
+import { isStale, useNow } from "./useNow"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
@@ -99,6 +101,14 @@ function ReportPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids
 
 function DriveReport({ drive }: { drive: Drive }) {
   const liveTemp = drive.vitals.temp ?? drive.temp
+  const now = useNow()
+  // Health and every signal but temperature come from one SMART read;
+  // temperature is live (vitals), dated only once it's overdue.
+  const smartAge = drive.last_polled_at && (
+    <AsOf className="rep-asof" at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
+  )
+  const vitalsAt = drive.vitals.temp !== null ? drive.vitals.captured_at : null
+  const tempStale = isStale(vitalsAt, drive.stale_after_s.vitals, now)
 
   return (
     <div className="rep-section">
@@ -112,13 +122,14 @@ function DriveReport({ drive }: { drive: Drive }) {
         {drive.rpm         && <RepRow label="RPM"         value={drive.rpm.toLocaleString()} />}
         <RepRow label="Device" value={drive.device} />
         {drive.first_seen     && <RepRow label="First seen"  value={formatTimestamp(drive.first_seen)} />}
-        {drive.last_polled_at && <RepRow label="Last polled" value={formatTimestamp(drive.last_polled_at)} />}
+        {drive.last_polled_at    && <RepRow label="Last SMART read" value={formatTimestamp(drive.last_polled_at)} />}
+        {drive.last_full_read_at && <RepRow label="Last full read"  value={formatTimestamp(drive.last_full_read_at)} />}
       </div>
 
-      <h4 className="rep-section-title">Health</h4>
+      <h4 className="rep-section-title">Health{smartAge}</h4>
       <HealthScoreBar drive={drive} />
 
-      <h4 className="rep-section-title">Signals</h4>
+      <h4 className="rep-section-title">Signals{smartAge}</h4>
       <div className="rep-signals">
         {REPORT_SIGNALS.map(key => (
           <div key={key} className="rep-signal-tile">
@@ -129,12 +140,15 @@ function DriveReport({ drive }: { drive: Drive }) {
               value={key === "temp" ? liveTemp : drive[key as keyof Drive] as number | null}
               flag={drive.signal_flags?.[key]}
             />
+            {key === "temp" && tempStale && vitalsAt && (
+              <AsOf className="rep-signal-asof" at={vitalsAt} staleAfterS={drive.stale_after_s.vitals} />
+            )}
           </div>
         ))}
       </div>
 
       <h4 className="rep-section-title">SMART attributes</h4>
-      <DriveAttributes key={drive.guid} guid={drive.guid} refreshKey={drive.last_polled_at} />
+      <DriveAttributes key={drive.guid} guid={drive.guid} refreshKey={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
     </div>
   )
 }
@@ -165,7 +179,8 @@ function buildReportText(drive: Drive): string {
     drive.rpm         ? `RPM:          ${drive.rpm.toLocaleString()}` : null,
     `Device:       ${drive.device}`,
     drive.first_seen     ? `First seen:   ${formatTimestamp(drive.first_seen)}`     : null,
-    drive.last_polled_at ? `Last polled:  ${formatTimestamp(drive.last_polled_at)}` : null,
+    drive.last_polled_at    ? `SMART read:   ${formatTimestamp(drive.last_polled_at)}`    : null,
+    drive.last_full_read_at ? `Full read:    ${formatTimestamp(drive.last_full_read_at)}` : null,
     ``,
     `Health: ${score !== null ? `${score}/100` : "Unrated"} (${drive.health_status ?? "Unrated"})`,
     `SMART:  ${drive.smart_passed === true ? "Passed" : drive.smart_passed === false ? "Failed" : "—"}`,

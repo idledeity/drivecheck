@@ -362,6 +362,12 @@ class Collector:
             return {"captured_at": datetime.now().isoformat(), "error": str(e) or type(e).__name__}
         return {**summary, "reused": False}
 
+    def last_full_read_at(self, guid: str) -> str | None:
+        """When the drive's latest saved full SMART read was taken (ISO), or None."""
+        with self._lock:
+            latest = self._latest_snapshots.get(guid)
+        return latest["captured_at"] if latest else None
+
     def set_drive_label(self, guid: str, label: str | None) -> bool:
         """Update a drive's user-assigned label. Returns False if the drive is unknown."""
         with self._lock:
