@@ -399,11 +399,20 @@ class LoggedProcessOperation(OperationBase):
         if log_path is None or not log_path.exists() or self._process_alive():
             return  # never started, or still running (backend shutting down mid-run)
         try:
-            lines = self._summarize_log(log_path)
-            if lines is not None:
-                self._summary_log = "".join(f"{line}\n" for line in lines)
+            self._summary_log = self._summary_text(log_path)
         except Exception:
             logger.warning("could not summarize %s", log_path, exc_info=True)
+
+    def _summary_text(self, raw_log: Path) -> str | None:
+        lines = self._summarize_log(raw_log)
+        return None if lines is None else "".join(f"{line}\n" for line in lines)
+
+    def summarize_past_run(self, context: DriveContext, params: dict, raw_log: Path) -> str | None:
+        """The summary a finished job would have stored, from its params and raw
+        log — for jobs that ended before their operation kept summaries. context
+        need only carry what _configure() reads (e.g. capacity)."""
+        self._configure(context, params)
+        return self._summary_text(raw_log)
 
     def get_summary_log(self) -> str | None:
         return self._summary_log

@@ -811,6 +811,26 @@ def get_job_history(
         return conn.execute(sql, (*args, limit)).fetchall()
 
 
+def get_jobs_without_summary_log() -> list[sqlite3.Row]:
+    """Finished jobs (any terminal status) with no stored summary log."""
+    from jobs.job_models import JobStatus  # local import to avoid circular dependency at module load
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT id, drive_guid, operation, params_json FROM jobs"
+            " WHERE summary_log IS NULL AND status NOT IN (?, ?) ORDER BY created_at",
+            (JobStatus.QUEUED.value, JobStatus.RUNNING.value),
+        ).fetchall()
+
+
+def set_job_summary_log_if_missing(job_id: str, summary_log: str) -> bool:
+    """Store a summary for a job that has none; False if it already had one."""
+    with _connection() as conn:
+        return conn.execute(
+            "UPDATE jobs SET summary_log = ? WHERE id = ? AND summary_log IS NULL", (summary_log, job_id)
+        ).rowcount == 1
+
+
 def get_job_summary_log(job_id: str) -> str | None:
     """A job's stored summary log, or None if it has none (or no such job)."""
     with _connection() as conn:
