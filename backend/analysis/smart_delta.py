@@ -11,7 +11,7 @@ and history rows alike, without importing the collector.
 """
 
 # Error counters: any increase during a run is a warning sign.
-WORSENING_COUNTERS = ("reallocated", "pending", "uncorrected", "crc_errors", "reallocated_events")
+WORSENING_COUNTERS = ("reallocated", "pending", "uncorrected", "crc_errors", "reallocated_events", "link_errors")
 
 
 def compare_signals(before: dict | None, after: dict | None) -> dict | None:

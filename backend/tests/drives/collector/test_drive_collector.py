@@ -352,7 +352,7 @@ class _Reads:
 
     def __init__(self, monkeypatch):
         self.full = 0
-        self.attributes: list[bool] = []  # error_counters per call
+        self.attributes: list[tuple[str, ...]] = []  # logs per call
         monkeypatch.setattr(smartctl_telemetry.smartctl, "full_read", self._full)
         monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_and_health", self._attributes)
 
@@ -360,8 +360,8 @@ class _Reads:
         self.full += 1
         return _SAS_DATA
 
-    def _attributes(self, _d, _a, error_counters=False):
-        self.attributes.append(error_counters)
+    def _attributes(self, _d, _a, logs=()):
+        self.attributes.append(logs)
         # An attribute read has no self-test log.
         return {k: v for k, v in _SAS_DATA.items() if not k.startswith("scsi_self_test")}
 
@@ -395,7 +395,7 @@ def test_an_idle_drive_s_attribute_read_waits_until_it_is_busy(monkeypatch):
     # Busy again: the pending read runs, and the next is a slot away.
     collector._last_io_at["g1"] = 1125.0
     assert _run(collector, "telemetry", 1130.0)
-    assert reads.attributes == [True] and reads.full == 0
+    assert reads.attributes == [("error", "background", "sasphy")] and reads.full == 0
     assert collector._schedules["g1"]["telemetry"] > 1130.0
 
 
@@ -441,6 +441,27 @@ def test_an_attribute_read_keeps_the_last_full_read_s_self_test_log(monkeypatch)
     assert state.snapshot.extras["self_test_log"] == log
     assert state.snapshot.extras["smart_attributes"] is not None
     assert (reads.full, len(reads.attributes)) == (1, 1)
+
+
+def test_an_attribute_read_carries_forward_signals_its_output_lacks(monkeypatch):
+    fixtures = Path(__file__).parents[2] / "analysis" / "fixtures"
+    full = json.loads((fixtures / "smartctl_full_reads_x.json").read_text())["hgst_hus726060_sas"]
+    attrs = json.loads((fixtures / "smartctl_attribute_reads.json").read_text())["hgst_hus726060_sas"]
+    collector, _ = _tiered(monkeypatch)
+    monkeypatch.setattr(smartctl_telemetry.smartctl, "full_read", lambda _d, _a: full)
+    monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_and_health", lambda _d, _a, logs=(): attrs)
+    state = collector._drive_states["g1"]
+    collector._run_snapshot(state, 0)
+    after_full = state.snapshot.telemetry.signals
+    assert (after_full.pending, after_full.link_errors) == (108, 57)
+    score = state.snapshot.health.health_pct
+
+    # The plain attribute read has no background scan or phy pages.
+    collector._run_telemetry(state, 10, full=False)
+    signals = state.snapshot.telemetry.signals
+    assert (signals.pending, signals.link_errors) == (108, 57)
+    assert signals.power_on_hours == attrs["power_on_time"]["hours"]      # its own values still win
+    assert state.snapshot.health.health_pct == score                       # judged on the carried values too
 
 
 def test_a_full_read_puts_off_both_scheduled_reads(monkeypatch):

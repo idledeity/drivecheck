@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS: dict = {
     "footer_signals": {
         "default": ["power_on_hours", "reallocated", "pending",            "uncorrected"],
-        "SAS":     ["power_on_hours", "reallocated", "load_unload_cycles", "uncorrected"],
+        "SAS":     ["power_on_hours", "reallocated", "pending",            "uncorrected"],
     }
 }
 

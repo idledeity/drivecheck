@@ -52,6 +52,7 @@ class DriveTraits:
     form_factor: str        | None = None   # "3.5 inches" | "2.5 inches" | etc.
     rpm: int                | None = None   # None for SSDs/NVMe
     bus: str                | None = None   # "SATA III · 6 Gb/s" | "SAS (SPL-4)" | etc.
+    logical_block_size: int | None = None   # bytes per LBA; sizes LBA/sector counters
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +131,18 @@ class DCSignals:
     attr C1 raw         → load_unload_cycles ← scsi_start_stop_cycle_counter
                                                 .accumulated_load_unload_cycles
     smart overall       → smart_passed       ← smart_status.passed
+    PHY ICRC + R_ERR    → link_errors        ← per-phy invalid dword + disparity
+      (sata_phy_event_counters)                 + loss of sync + reset problems
+    attr F1 / devstat   → data_written       ← error counter log write GB
+    attr F2 / devstat   → data_read          ← error counter log read GB
+
+    SAS pending is the background scan's medium errors not yet reassigned
+    (scsi_background_scan). NVMe: media_errors → uncorrected, data units →
+    data_read / data_written. link_errors counts since power-on (the PHY
+    logs reset), so it can fall. data_* are bytes.
+
+    A signal a read's output lacks (e.g. one only the full read's logs give)
+    is carried forward from the drive's previous read (collector).
     """
     power_on_hours: int      | None = None
     temp: int                | None = None
@@ -140,6 +153,9 @@ class DCSignals:
     reallocated_events: int  | None = None
     load_unload_cycles: int  | None = None   # ATA (0xC1) and SAS; None for NVMe
     smart_passed: bool       | None = None
+    link_errors: int         | None = None
+    data_written: int        | None = None
+    data_read: int           | None = None
 
 
 # ---------------------------------------------------------------------------

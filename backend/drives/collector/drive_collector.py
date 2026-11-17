@@ -617,6 +617,14 @@ class Collector:
         with self._lock:
             if not full:
                 snapshot.extras = {**state.snapshot.extras, **snapshot.extras}
+                # A signal this read's output lacks (one only the full read's
+                # logs give) stays as last read, rather than going unknown
+                # until the next full read.
+                previous = state.snapshot.telemetry.signals
+                missing = {f.name: getattr(previous, f.name) for f in fields(DCSignals)
+                           if getattr(snapshot.telemetry.signals, f.name) is None}
+                snapshot.telemetry.signals = replace(snapshot.telemetry.signals, **missing)
+                snapshot.health = score_health(snapshot.telemetry.signals)
             state.snapshot = snapshot
             sched = self._schedules.get(guid)
             if sched is not None:

@@ -51,6 +51,7 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
         form_factor=data.get("form_factor", {}).get("name"),
         rpm=rotation_rate if rotation_rate and rotation_rate > 0 else None,
         bus=_parse_bus(data),
+        logical_block_size=data.get("logical_block_size"),
     )
     logger.debug(
         "traits for %s: serial=%s model=%s type=%s",

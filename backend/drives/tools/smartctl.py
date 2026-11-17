@@ -81,12 +81,12 @@ def full_read(device_name: str, access_type: str) -> dict:
     return run_smartctl("-x", "-a", "-d", access_type, device_name)
 
 
-def attributes_and_health(device_name: str, access_type: str, error_counters: bool = False) -> dict:
+def attributes_and_health(device_name: str, access_type: str, logs: tuple[str, ...] = ()) -> dict:
     """smartctl -A -H: SMART attributes and the drive's health verdict, without
-    the logs -a also reads (self-test, error, selective). error_counters adds
-    -l error, which on SCSI/SAS is where the read/write error counter log lives
-    (on ATA it is the error log, so leave it off there)."""
-    args = ["-A", "-H"] + (["-l", "error"] if error_counters else [])
+    the logs -a also reads (self-test, error, selective), plus -l <log> for
+    each of logs (e.g. "error", which on SCSI/SAS is the read/write error
+    counter log, but on ATA the error log)."""
+    args = ["-A", "-H"] + [arg for log in logs for arg in ("-l", log)]
     return run_smartctl(*args, "-d", access_type, device_name)
 
 

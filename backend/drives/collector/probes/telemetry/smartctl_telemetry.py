@@ -2,7 +2,7 @@
 probes.telemetry.smartctl_telemetry — telemetry probe backed by smartctl.
 
 run() is the full read (smartctl -x -a); run_attributes() the collector's
-lighter attribute read (smartctl -A -H) between full ones. Both return a
+lighter attribute read (smartctl -A -H plus a few logs) between full ones. Both return a
 populated DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
 The DCSignals mapping is documented in drives.drive_models.DCSignals.
 """
@@ -29,14 +29,26 @@ def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
     return _fill(snapshot, context, data, full=True)
 
 
+# The logs the attribute read adds, by drive type, for the signals they give.
+# SAS: error counter log (uncorrected, data processed), background scan
+# (pending), phy counters (link errors). ATA: device statistics (data
+# processed where 241/242 aren't LBA counts), SATA PHY counters (link errors).
+_ATTRIBUTE_READ_LOGS = {
+    DriveType.SAS:  ("error", "background", "sasphy"),
+    DriveType.NVME: (),
+}
+_ATA_ATTRIBUTE_READ_LOGS = ("devstat", "sataphy")
+
+
 def run_attributes(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
-    """Attribute read (smartctl -A -H): signals and attribute rows only, for the
-    collector's frequent reads between full ones. The self-test log and raw
-    report are left out of extras, so the last full read's stay in place.
-    SAS adds -l error: its error counters (uncorrected) live there."""
+    """Attribute read (smartctl -A -H, plus the logs some signals come from):
+    signals and attribute rows only, for the collector's frequent reads
+    between full ones. The self-test log and raw report are left out of
+    extras, so the last full read's stay in place. It only runs while the
+    drive is busy (heads loaded), so the extra logs cost no head cycles."""
     descriptor = context.descriptor
-    data = smartctl.attributes_and_health(descriptor.device_name, descriptor.access_type,
-                                          error_counters=context.traits.drive_type == DriveType.SAS)
+    logs = _ATTRIBUTE_READ_LOGS.get(context.traits.drive_type, _ATA_ATTRIBUTE_READ_LOGS)
+    data = smartctl.attributes_and_health(descriptor.device_name, descriptor.access_type, logs=logs)
     return _fill(snapshot, context, data, full=False)
 
 
@@ -48,7 +60,7 @@ def _fill(snapshot: DriveSnapshot, context: DriveContext, data: dict, full: bool
     elif drive_type == DriveType.SAS:
         signals = _map_scsi(data)
     else:
-        signals = _map_ata(data)
+        signals = _map_ata(data, context.traits.logical_block_size)
 
     snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
     # Facts only: health is scored by the collector after the whole chain, and
@@ -69,13 +81,41 @@ def _fill(snapshot: DriveSnapshot, context: DriveContext, data: dict, full: bool
     return snapshot
 
 
-def _map_ata(data: dict) -> DCSignals:
-    """Map ATA SMART attribute table to DCSignals."""
-    attrs = {
-        entry["id"]: entry["raw"]["value"]
-        for entry in data.get("ata_smart_attributes", {}).get("table", [])
-        if "raw" in entry
-    }
+# SATA PHY event counter IDs that count link errors: 1 is a command failed by
+# an interface CRC error; 3-6 are R_ERR responses (a FIS received in error).
+_SATA_PHY_ERROR_IDS = {1, 3, 4, 5, 6}
+
+# Attribute ID -> (name the count means LBAs under, signal). Other names for
+# 241/242 (e.g. Host_Writes_32MiB) count in other units and aren't used.
+_ATA_LBA_COUNTERS = {0xF1: ("Total_LBAs_Written", "data_written"), 0xF2: ("Total_LBAs_Read", "data_read")}
+_DEVSTAT_SECTORS = {"Logical Sectors Written": "data_written", "Logical Sectors Read": "data_read"}
+
+
+def _map_ata(data: dict, logical_block_size: int | None = None) -> DCSignals:
+    """Map ATA SMART attribute table (and, when the read has them, the PHY
+    event counters and device statistics) to DCSignals. logical_block_size
+    (the drive's, from its traits) sizes LBA counts when the read lacks it."""
+    table = data.get("ata_smart_attributes", {}).get("table", [])
+    attrs = {entry["id"]: entry["raw"]["value"] for entry in table if "raw" in entry}
+    names = {entry["id"]: entry.get("name") for entry in table}
+
+    phy = data.get("sata_phy_event_counters", {}).get("table")
+    link_errors = sum(c.get("value") or 0 for c in phy if c.get("id") in _SATA_PHY_ERROR_IDS) if phy else None
+
+    block = data.get("logical_block_size") or logical_block_size
+    data_bytes = {}
+    if block:
+        stats = {e.get("name"): e.get("value")
+                 for page in data.get("ata_device_statistics", {}).get("pages", [])
+                 for e in page.get("table", []) if e.get("flags", {}).get("valid", True)}
+        for stat, signal in _DEVSTAT_SECTORS.items():
+            if stats.get(stat) is not None:
+                data_bytes[signal] = stats[stat] * block
+        # The attribute, when the drive names it as an LBA count, wins: it's
+        # what the SMART page shows, and every read has it.
+        for attr_id, (name, signal) in _ATA_LBA_COUNTERS.items():
+            if names.get(attr_id) == name and attrs.get(attr_id) is not None:
+                data_bytes[signal] = attrs[attr_id] * block
 
     # temperature.current is normalized by smartctl across all drives; raw
     # attribute values for IDs 190/194 are drive-family-specific packed fields
@@ -95,7 +135,19 @@ def _map_ata(data: dict) -> DCSignals:
         # (Power-Off_Retract_Count), which counts emergency retracts only.
         load_unload_cycles=attrs.get(0xC1),
         smart_passed=data.get("smart_status", {}).get("passed"),
+        link_errors=link_errors,
+        data_written=data_bytes.get("data_written"),
+        data_read=data_bytes.get("data_read"),
     )
+
+
+# Background scan results' reassign_status for a medium error not yet
+# reassigned (needs a write or REASSIGN BLOCKS): SAS's pending sector.
+_SCAN_UNREASSIGNED = 1
+
+# Per-phy SAS counters of link errors.
+_SAS_PHY_ERROR_COUNTS = ("invalid_dword_count", "running_disparity_error_count",
+                         "loss_of_dword_synchronization_count", "phy_reset_problem_count")
 
 
 def _map_scsi(data: dict) -> DCSignals:
@@ -109,16 +161,36 @@ def _map_scsi(data: dict) -> DCSignals:
 
     cycle_counter = data.get("scsi_start_stop_cycle_counter", {})
 
+    scan = data.get("scsi_background_scan")
+    pending = None
+    if scan is not None:
+        pending = sum(1 for k, r in scan.items()
+                      if k.startswith("result_") and r.get("reassign_status", {}).get("value") == _SCAN_UNREASSIGNED)
+
+    phys = [phy for key, port in data.items() if key.startswith("scsi_sas_port_")
+            for name, phy in port.items() if name.startswith("phy_")]
+    link_errors = sum(phy.get(c) or 0 for phy in phys for c in _SAS_PHY_ERROR_COUNTS) if phys else None
+
+    def gb_bytes(direction):
+        gb = error_log.get(direction, {}).get("gigabytes_processed")
+        try:
+            return round(float(gb) * 1e9) if gb is not None else None
+        except (TypeError, ValueError):
+            return None
+
     return DCSignals(
         power_on_hours=data.get("power_on_time", {}).get("hours"),
         temp=data.get("temperature", {}).get("current"),
         reallocated=data.get("scsi_grown_defect_list"),
-        pending=None,
+        pending=pending,
         uncorrected=uncorrected,
         crc_errors=None,
         reallocated_events=None,
         load_unload_cycles=cycle_counter.get("accumulated_load_unload_cycles"),
         smart_passed=data.get("smart_status", {}).get("passed"),
+        link_errors=link_errors,
+        data_written=gb_bytes("write"),
+        data_read=gb_bytes("read"),
     )
 
 
@@ -138,7 +210,14 @@ def _map_nvme(data: dict) -> DCSignals:
         crc_errors=None,
         reallocated_events=None,
         smart_passed=data.get("smart_status", {}).get("passed"),
+        data_written=_nvme_bytes(log.get("data_units_written")),
+        data_read=_nvme_bytes(log.get("data_units_read")),
     )
+
+
+def _nvme_bytes(units: int | None) -> int | None:
+    """NVMe data units are 1000 × 512 bytes."""
+    return units * 512_000 if units is not None else None
 
 
 if __name__ == "__main__":
