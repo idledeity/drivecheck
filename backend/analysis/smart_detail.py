@@ -65,10 +65,13 @@ def build_smart_detail(smartctl: dict) -> dict:
     groups = [{"key": key, "label": label, "fields": by_group[key]}
               for key, label in _GROUPS if key in by_group]
 
+    # consumed holds top-level keys, or dotted paths within one (a value the
+    # page shows from a section it doesn't otherwise list).
     skip = _META_KEYS | consumed
     other = [{"path": path, "value": value}
              for key in smartctl if key not in skip
-             for path, value in _leaves(smartctl[key], key)]
+             for path, value in _leaves(smartctl[key], key)
+             if not _shown(path, consumed)]
 
     return {"protocol": protocol, "groups": groups, "tables": [], "raw_sections": [],
             **extra, "other_fields": other}
@@ -117,6 +120,11 @@ def _self_test_status(result: str | None, passed: bool | None, nonzero: bool = F
     if "aborted" in text or "interrupted" in text or nonzero:
         return "warn"
     return "ok"
+
+
+def _shown(path: str, consumed: set[str]) -> bool:
+    """Whether path is, or lies under, a consumed path."""
+    return any(path == c or path.startswith((f"{c}.", f"{c}[")) for c in consumed)
 
 
 def _leaves(node, path: str) -> Iterable[tuple[str, object]]:
@@ -299,6 +307,14 @@ def _ata(data: dict) -> tuple[list[dict], dict, set[str]]:
                                     detail="From the attribute's raw value; the period it covers is vendor-defined"))
 
     fields.extend(_ata_temperature_extremes(data.get("temperature", {})))
+    fields.extend(_ata_settings(data))
+    fields.extend(_device_statistic_fields(data.get("ata_device_statistics", {}).get("pages", [])))
+
+    pending_defects = data.get("ata_pending_defects_log", {}).get("count")
+    if pending_defects is not None:
+        fields.append(_field("media", "pending_defects_log", "Pending defects (log)", pending_defects, "count",
+                             status=_signal_status("pending", pending_defects), source="ata_pending_defects_log",
+                             detail="The drive's list of sectors awaiting reallocation"))
 
     block = data.get("logical_block_size") or 512
     for attr_id, (name, direction) in _LBA_COUNTERS.items():
@@ -352,7 +368,18 @@ def _ata(data: dict) -> tuple[list[dict], dict, set[str]]:
     consumed = {"smart_status", "smart_support", "temperature", "power_on_time",
                 "power_cycle_count", "ata_smart_attributes", "ata_smart_self_test_log",
                 "sata_phy_event_counters", "ata_device_statistics", "ata_log_directory",
-                "ata_sct_temperature_history"}
+                "ata_sct_temperature_history", "ata_pending_defects_log",
+                "ata_security", "write_cache", "read_lookahead", "trim", "interface_speed",
+                # Values shown above from sections not otherwise listed.
+                "ata_smart_data.self_test.status", "ata_smart_data.self_test.polling_minutes",
+                "ata_smart_data.offline_data_collection.status",
+                "ata_smart_data.offline_data_collection.completion_seconds",
+                "ata_sct_capabilities.error_recovery_control_supported",
+                "ata_smart_error_log.extended.count", "ata_smart_error_log.summary.count"}
+    # The selective self-test log only says something while a span is tested.
+    selective = data.get("ata_smart_selective_self_test_log", {}).get("table", [])
+    if selective and all(span.get("status", {}).get("value") == 0 for span in selective):
+        consumed.add("ata_smart_selective_self_test_log")
     return fields, {"attributes": attributes, "tables": tables, "raw_sections": raw}, consumed
 
 
@@ -377,6 +404,68 @@ def _ata_temperature_extremes(temp: dict) -> list[dict]:
     if under is not None:
         fields.append(_field("temperature", "temp_under_limit", "Time below limit", under, "minutes",
                              source="temperature.lifetime_under_limit_minutes"))
+    return fields
+
+
+def _ata_settings(data: dict) -> list[dict]:
+    """Drive settings worth knowing before a task: cache, TRIM, security
+    (a frozen drive refuses secure erase), and the negotiated link speed."""
+    fields = []
+    for key, label, path in (("write_cache", "Write cache", "write_cache"),
+                             ("read_lookahead", "Read lookahead", "read_lookahead")):
+        enabled = data.get(path, {}).get("enabled")
+        if enabled is not None:
+            fields.append(_field("capabilities", key, label, "enabled" if enabled else "disabled",
+                                 source=f"{path}.enabled"))
+    trim = data.get("trim", {}).get("supported")
+    if trim is not None:
+        fields.append(_field("capabilities", "trim", "TRIM", "supported" if trim else "not supported",
+                             source="trim.supported"))
+    security = data.get("ata_security", {})
+    if security.get("string"):
+        frozen = security.get("frozen")
+        fields.append(_field("capabilities", "ata_security", "Security", security["string"], source="ata_security",
+                             detail="Frozen: secure erase is refused until the drive is power-cycled" if frozen else None))
+
+    speed = data.get("interface_speed", {})
+    current, maximum = speed.get("current", {}), speed.get("max", {})
+    if current.get("string"):
+        rate = lambda s: (s.get("units_per_second") or 0) * (s.get("bits_per_unit") or 0)
+        slower = bool(maximum) and 0 < rate(current) < rate(maximum)
+        fields.append(_field("interface", "link_speed", "Link speed", current["string"],
+                             status="warn" if slower else "ok", source="interface_speed.current",
+                             detail=(f"Below the drive's {maximum.get('string')}: check the cable, port or backplane"
+                                     if slower else f"Drive supports {maximum['string']}" if maximum.get("string") else None)))
+    return fields
+
+
+# Device statistics shown as named fields: (statistic name, group, key, label, signal or judging).
+_DEVICE_STATISTIC_FIELDS = [
+    ("Number of Mechanical Start Failures",        "lifetime",  "mechanical_start_failures", "Mechanical start failures", "any"),
+    ("Number of High Priority Unload Events",      "lifetime",  "emergency_unloads",         "Emergency head unloads",    None),
+    ("Read Recovery Attempts",                     "media",     "read_recovery_attempts",    "Read recovery attempts",    None),
+    ("Number of Realloc. Candidate Logical Sectors", "media",   "realloc_candidates",        "Reallocation candidates",   "pending"),
+    ("Number of Hardware Resets",                  "interface", "hardware_resets",           "Hardware resets",           None),
+    ("Number of ASR Events",                       "interface", "asr_events",                "Asynchronous signal recoveries", None),
+]
+
+
+def _device_statistic_fields(pages: list[dict]) -> list[dict]:
+    """A few device statistics as named fields (all stay in the table too).
+    "any" warns on one or more; a signal name applies that signal's thresholds."""
+    by_name = {e.get("name"): e for page in pages for e in page.get("table", [])
+               if e.get("flags", {}).get("valid", True)}
+    fields = []
+    for name, group, key, label, judge in _DEVICE_STATISTIC_FIELDS:
+        entry = by_name.get(name)
+        if entry is None or entry.get("value") is None:
+            continue
+        value = entry["value"]
+        status = ("warn" if value > 0 else "ok") if judge == "any" else _signal_status(judge, value)
+        if entry.get("flags", {}).get("monitored_condition_met"):
+            status = _worst(status, "warn")
+        fields.append(_field(group, key, label, value, "count", status=status,
+                             source=f"ata_device_statistics: {name}"))
     return fields
 
 
@@ -491,6 +580,17 @@ def _scsi(data: dict) -> tuple[list[dict], dict, set[str]]:
         fields.append(_field("capabilities", "self_test_extended_minutes", "Extended self-test",
                              round(ext_secs / 60), "minutes", source="scsi_extended_self_test_seconds"))
 
+    fmt = data.get("scsi_format_status", {})
+    if fmt:
+        minutes = fmt.get("power_on_minutes_since_format")
+        since = f"Formatted {minutes / 60:,.0f} power-on hours ago" if minutes is not None else None
+        for key, label, path in (("grown_defects_during_cert", "Grown defects during certification", "grown_defects_during_cert"),
+                                 ("blocks_reassigned_during_format", "Blocks reassigned during format",
+                                  "blocks_reassigned_during_format")):
+            if fmt.get(path) is not None:
+                fields.append(_field("media", key, label, fmt[path], "count",
+                                     source=f"scsi_format_status.{path}", detail=since))
+
     tables = []
     scan = data.get("scsi_background_scan")
     if scan:
@@ -515,6 +615,7 @@ def _scsi(data: dict) -> tuple[list[dict], dict, set[str]]:
     consumed = {"smart_status", "smart_support", "temperature", "temperature_warning",
                 "power_on_time", "scsi_start_stop_cycle_counter", "scsi_grown_defect_list",
                 "scsi_error_counter_log", "scsi_extended_self_test_seconds", "scsi_background_scan",
+                "scsi_format_status",
                 *ports, *(k for k in data if k.startswith("scsi_self_test_"))}
     return fields, extra, consumed
 

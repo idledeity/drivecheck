@@ -118,11 +118,22 @@ def test_failed_smart_status_and_self_test_are_crit(read):
 def test_ata_other_fields_hold_everything_not_shown_elsewhere(read):
     paths = {o["path"] for o in build_smart_detail(read("exos_x16"))["other_fields"]}
     assert "model_family" in paths
-    assert "interface_speed.current.string" in paths
-    assert "ata_smart_selective_self_test_log.table[0].status.string" in paths
-    # Shown elsewhere on the page, or smartctl's own bookkeeping.
+    assert "ata_smart_data.capabilities.self_tests_supported" in paths   # not shown elsewhere
+    # Shown elsewhere on the page (whole sections, or single values from a
+    # section), smartctl's own bookkeeping, or an idle selective self-test log.
     assert not any(p.startswith(("ata_smart_attributes", "ata_smart_self_test_log", "smartctl",
-                                 "json_format_version", "local_time", "device.")) for p in paths)
+                                 "json_format_version", "local_time", "device.", "interface_speed",
+                                 "ata_smart_data.self_test.", "ata_smart_data.offline_data_collection.status",
+                                 "ata_sct_capabilities.error_recovery_control_supported",
+                                 "ata_smart_error_log.summary.count", "ata_smart_selective_self_test_log"))
+                   for p in paths)
+
+
+def test_a_selective_self_test_in_progress_stays_listed(read):
+    data = read("exos_x16")
+    data["ata_smart_selective_self_test_log"]["table"][0]["status"] = {"value": 241, "string": "Self_test_in_progress"}
+    paths = {o["path"] for o in build_smart_detail(data)["other_fields"]}
+    assert "ata_smart_selective_self_test_log.table[0].status.string" in paths
 
 
 # ── SCSI / SAS ───────────────────────────────────────────────────────────────
@@ -321,3 +332,56 @@ def test_sas_x_phy_counters_per_port(read_x):
 def test_reads_without_x_have_no_tables_or_raw_sections(read):
     detail = build_smart_detail(read("exos_x16"))
     assert (detail["tables"], detail["raw_sections"]) == ([], [])
+
+
+# ── named fields from -x sections ────────────────────────────────────────────
+
+def test_ata_x_settings_and_link_speed(read_x):
+    fields = _fields(build_smart_detail(read_x("exos_x16")))
+    assert fields["write_cache"]["value"] == "enabled"
+    assert fields["trim"]["value"] == "not supported"
+    assert (fields["ata_security"]["value"], fields["ata_security"]["detail"]) == ("Disabled, NOT FROZEN [SEC1]", None)
+    assert (fields["link_speed"]["value"], fields["link_speed"]["status"]) == ("6.0 Gb/s", "ok")
+
+
+def test_ata_x_frozen_security_says_secure_erase_is_refused(read_x):
+    data = read_x("exos_x16")
+    data["ata_security"].update(frozen=True, string="Disabled, frozen [SEC2]")
+    assert "secure erase" in _fields(build_smart_detail(data))["ata_security"]["detail"]
+
+
+def test_ata_x_link_below_the_drive_s_max_is_warn(read_x):
+    data = read_x("exos_x16")
+    data["interface_speed"]["current"].update(units_per_second=30, string="3.0 Gb/s")
+    link = _fields(build_smart_detail(data))["link_speed"]
+    assert (link["value"], link["status"]) == ("3.0 Gb/s", "warn")
+    assert "6.0 Gb/s" in link["detail"]
+
+
+def test_ata_x_device_statistic_fields(read_x):
+    fields = _fields(build_smart_detail(read_x("exos_x16")))
+    assert fields["emergency_unloads"]["value"] == 23
+    assert fields["hardware_resets"]["value"] == 61
+    assert fields["realloc_candidates"]["status"] == "ok"
+    assert fields["pending_defects_log"]["value"] == 0
+    hp = _fields(build_smart_detail(read_x("hp_mb3000gcvbt")))
+    assert (hp["read_recovery_attempts"]["value"], hp["read_recovery_attempts"]["status"]) == (12, "ok")
+    assert "realloc_candidates" not in hp        # the HP's statistics don't have it
+
+
+def test_ata_x_device_statistic_fields_are_judged(read_x):
+    data = read_x("exos_x16")
+    stats = {e["name"]: e for p in data["ata_device_statistics"]["pages"] for e in p["table"]}
+    stats["Number of Mechanical Start Failures"]["value"] = 1
+    stats["Number of Realloc. Candidate Logical Sectors"]["value"] = 3
+    fields = _fields(build_smart_detail(data))
+    assert fields["mechanical_start_failures"]["status"] == "warn"
+    assert fields["realloc_candidates"]["status"] == "warn"
+
+
+def test_sas_x_format_history(read_x):
+    fields = _fields(build_smart_detail(read_x("netapp_x316_sas")))
+    assert fields["blocks_reassigned_during_format"]["value"] == 1
+    assert fields["grown_defects_during_cert"]["detail"] == "Formatted 5,190 power-on hours ago"
+    other = {f["path"].split(".")[0] for f in build_smart_detail(read_x("netapp_x316_sas"))["other_fields"]}
+    assert "scsi_format_status" not in other
