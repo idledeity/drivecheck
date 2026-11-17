@@ -43,7 +43,14 @@ describe('HealthTab', () => {
   it('fetches SMART data for selected drives when report tab is opened', async () => {
     render(<HealthTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
     await userEvent.click(screen.getByRole('button', { name: 'Report' }))
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/raw/latest'))
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/smart/detail'))
+  })
+
+  it('opens the SMART sub-tab from its nav button', async () => {
+    render(<HealthTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
+    await userEvent.click(screen.getByRole('button', { name: 'SMART' }))
+    expect(screen.getByRole('button', { name: 'SMART' })).toHaveClass('active')
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/smart/detail'))
   })
 
   it('switches to the report sub-tab and shows download button', async () => {

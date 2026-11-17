@@ -55,6 +55,61 @@ export type RawSnapshot = {
   }
 }
 
+export type SmartStatus = "ok" | "warn" | "crit"
+
+/** A named field on the SMART page (backend analysis.smart_detail). */
+export type SmartField = {
+  key: string
+  label: string
+  value: number | string | boolean | null
+  /** How value is formatted; null for text. */
+  unit: "hours" | "minutes" | "seconds" | "ms" | "count" | "celsius" | "bytes" | "percent" | null
+  status: SmartStatus
+  /** Where in the smartctl output it came from, e.g. "ATA 193" or "scsi_grown_defect_list". */
+  source: string | null
+  detail: string | null
+  limit: { value: number; kind: "rated" | "trip" | "threshold" } | null
+  /** The ATA attribute it comes from, for its normalized / worst / threshold columns. */
+  attribute_id: number | null
+}
+
+export type SmartAttribute = {
+  id: number
+  name: string
+  value: number | null
+  worst: number | null
+  thresh: number | null
+  margin: number | null
+  type: "Pre-fail" | "Old-age"
+  updated: "Always" | "Offline"
+  flags: string | null
+  raw_value: number | null
+  raw_string: string | null
+  when_failed: string | null
+  status: SmartStatus
+}
+
+export type SmartLeaf = { path: string; value: number | string | boolean | null }
+
+export type SmartDetail = {
+  protocol: string | null
+  groups: { key: string; label: string; fields: SmartField[] }[]
+  attributes?: SmartAttribute[]
+  scsi_error_counters?: {
+    columns: { key: string; label: string }[]
+    rows: ({ direction: string } & Record<string, number | null | string>)[]
+  }
+  nvme_health_log?: SmartLeaf[]
+  other_fields: SmartLeaf[]
+}
+
+export type SmartDetailResponse = {
+  captured_at: string
+  probe: string
+  detail: SmartDetail | null
+  self_test_log: SmartAttributeRow[]
+}
+
 export type DriveIOActivity = {
   read_iops: number | null
   write_iops: number | null

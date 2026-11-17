@@ -1,0 +1,153 @@
+/* Health -> SMART page. Shares .smart-drive-section, .smart-asof, .smart-empty,
+   .smart-section-title and .attr-list with the attribute list (HealthTab.css). */
+
+.smart-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.smart-group {
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  padding: 6px 4px 4px;
+  min-width: 0;
+}
+
+.smart-group-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  margin: 2px 6px 4px;
+}
+
+.smart-field {
+  padding: 5px 6px;
+  border-radius: 4px;
+}
+.smart-field:nth-child(even) { background: rgba(255,255,255,0.02); }
+
+.smart-field-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.smart-field-label { font-size: 12px; color: var(--t2); }
+.smart-field-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.smart-field-limit { font-weight: 400; color: var(--t4); }
+
+.smart-warn { color: var(--wa); }
+.smart-crit { color: var(--re); }
+
+.smart-field-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: var(--t4);
+}
+.smart-source {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  color: var(--t5);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* ── Tables ── */
+.smart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  color: var(--t2);
+}
+.smart-table th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--t4);
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bd);
+  white-space: nowrap;
+}
+.smart-table td { padding: 4px 6px; vertical-align: baseline; }
+.smart-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+.smart-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.smart-table tbody th.name { text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--t2); font-weight: 600; border: none; }
+.smart-table .mono, .smart-table .raw { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.smart-table .raw { overflow-wrap: anywhere; }
+.smart-row-warn td, .smart-row-warn th.name { color: var(--wa); }
+.smart-row-crit td, .smart-row-crit th.name { color: var(--re); }
+
+/* ── Key/value lists (NVMe log, everything else) ── */
+.smart-leaves { margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.smart-leaf {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.smart-leaf:nth-child(odd) { background: rgba(255,255,255,0.02); }
+.smart-leaf dt { font-family: ui-monospace, Consolas, monospace; color: var(--t4); overflow-wrap: anywhere; }
+.smart-leaf dd { margin: 0; color: var(--t2); text-align: right; overflow-wrap: anywhere; }
+
+.smart-other > summary { cursor: pointer; }
+.smart-other > summary:hover { color: var(--t2); }
+
+/* ── Report summary ── */
+.smart-summary-ok { font-size: 12px; color: var(--t3); margin: 0 0 6px; }
+.smart-summary .smart-group { margin-bottom: 8px; }
+.smart-open-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--cy);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.smart-open-btn:hover { text-decoration: underline; }
+
+/* ── Phone: table rows become labelled cards ── */
+@media (max-width: 640px) {
+  .smart-groups { grid-template-columns: 1fr; }
+
+  .smart-table thead { display: none; }
+  .smart-table, .smart-table tbody { display: block; }
+  .smart-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    padding: 6px 8px;
+    border-radius: 4px;
+  }
+  .smart-table td { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; text-align: right; }
+  .smart-table td::before {
+    content: attr(data-label);
+    color: var(--t4);
+    font-family: inherit;
+    font-size: 10.5px;
+    text-align: left;
+  }
+  .smart-table td.num { text-align: right; }
+
+  /* Attribute card: name as its heading, raw value full width. */
+  .smart-attr-table td.name { grid-column: 1 / -1; order: -1; font-weight: 600; justify-content: flex-start; text-align: left; }
+  .smart-attr-table td.name::before { content: none; }
+  .smart-attr-table td.raw { grid-column: 1 / -1; }
+  .smart-table tbody th.name { grid-column: 1 / -1; padding: 0; }
+}

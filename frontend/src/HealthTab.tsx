@@ -4,18 +4,19 @@ import { REPORT_SIGNALS, formatSignal, signalLabel } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
-import { DriveAttributes } from "./SmartAttributesPanel"
+import SmartPanel, { SmartSummary } from "./SmartPage"
 import AsOf from "./AsOf"
 import { isStale, useNow } from "./useNow"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
 
-type SubTab = "overview" | "report" | "trends"
+type SubTab = "overview" | "report" | "smart" | "trends"
 
 const SUBTABS: { id: SubTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "report",   label: "Report"   },
+  { id: "smart",    label: "SMART"    },
   { id: "trends",   label: "Trends"   },
 ]
 
@@ -42,7 +43,8 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
       </nav>
       <div className="health-subtab-body">
         {subTab === "overview" && <OverviewPanel drives={drives} selectedGuids={selectedGuids} />}
-        {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} />}
+        {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} onOpenSmart={() => setSubTab("smart")} />}
+        {subTab === "smart"    && <SmartPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "trends"   && <TrendsPanel drives={drives} selectedGuids={selectedGuids} />}
       </div>
     </div>
@@ -67,7 +69,7 @@ function OverviewPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGui
 
 // ── Report ────────────────────────────────────────────────────────────────────
 
-function ReportPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids: string[] }) {
+function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; selectedGuids: string[]; onOpenSmart: () => void }) {
   if (selectedGuids.length === 0) {
     return <p className="health-empty">Select one or more drives to view a report.</p>
   }
@@ -93,13 +95,13 @@ function ReportPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids
         <button className="rep-export-btn" onClick={handleExport}>Download report</button>
       </div>
       {selectedDrives.map(drive => (
-        <DriveReport key={drive.guid} drive={drive} />
+        <DriveReport key={drive.guid} drive={drive} onOpenSmart={onOpenSmart} />
       ))}
     </div>
   )
 }
 
-function DriveReport({ drive }: { drive: Drive }) {
+function DriveReport({ drive, onOpenSmart }: { drive: Drive; onOpenSmart: () => void }) {
   const liveTemp = drive.vitals.temp ?? drive.temp
   const now = useNow()
   // Health and every signal but temperature come from one SMART read;
@@ -147,8 +149,8 @@ function DriveReport({ drive }: { drive: Drive }) {
         ))}
       </div>
 
-      <h4 className="rep-section-title">SMART attributes</h4>
-      <DriveAttributes key={drive.guid} guid={drive.guid} refreshKey={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
+      <h4 className="rep-section-title">SMART values needing attention</h4>
+      <SmartSummary key={drive.guid} guid={drive.guid} staleAfterS={drive.stale_after_s.smart} onOpenSmart={onOpenSmart} />
     </div>
   )
 }
