@@ -7,6 +7,13 @@ export function formatCapacity(bytes: number | null): string {
   return `${(bytes / 1e6).toFixed(0)} MB`
 }
 
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`
+  if (bytes >= 1e3) return `${(bytes / 1e3).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
 export function formatThroughput(bytesPerSec: number | null): string {
   if (bytesPerSec === null) return "—"
   if (bytesPerSec >= 1e6) return `${(bytesPerSec / 1e6).toFixed(1)} MB/s`

@@ -131,8 +131,15 @@ export type Job = {
   started_at: string | null
   finished_at: string | null
   smart: JobSmart
+  logs: JobLogs
   queue_position: number | null  // run order while queued (0 starts first), else null
 }
+
+// The job's output files (GET /api/jobs/<id>/logs/<kind>), null when it has
+// none: "raw" is the program's own output, "summary" its important lines
+// (only for operations that summarize). A running job's raw log is still growing.
+export type JobLogFile = { size: number }
+export type JobLogs = { raw: JobLogFile | null; summary: JobLogFile | null }
 
 export type ParamSpec = {
   name: string

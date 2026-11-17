@@ -144,6 +144,36 @@ describe('JobDetails — settings', () => {
   })
 })
 
+describe('JobDetails — output logs', () => {
+  it('links the summary and raw output with their sizes', () => {
+    render(<JobDetails job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: { size: 12_400_000 }, summary: { size: 640 } } })} />)
+    expect(screen.getByText('Output')).toBeInTheDocument()
+    expect(screen.getByText('View · 640 B')).toHaveAttribute('href', '/api/jobs/job-7/logs/summary')
+    expect(screen.getByText('View · 12.4 MB')).toHaveAttribute('href', '/api/jobs/job-7/logs/raw')
+  })
+
+  it('shows only the logs that exist', () => {
+    render(<JobDetails job={makeJob({ status: 'completed', logs: { raw: { size: 2000 }, summary: null } })} />)
+    expect(screen.queryByText('Summary')).not.toBeInTheDocument()
+    expect(screen.getByText('Raw output')).toBeInTheDocument()
+  })
+
+  it('marks a running job\'s raw output as live', () => {
+    render(<JobDetails job={makeJob({ status: 'running', logs: { raw: { size: 10 }, summary: null } })} />)
+    expect(screen.getByText('Raw output (live)')).toBeInTheDocument()
+  })
+
+  it('has no Output section for a job without logs', () => {
+    render(<JobDetails job={makeJob({ status: 'completed' })} />)
+    expect(screen.queryByText('Output')).not.toBeInTheDocument()
+  })
+
+  it('links the logs in the narrow popover too', () => {
+    render(<JobDetailRows job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: null, summary: { size: 1500 } } })} />)
+    expect(screen.getByText('View · 1.5 KB')).toHaveAttribute('href', '/api/jobs/job-7/logs/summary')
+  })
+})
+
 describe('JobDetailRows (narrow popover)', () => {
   it('shows the common properties and settings, without the SMART panel', () => {
     render(<JobDetailRows job={makeJob({

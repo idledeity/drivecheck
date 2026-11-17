@@ -1,5 +1,5 @@
-import type { Job, JobSmartSnapshot, JobStatus, SmartChange } from "./types"
-import { formatDuration, formatTimestamp, humanizeKey, jobResultText } from "./format"
+import type { Job, JobLogFile, JobSmartSnapshot, JobStatus, SmartChange } from "./types"
+import { formatDuration, formatFileSize, formatTimestamp, humanizeKey, jobResultText } from "./format"
 import { healthSeverity, severityClass, signalName } from "./signals"
 import SignalValue from "./SignalValue"
 import "./JobDetails.css"
@@ -92,6 +92,33 @@ function JobResultRows({ job }: { job: Job }) {
   )
 }
 
+// The job's output files, each opened as plain text in a new tab.
+function hasLogs(job: Job): boolean {
+  return job.logs.summary !== null || job.logs.raw !== null
+}
+
+function LogLink({ job, kind, label, file }: { job: Job; kind: "summary" | "raw"; label: string; file: JobLogFile | null }) {
+  if (!file) return null
+  return (
+    <div className="job-detail-row">
+      <span className="job-detail-label">{label}</span>
+      <a className="job-detail-value job-log-link" href={`/api/jobs/${job.id}/logs/${kind}`} target="_blank" rel="noreferrer"
+         onClick={e => e.stopPropagation()}>
+        View · {formatFileSize(file.size)}
+      </a>
+    </div>
+  )
+}
+
+function JobLogRows({ job }: { job: Job }) {
+  return (
+    <>
+      <LogLink job={job} kind="summary" label="Summary" file={job.logs.summary} />
+      <LogLink job={job} kind="raw" label={job.status === "running" ? "Raw output (live)" : "Raw output"} file={job.logs.raw} />
+    </>
+  )
+}
+
 // Single-column summary: common properties, settings and result details.
 export function JobDetailRows({ job }: { job: Job }) {
   return (
@@ -107,6 +134,12 @@ export function JobDetailRows({ job }: { job: Job }) {
         <>
           <h4 className="job-detail-heading">Details</h4>
           <JobResultRows job={job} />
+        </>
+      )}
+      {hasLogs(job) && (
+        <>
+          <h4 className="job-detail-heading">Output</h4>
+          <JobLogRows job={job} />
         </>
       )}
     </>
@@ -130,6 +163,12 @@ export function JobDetails({ job }: { job: Job }) {
           <section className="job-detail-section">
             <h4 className="job-detail-heading">Details</h4>
             <JobResultRows job={job} />
+          </section>
+        )}
+        {hasLogs(job) && (
+          <section className="job-detail-section">
+            <h4 className="job-detail-heading">Output</h4>
+            <JobLogRows job={job} />
           </section>
         )}
       </div>

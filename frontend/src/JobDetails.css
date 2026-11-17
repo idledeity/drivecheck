@@ -131,6 +131,15 @@
   color: var(--wa);
 }
 
+.job-log-link {
+  color: var(--cy);
+  text-decoration: none;
+}
+
+.job-log-link:hover {
+  text-decoration: underline;
+}
+
 .job-smart-link {
   margin-top: 3px;
   font-size: 10px;
