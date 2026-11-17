@@ -258,6 +258,11 @@ export type Drive = {
   uncorrected: number | null
   crc_errors: number | null
   smart_passed: boolean | null
+  /** Since power-on (the PHY logs reset), so it can fall. */
+  link_errors: number | null
+  /** Bytes. */
+  data_written: number | null
+  data_read: number | null
   health_pct: number | null
   health_status: "Healthy" | "Degraded" | "Failing" | null
   signal_flags: Record<string, "ok" | "warn" | "crit">

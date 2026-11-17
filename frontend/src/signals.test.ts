@@ -10,6 +10,12 @@ describe('SIGNALS', () => {
     expect(formatSignal('power_on_hours', null)).toBe('—')
   })
 
+  it('formats data written and read as sizes, link errors as a count', () => {
+    expect(SIGNALS.data_written.format(224_927_797_112_832)).toBe('225 TB')
+    expect(SIGNALS.data_read.format(2_526_525_336_000_000)).toBe('2.5 PB')
+    expect(SIGNALS.link_errors.format(57)).toBe('57')
+  })
+
   it('formats reallocated as a plain count', () => {
     expect(SIGNALS.reallocated.format(3)).toBe('3')
   })
@@ -68,10 +74,8 @@ describe('DEFAULT_FOOTER_SIGNALS', () => {
     )
   })
 
-  it('uses load_unload_cycles instead of pending for SAS drives', () => {
-    expect(DEFAULT_FOOTER_SIGNALS.SAS).toEqual(
-      ['power_on_hours', 'reallocated', 'load_unload_cycles', 'uncorrected'],
-    )
+  it('shows pending for SAS drives (background-scan errors not yet reassigned), no CRC errors', () => {
+    expect(DEFAULT_FOOTER_SIGNALS.SAS).toEqual(['power_on_hours', 'reallocated', 'pending', 'uncorrected'])
   })
 
   it('every listed signal key has a corresponding SIGNALS descriptor', () => {

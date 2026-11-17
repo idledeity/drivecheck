@@ -1,4 +1,4 @@
-import { humanizeKey } from "./format"
+import { formatBytes, humanizeKey } from "./format"
 
 // The one registry of drive health signals (DCSignals fields): how each is
 // labelled and formatted wherever it is shown — the card footer, the Health
@@ -28,17 +28,23 @@ export const SIGNALS: Record<string, SignalDescriptor> = {
   temp:               { label: "Temp",       name: "Temperature",         format: v => `${v}°C` },
   reallocated_events: { label: "Realloc Ev", name: "Reallocation events", format: count },
   smart_passed:       { label: "SMART",      name: "SMART status",        format: v => (v ? "Passed" : "Failed") },
+  // Since power-on: SATA PHY ICRC + R_ERR, or SAS phy invalid dwords,
+  // disparity, loss of sync and reset problems.
+  link_errors:        { label: "Link Err",   name: "Link errors",         format: count },
+  data_written:       { label: "Written",    name: "Data written",        format: v => formatBytes(Number(v)) },
+  data_read:          { label: "Read",       name: "Data read",           format: v => formatBytes(Number(v)) },
 }
 
 // The signals the Health tab's report lists, in order (smart_passed has its
 // own line there; reallocated_events isn't part of the live drive payload).
 export const REPORT_SIGNALS = [
-  "power_on_hours", "reallocated", "pending", "uncorrected", "crc_errors", "load_unload_cycles", "temp",
+  "power_on_hours", "reallocated", "pending", "uncorrected", "crc_errors", "link_errors", "load_unload_cycles",
+  "temp", "data_written", "data_read",
 ]
 
 export const DEFAULT_FOOTER_SIGNALS: Record<string, string[]> = {
   default: ["power_on_hours", "reallocated", "pending",            "uncorrected", "crc_errors"],
-  SAS:     ["power_on_hours", "reallocated", "load_unload_cycles", "uncorrected"],
+  SAS:     ["power_on_hours", "reallocated", "pending",            "uncorrected"],
 }
 
 export function signalLabel(key: string): string {

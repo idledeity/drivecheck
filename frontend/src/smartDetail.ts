@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import type { SmartDetail, SmartDetailResponse, SmartField } from "./types"
-import { formatDuration } from "./format"
+import { formatBytes, formatDuration } from "./format"
+
+export { formatBytes }
 
 /* Fetching and formatting for the Health -> SMART page (SmartPage.tsx). */
 
@@ -34,15 +36,6 @@ export function hasNewerRead(data: SmartDetailResponse, lastFullReadAt: string |
 
 export function hasSmartData(detail: SmartDetail): boolean {
   return detail.groups.length > 0 || (detail.attributes?.length ?? 0) > 0
-}
-
-const BYTE_UNITS: [number, string][] = [[1e15, "PB"], [1e12, "TB"], [1e9, "GB"], [1e6, "MB"], [1e3, "KB"]]
-
-export function formatBytes(bytes: number): string {
-  for (const [size, unit] of BYTE_UNITS) {
-    if (bytes >= size) return `${(bytes / size).toFixed(bytes >= size * 100 ? 0 : 1)} ${unit}`
-  }
-  return `${bytes} B`
 }
 
 export function formatFieldValue(field: Pick<SmartField, "value" | "unit">): string {

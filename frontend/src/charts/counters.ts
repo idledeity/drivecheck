@@ -1,11 +1,16 @@
 import { useState } from "react"
 import type { ChartThreshold } from "./TimeSeriesChart"
 import type { CounterView } from "./counterTrends"
+import { rateLabel } from "./counterTrends"
+import { formatBytes } from "../format"
+import { formatTick } from "./scales"
 
 // The counters charted wherever drive history is (Health > Trends, drive card
-// popovers): error counts first, then load/unload cycles, the one wear count
-// (head parking: normal use adds a few a day, an aggressive idle timer hundreds).
-export const COUNTER_SIGNALS = ["reallocated", "pending", "uncorrected", "crc_errors", "load_unload_cycles"] as const
+// popovers): error counts first (link errors count since power-on, so they
+// can fall), then the wear counts: load/unload cycles (head parking: normal use
+// adds a few a day, an aggressive idle timer hundreds) and data written.
+export const COUNTER_SIGNALS = ["reallocated", "pending", "uncorrected", "crc_errors", "link_errors",
+                                "load_unload_cycles", "data_written"] as const
 export type CounterSignal = typeof COUNTER_SIGNALS[number]
 
 export const isCounter = (signal: string): signal is CounterSignal =>
@@ -18,7 +23,29 @@ export const hasTrend = (signal: string): signal is CounterSignal | "temp" => si
 // Wear counts are never near 0 and climb steadily: a linear scale fitted to
 // the data separates drives and shows slopes. Error counts use log1p, so
 // 0 → 1 shows next to a drive with thousands (see CounterChart).
-const WEAR_COUNTERS = new Set<string>(["load_unload_cycles"])
+const WEAR_COUNTERS = new Set<string>(["load_unload_cycles", "data_written", "data_read"])
+
+// Counters in bytes: workload, not wear or errors, so a faster rate than
+// usual is no warning.
+const BYTE_COUNTERS = new Set<string>(["data_written", "data_read"])
+
+/** How a counter's values, changes and rates read. */
+export interface CounterFormat {
+  value: (v: number) => string
+  /** A y-axis tick. */
+  axis: (v: number) => string
+  rate: (perDay: number) => string
+  /** A rate above usual is only more use, not a warning. */
+  workload: boolean
+}
+
+const signedBytes = (v: number) => `${v < 0 ? "−" : ""}${formatBytes(Math.abs(v))}`
+
+export function counterFormat(signal: string): CounterFormat {
+  return BYTE_COUNTERS.has(signal)
+    ? { value: signedBytes, axis: signedBytes, rate: signedBytes, workload: true }
+    : { value: v => v.toLocaleString(), axis: formatTick, rate: rateLabel, workload: false }
+}
 
 export const counterScale = (signal: string): "linear" | "log1p" => (WEAR_COUNTERS.has(signal) ? "linear" : "log1p")
 

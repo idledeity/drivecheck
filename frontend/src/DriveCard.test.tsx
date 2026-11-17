@@ -202,10 +202,11 @@ describe('footer signals', () => {
     expect(screen.getByText('Pending')).toBeInTheDocument()
   })
 
-  it('renders the SAS signal set (load/unload instead of pending) for SAS drives', () => {
-    renderCard({ drive: makeDrive({ drive_type: 'SAS', load_unload_cycles: 99 }) })
-    expect(screen.getByText('Ld/UL')).toBeInTheDocument()
-    expect(screen.queryByText('Pending')).not.toBeInTheDocument()
+  it('renders the SAS signal set (pending, no CRC or load/unload) for SAS drives', () => {
+    renderCard({ drive: makeDrive({ drive_type: 'SAS', load_unload_cycles: 99, pending: 108 }) })
+    expect(screen.getByText('Pending')).toBeInTheDocument()   // background-scan errors not yet reassigned
+    expect(screen.queryByText('Ld/UL')).not.toBeInTheDocument()
+    expect(screen.queryByText('CRC Err')).not.toBeInTheDocument()
   })
 
   it('respects a footerSignals override from settings', () => {
@@ -315,7 +316,7 @@ describe('popovers (click-only / no-hover device)', () => {
     const drive = makeDrive({ guid: 'd1', drive_type: 'SAS', load_unload_cycles: 3581, power_on_hours: 100,
       last_polled_at: new Date(Date.now() - 40 * 60_000).toISOString() })
     stubHistory('d1')
-    renderCard({ drive })
+    renderCard({ drive, footerSignals: { SAS: ['power_on_hours', 'load_unload_cycles'] } })
     const stat = (label: string) => screen.getByText(label).closest('.dc-stat')!
     expect(stat('Ld/UL')).toHaveClass('dc-trend')
     expect(stat('Power-on')).not.toHaveClass('dc-trend')

@@ -9,10 +9,12 @@ import type { ChartDrive } from "./historySeries"
 import type { ChartPoint } from "./chartGeometry"
 import type { DriveHistoryData } from "./useDriveHistory"
 import {
-  RATE_BUCKET, ageLabel, baselineSpread, counterChanges, eventStatus, firstRecord, rateBuckets, rateLabel,
+  RATE_BUCKET, ageLabel, baselineSpread, counterChanges, eventStatus, firstRecord, rateBuckets,
   netChange, rateStatus, ratioLabel, settledSince, stepValue,
 } from "./counterTrends"
 import type { CounterWindows, EventStatus, RateBucket, RateStatus } from "./counterTrends"
+import { counterFormat } from "./counters"
+import type { CounterFormat } from "./counters"
 import "./CounterLanesChart.css"
 
 // A counter's Events or Rate view: one lane per drive, on the same time axis
@@ -83,6 +85,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   const toT = (px: number) => start + ((px - ML) / plotW) * (end - start)
 
   const bucket = view === "rate" ? RATE_BUCKET[data.range].ms : data.bucketMs
+  const format = counterFormat(signal)
   const lanes: Lane[] = drives.flatMap(d => {
     const points = signalPoints(data, d.guid, signal)
     if (firstRecord(points) === null) return []
@@ -159,7 +162,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
           <div key={l.drive.guid} className="clc-lane">
             <div className="clc-head">
               {chips && <ChartDriveChip drive={l.drive} />}
-              {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} /></span>}
+              {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} format={format} /></span>}
             </div>
             <svg className={`clc-strip${dim}`} width={width} height={laneH} viewBox={`0 0 ${width} ${laneH}`} aria-hidden="true">
               <defs>
@@ -171,7 +174,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
               {jobs.map((b, j) => <rect key={j} className="tsc-span" x={b.x} y={0} width={b.w} height={laneH} />)}
               <rect className="clc-recent" x={recentX} y={0} width={Math.max(0, ML + plotW - recentX)} height={laneH} />
               {view === "events"
-                ? <EventMarks lane={l} x={x} start={start} end={end} plotEnd={ML + plotW} h={laneH} color={color} />
+                ? <EventMarks lane={l} x={x} start={start} end={end} plotEnd={ML + plotW} h={laneH} color={color} format={format} />
                 : <RateBars lane={l} x={x} windows={windows} plotEnd={ML + plotW} h={laneH} yMax={yMax} color={color} />}
               {showTotal && <TotalBackdrop points={l.points} x={x} start={start} plotEnd={ML + plotW} h={laneH} log={log} />}
               {hoverBucket !== null && (view === "rate"
@@ -198,7 +201,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       {showTip && (
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role="status">
           <div className="tsc-tip-time">{bucketLabel(hoverBucket, bucket)}</div>
-          <TipRows lanes={lanes} view={view} t={hoverBucket} bucket={bucket} end={end} />
+          <TipRows lanes={lanes} view={view} t={hoverBucket} bucket={bucket} end={end} format={format} />
         </div>
       )}
     </div>
@@ -212,28 +215,30 @@ function wrapStatus<K extends LaneStatus["kind"]>(kind: K, status: Extract<LaneS
 }
 
 /** A drive's status line, e.g. "1,051 · +23 in last 24h" or "38/day · ↑ 3.2× usual". */
-export function LaneStatusText({ lane, windowLabel, end }: { lane: LaneStatus; windowLabel: string; end: number }): ReactNode {
+export function LaneStatusText({ lane, windowLabel, end, format = counterFormat("") }: {
+  lane: LaneStatus; windowLabel: string; end: number; format?: CounterFormat
+}): ReactNode {
   if (lane.kind === "event") {
     const s = lane.status
-    const value = <b>{s.value.toLocaleString()}</b>
+    const value = <b>{format.value(s.value)}</b>
     if (s.kind === "recent") {
-      const moved = [s.up && `+${s.up.toLocaleString()}`, s.down && `−${s.down.toLocaleString()}`].filter(Boolean).join(" ")
+      const moved = [s.up && `+${format.value(s.up)}`, s.down && `−${format.value(s.down)}`].filter(Boolean).join(" ")
       return <>{value} · <span className="clc-warn">{moved} in last {windowLabel}</span></>
     }
     if (s.kind === "last") {
-      return <>{value} · <span className="clc-muted">last {s.delta > 0 ? "+" : "−"}{Math.abs(s.delta).toLocaleString()} · {ageLabel(end - s.t)} ago</span></>
+      return <>{value} · <span className="clc-muted">last {s.delta > 0 ? "+" : "−"}{format.value(Math.abs(s.delta))} · {ageLabel(end - s.t)} ago</span></>
     }
     const what = s.value === 0 ? "0 throughout" : s.since !== null ? `unchanged since ${new Date(s.since).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "unchanged in range"
     return s.value === 0 ? <span className="clc-muted">{what}</span> : <>{value} · <span className="clc-muted">{what}</span></>
   }
   const s = lane.status
-  const rate = <><b>{rateLabel(s.perDay)}</b>/day</>
-  const title = s.basePerDay !== null ? `last ${windowLabel}: ${rateLabel(s.perDay)}/day · before: ${rateLabel(s.basePerDay)}/day` : undefined
+  const rate = <><b>{format.rate(s.perDay)}</b>/day</>
+  const title = s.basePerDay !== null ? `last ${windowLabel}: ${format.rate(s.perDay)}/day · before: ${format.rate(s.basePerDay)}/day` : undefined
   const trend = {
-    faster: <span className="clc-warn">↑ {ratioLabel(s.ratio!)} usual</span>,
+    faster: <span className={format.workload ? "clc-muted" : "clc-warn"}>↑ {ratioLabel(s.ratio!)} usual</span>,
     slower: <span className="clc-muted">↓ {ratioLabel(s.ratio!)} usual</span>,
     usual: <span className="clc-muted">about usual</span>,
-    new: <span className="clc-warn">↑ none before</span>,
+    new: <span className={format.workload ? "clc-muted" : "clc-warn"}>↑ none before</span>,
     none: <span className="clc-muted">none</span>,
     short: <span className="clc-muted">too little history to compare</span>,
   }[s.trend]
@@ -242,8 +247,9 @@ export function LaneStatusText({ lane, windowLabel, end }: { lane: LaneStatus; w
 
 interface MarkGroup { x0: number; x1: number; t0: number; t1: number; delta: number; n: number; value: number }
 
-function EventMarks({ lane, x, start, end, plotEnd, h, color }: {
+function EventMarks({ lane, x, start, end, plotEnd, h, color, format }: {
   lane: Lane; x: (t: number) => number; start: number; end: number; plotEnd: number; h: number; color: string
+  format: CounterFormat
 }) {
   const cy = h / 2
   const first = firstRecord(lane.points)!
@@ -276,7 +282,7 @@ function EventMarks({ lane, x, start, end, plotEnd, h, color }: {
         return (
           <g key={g.t0} opacity={opacity}>
             <path className={`clc-mark${up ? "" : " down"}`} d={d} fill={up ? color : "var(--chart)"} stroke={color} />
-            {labelled && <text className="clc-mark-label" x={cx + r + 3} y={cy + 3.5}>{sign}{Math.abs(g.delta).toLocaleString()}</text>}
+            {labelled && <text className="clc-mark-label" x={cx + r + 3} y={cy + 3.5}>{sign}{format.value(Math.abs(g.delta))}</text>}
           </g>
         )
       })}
@@ -321,9 +327,11 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
 
 /** The tooltip: per drive, the count at the end of the hovered bucket and its
  *  change in it (Events), or the bar's change (Rate). */
-function TipRows({ lanes, view, t, bucket, end }: { lanes: Lane[]; view: "events" | "rate"; t: number; bucket: number; end: number }) {
+function TipRows({ lanes, view, t, bucket, end, format }: {
+  lanes: Lane[]; view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat
+}) {
   const rows = lanes.flatMap(l => {
-    const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d).toLocaleString()}`
+    const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${format.value(Math.abs(d))}`
     if (view === "rate") {
       const b = l.buckets.find(q => q.start === t)
       return b && b.delta !== null ? [{ drive: l.drive, text: signed(b.delta) }] : []
@@ -333,7 +341,7 @@ function TipRows({ lanes, view, t, bucket, end }: { lanes: Lane[]; view: "events
     const to = stepValue(l.points, e >= end ? end : e - 1)
     if (to === null) return []
     const delta = netChange(counterChanges(l.points), t, e, end)
-    const text = `${to.toLocaleString()}${delta ? ` (${signed(delta)})` : ""}`
+    const text = `${format.value(to)}${delta ? ` (${signed(delta)})` : ""}`
     return [{ drive: l.drive, text }]
   })
   if (!rows.length) return <div className="tsc-tip-none">No data</div>

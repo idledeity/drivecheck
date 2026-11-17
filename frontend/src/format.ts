@@ -98,3 +98,12 @@ export function jobResultText(job: Job): string {
     case "queued":      return "Waiting to start"
   }
 }
+
+const BYTE_UNITS: [number, string][] = [[1e15, "PB"], [1e12, "TB"], [1e9, "GB"], [1e6, "MB"], [1e3, "KB"]]
+
+export function formatBytes(bytes: number): string {
+  for (const [size, unit] of BYTE_UNITS) {
+    if (bytes >= size) return `${(bytes / size).toFixed(bytes >= size * 100 ? 0 : 1)} ${unit}`
+  }
+  return `${bytes} B`
+}
