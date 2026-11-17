@@ -91,6 +91,16 @@ export type SmartAttribute = {
 
 export type SmartLeaf = { path: string; value: number | string | boolean | null }
 
+/** A further smartctl log as a generic table (backend analysis.smart_detail._table). */
+export type SmartTable = {
+  key: string
+  title: string
+  columns: { key: string; label: string; numeric: boolean }[]
+  rows: { cells: Record<string, number | string | null>; status: SmartStatus }[]
+  /** The field that already counts this table's problems (for summaries). */
+  summarized_by: string | null
+}
+
 export type SmartDetail = {
   protocol: string | null
   groups: { key: string; label: string; fields: SmartField[] }[]
@@ -100,6 +110,9 @@ export type SmartDetail = {
     rows: ({ direction: string } & Record<string, number | null | string>)[]
   }
   nvme_health_log?: SmartLeaf[]
+  tables: SmartTable[]
+  /** Bulky raw lists (ATA log directory, SCT temperature history), shown collapsed. */
+  raw_sections: { key: string; label: string; leaves: SmartLeaf[] }[]
   other_fields: SmartLeaf[]
 }
 

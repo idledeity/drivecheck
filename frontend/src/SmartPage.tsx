@@ -1,4 +1,5 @@
-import type { Drive, SmartAttribute, SmartAttributeRow, SmartDetail, SmartDetailResponse, SmartField, SmartLeaf } from "./types"
+import { useState, type ReactNode } from "react"
+import type { Drive, SmartAttribute, SmartAttributeRow, SmartDetail, SmartDetailResponse, SmartField, SmartLeaf, SmartTable } from "./types"
 import { DriveChipHeader } from "./DriveChip"
 import { formatFieldValue, hasNewerRead, hasSmartData, useSmartDetail } from "./smartDetail"
 import { formatClock } from "./format"
@@ -90,6 +91,27 @@ function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
           <LeafList leaves={detail.other_fields} />
         </details>
       )}
+
+      {/* Appendix: the extended logs (-x), after everything the page summarises above. */}
+      {detail.tables.filter(t => t.rows.length > 0).map(table => (
+        // A long table (e.g. 100+ background scan results) starts closed.
+        table.rows.length > LONG_TABLE_ROWS ? (
+          <LazyDetails key={table.key} title={`${table.title} (${table.rows.length})`}>
+            <GenericTable table={table} />
+          </LazyDetails>
+        ) : (
+          <div key={table.key}>
+            <h3 className="smart-section-title">{table.title} ({table.rows.length})</h3>
+            <GenericTable table={table} />
+          </div>
+        )
+      ))}
+
+      {detail.raw_sections.map(section => (
+        <LazyDetails key={section.key} title={`${section.label} (${section.leaves.length})`}>
+          <LeafList leaves={section.leaves} />
+        </LazyDetails>
+      ))}
     </>
   )
 }
@@ -191,6 +213,42 @@ function AttributeTable({ attributes }: { attributes: SmartAttribute[] }) {
   )
 }
 
+const LONG_TABLE_ROWS = 40
+
+/* A further log as a table; like the attribute table, each row stacks into a
+   labelled card on a phone, text columns full width. */
+function GenericTable({ table }: { table: SmartTable }) {
+  return (
+    <table className="smart-table smart-generic-table">
+      <thead>
+        <tr>{table.columns.map(c => <th key={c.key} className={c.numeric ? "num" : undefined}>{c.label}</th>)}</tr>
+      </thead>
+      <tbody>
+        {table.rows.map((row, i) => (
+          <tr key={i} className={`smart-row-${row.status}`}>
+            {table.columns.map(c => (
+              <td key={c.key} data-label={c.label} className={c.numeric ? "num" : "text"}>
+                {formatCounter(row.cells[c.key] ?? null)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+/* A closed disclosure whose content is only rendered once opened (some hold hundreds of values). */
+function LazyDetails({ title, children }: { title: string; children: ReactNode }) {
+  const [opened, setOpened] = useState(false)
+  return (
+    <details className="smart-other" onToggle={e => { if ((e.target as HTMLDetailsElement).open) setOpened(true) }}>
+      <summary className="smart-section-title">{title}</summary>
+      {opened && children}
+    </details>
+  )
+}
+
 function ScsiCounterTable({ counters }: { counters: NonNullable<SmartDetail["scsi_error_counters"]> }) {
   return (
     <table className="smart-table smart-counter-table">
@@ -265,10 +323,15 @@ export function SmartSummary({ data, onOpenSmart }: { data: SmartDetailResponse;
   const shownIds = new Set(fields.map(f => f.attribute_id))
   // Attributes not already behind a listed field (e.g. a vendor-specific one).
   const attributes = (detail.attributes ?? []).filter(a => a.status !== "ok" && !shownIds.has(a.id))
+  // Further logs with flagged rows, unless a field above already counts them.
+  const shownKeys = new Set(fields.map(f => f.key))
+  const tables = detail.tables
+    .map(t => ({ table: t, flagged: t.rows.filter(r => r.status !== "ok") }))
+    .filter(({ table, flagged }) => flagged.length > 0 && !(table.summarized_by && shownKeys.has(table.summarized_by)))
 
   return (
     <div className="smart-summary">
-      {fields.length === 0 && attributes.length === 0 ? (
+      {fields.length === 0 && attributes.length === 0 && tables.length === 0 ? (
         <p className="smart-summary-ok">Every SMART value is within limits.</p>
       ) : (
         <div className="smart-group">
@@ -282,6 +345,19 @@ export function SmartSummary({ data, onOpenSmart }: { data: SmartDetailResponse;
               <div className="smart-field-meta">
                 <span className="smart-source">ATA {a.id}</span>
                 <span>value {a.value ?? "—"} · worst {a.worst ?? "—"} · thresh {a.thresh ?? "—"}</span>
+              </div>
+            </div>
+          ))}
+          {tables.map(({ table, flagged }) => (
+            <div key={table.key} className="smart-field">
+              <div className="smart-field-main">
+                <span className="smart-field-label">{table.title}</span>
+                <span className={`smart-field-value smart-${flagged.some(r => r.status === "crit") ? "crit" : "warn"}`}>
+                  {flagged.length.toLocaleString()} flagged
+                </span>
+              </div>
+              <div className="smart-field-meta">
+                <span className="smart-source">{table.key}</span>
               </div>
             </div>
           ))}

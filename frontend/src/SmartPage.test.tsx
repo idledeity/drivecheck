@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SmartPanel, { SmartSummary } from './SmartPage'
 import { formatBytes, formatFieldValue } from './smartDetail'
 import { fetchJsonResponse, makeDrive } from './test/fixtures'
-import type { SmartDetailResponse, SmartField } from './types'
+import type { SmartDetailResponse, SmartField, SmartTable } from './types'
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
@@ -18,6 +18,18 @@ function field(overrides: Partial<SmartField>): SmartField {
   return {
     key: 'k', label: 'Label', value: 0, unit: 'count', status: 'ok', source: null,
     detail: null, limit: null, attribute_id: null, ...overrides,
+  }
+}
+
+function table(rows: number, overrides: Partial<SmartTable> = {}): SmartTable {
+  return {
+    key: 'scsi_background_scan', title: 'Background scan results', summarized_by: null,
+    columns: [{ key: 'lba', label: 'LBA', numeric: true }, { key: 'reassign', label: 'Reassign status', numeric: false }],
+    rows: Array.from({ length: rows }, (_, i) => ({
+      cells: { lba: 1000 + i, reassign: i === 0 ? 'Require Write or Reassign Blocks command' : 'Successfully reassigned' },
+      status: i === 0 ? 'warn' as const : 'ok' as const,
+    })),
+    ...overrides,
   }
 }
 
@@ -45,6 +57,8 @@ function response(overrides: Partial<SmartDetailResponse['detail'] & object> = {
         { id: 197, name: 'Current_Pending_Sector', value: 100, worst: 100, thresh: 0, margin: null, type: 'Old-age',
           updated: 'Always', flags: '-O--C-', raw_value: 0, raw_string: '0', when_failed: null, status: 'ok' },
       ],
+      tables: [],
+      raw_sections: [],
       other_fields: [{ path: 'model_family', value: 'Seagate Exos X16' }],
       ...overrides,
     },
@@ -111,6 +125,33 @@ describe('SmartPanel', () => {
     expect(screen.getByText('Reallocated sectors')).toBeInTheDocument()  // no loading flash
   })
 
+  it('shows further logs as tables, flagged rows tinted', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({ tables: [table(3, { title: 'SATA PHY event counters', key: 'phy' })] })))
+    render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
+    expect(await screen.findByText('SATA PHY event counters (3)')).toBeInTheDocument()
+    const first = screen.getByText((1000).toLocaleString()).closest('tr') as HTMLElement
+    expect(first).toHaveClass('smart-row-warn')
+    expect(within(first).getByText('Require Write or Reassign Blocks command')).toHaveAttribute('data-label', 'Reassign status')
+  })
+
+  it('starts long tables and raw lists closed, rendering them only once opened', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({
+      tables: [table(108)],
+      raw_sections: [{ key: 'ata_log_directory', label: 'Log directory', leaves: [{ path: 'ata_log_directory.gp_dir_version', value: 1 }] }],
+    })))
+    render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
+    const scan = await screen.findByText('Background scan results (108)')
+    expect(scan.closest('details')).not.toHaveAttribute('open')
+    expect(screen.queryByText((1000).toLocaleString())).toBeNull()
+    expect(screen.getByText('Log directory (1)')).toBeInTheDocument()
+    expect(screen.queryByText('ata_log_directory.gp_dir_version')).toBeNull()
+
+    await userEvent.click(scan)
+    expect(await screen.findByText((1000).toLocaleString())).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Log directory (1)'))
+    expect(await screen.findByText('ata_log_directory.gp_dir_version')).toBeInTheDocument()
+  })
+
   it('shows the SAS error counter grid', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({
       protocol: 'SCSI', attributes: undefined,
@@ -148,6 +189,19 @@ describe('SmartSummary', () => {
     expect(screen.getByText('Unknown HDD Attribute')).toBeInTheDocument()
     expect(screen.queryByText('Pending sectors')).not.toBeInTheDocument()
     expect(screen.queryByText('Reallocated Sector Ct')).not.toBeInTheDocument()   // already shown as a field
+  })
+
+  it('lists a further log with flagged rows, unless a listed field already counts them', () => {
+    const { rerender } = render(<SmartSummary data={response({ tables: [table(5, { title: 'Device statistics', key: 'ata_device_statistics' })] })} onOpenSmart={() => {}} />)
+    expect(screen.getByText('Device statistics')).toBeInTheDocument()
+    expect(screen.getByText('1 flagged')).toHaveClass('smart-warn')
+
+    rerender(<SmartSummary data={response({
+      groups: [{ key: 'media', label: 'Media errors', fields: [field({ key: 'background_scan_errors', label: 'Background scan medium errors', value: 5, status: 'warn' })] }],
+      tables: [table(5, { summarized_by: 'background_scan_errors' })],
+    })} onOpenSmart={() => {}} />)
+    expect(screen.getByText('Background scan medium errors')).toBeInTheDocument()
+    expect(screen.queryByText('Background scan results')).toBeNull()
   })
 
   it('says so when everything is within limits, and links to the SMART page', async () => {
