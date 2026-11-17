@@ -92,6 +92,12 @@ function JobResultRows({ job }: { job: Job }) {
   )
 }
 
+// The summary log, shown as is: the tool's own lines.
+function SummaryLog({ job }: { job: Job }) {
+  if (!job.logs.summary) return null
+  return <pre className="job-summary-log">{job.logs.summary.text}</pre>
+}
+
 // The job's output files, each opened as plain text in a new tab.
 function hasLogs(job: Job): boolean {
   return job.logs.summary !== null || job.logs.raw !== null
@@ -139,6 +145,7 @@ export function JobDetailRows({ job }: { job: Job }) {
       {hasLogs(job) && (
         <>
           <h4 className="job-detail-heading">Output</h4>
+          <SummaryLog job={job} />
           <JobLogRows job={job} />
         </>
       )}
@@ -147,7 +154,7 @@ export function JobDetailRows({ job }: { job: Job }) {
 }
 
 // Full view: common properties, settings and details on the left; the SMART
-// before/after comparison on the right.
+// before/after comparison on the right; the summary log across both below.
 export function JobDetails({ job }: { job: Job }) {
   return (
     <div className="job-details">
@@ -175,6 +182,12 @@ export function JobDetails({ job }: { job: Job }) {
       <div className="job-details-col">
         <JobSmartPanel job={job} />
       </div>
+      {job.logs.summary && (
+        <section className="job-detail-section job-details-wide">
+          <h4 className="job-detail-heading">Summary log</h4>
+          <SummaryLog job={job} />
+        </section>
+      )}
     </div>
   )
 }

@@ -146,7 +146,7 @@ describe('JobDetails — settings', () => {
 
 describe('JobDetails — output logs', () => {
   it('links the summary and raw output with their sizes', () => {
-    render(<JobDetails job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: { size: 12_400_000 }, summary: { size: 640 } } })} />)
+    render(<JobDetails job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: { size: 12_400_000 }, summary: { size: 640, text: 'Pass completed, 0 bad blocks found.\n' } } })} />)
     expect(screen.getByText('Output')).toBeInTheDocument()
     expect(screen.getByText('View · 640 B')).toHaveAttribute('href', '/api/jobs/job-7/logs/summary')
     expect(screen.getByText('View · 12.4 MB')).toHaveAttribute('href', '/api/jobs/job-7/logs/raw')
@@ -163,13 +163,27 @@ describe('JobDetails — output logs', () => {
     expect(screen.getByText('Raw output (live)')).toBeInTheDocument()
   })
 
+  it('shows the summary log inline, across both columns', () => {
+    const text = 'From block 0 to 1023\nPass completed, 0 bad blocks found. (0/0/0 errors)\n'
+    render(<JobDetails job={makeJob({ status: 'completed', logs: { raw: null, summary: { size: text.length, text } } })} />)
+    const log = screen.getByText(/From block 0 to 1023/)
+    expect(log.tagName).toBe('PRE')
+    expect(log.textContent).toBe(text)
+    expect(log.closest('section')).toHaveClass('job-details-wide')
+  })
+
+  it('shows the summary log inline in the narrow popover too', () => {
+    render(<JobDetailRows job={makeJob({ status: 'completed', logs: { raw: null, summary: { size: 10, text: 'pass 1/1 100%\n' } } })} />)
+    expect(screen.getByText('pass 1/1 100%', { exact: false }).tagName).toBe('PRE')
+  })
+
   it('has no Output section for a job without logs', () => {
     render(<JobDetails job={makeJob({ status: 'completed' })} />)
     expect(screen.queryByText('Output')).not.toBeInTheDocument()
   })
 
   it('links the logs in the narrow popover too', () => {
-    render(<JobDetailRows job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: null, summary: { size: 1500 } } })} />)
+    render(<JobDetailRows job={makeJob({ id: 'job-7', status: 'completed', logs: { raw: null, summary: { size: 1500, text: 'pass 2/2 (000000)...2.0GiB/2.0GiB 100%\n' } } })} />)
     expect(screen.getByText('View · 1.5 KB')).toHaveAttribute('href', '/api/jobs/job-7/logs/summary')
   })
 })

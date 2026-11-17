@@ -131,6 +131,27 @@
   color: var(--wa);
 }
 
+/* Spans both columns: the summary's lines are as wide as the tool printed them. */
+.job-details-wide {
+  grid-column: 1 / -1;
+}
+
+.job-summary-log {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--t2);
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+}
+
 .job-log-link {
   color: var(--cy);
   text-decoration: none;
