@@ -150,4 +150,10 @@
   .smart-attr-table td.name::before { content: none; }
   .smart-attr-table td.raw { grid-column: 1 / -1; }
   .smart-table tbody th.name { grid-column: 1 / -1; padding: 0; }
+
+  /* Counter card: label above its count, two columns; counts run to 10+
+     digits, so side by side they squeeze and wrap the labels. */
+  .smart-counter-table tbody tr { gap: 6px 12px; }
+  .smart-counter-table td { flex-direction: column; justify-content: flex-start; gap: 0; text-align: left; }
+  .smart-counter-table td.num { text-align: left; }
 }
