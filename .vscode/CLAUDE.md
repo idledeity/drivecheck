@@ -192,7 +192,13 @@ activity or job execution.
   immediately; the normal due-check + debounce handles the rest, so a manual
   refresh can't destroy staggering or double-fire. An optional JSON body
   `{"guids": [...]}` targets just those drives (404 if any guid is unknown);
-  omitting the body (or `guids`) refreshes every known drive.
+  omitting the body (or `guids`) refreshes every known drive. The frontend
+  reaches it only through `readSmart` (`smartReadContext`, provided by App),
+  which tracks which drives are mid-read: the Probe button, the drive menu's
+  "Read SMART now", and `ReadSmartButton` ("Read now") on the SMART page /
+  Report read line, their empty states and `DriveOverview` (Health > Overview
+  and the card's health popover). The card footer's SMART age says
+  "reading…" meanwhile.
 - `POST /api/drives/scan` forces an immediate drive scan — sets `_scan_due` to
   the epoch and ticks, so `_run_scan()` runs this tick regardless of
   `scan_interval`. Newly discovered drives get all channels due immediately

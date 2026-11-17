@@ -6,6 +6,7 @@ import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
 import SmartPanel, { SmartReadLine, SmartSummary } from "./SmartPage"
 import { useSmartDetail } from "./smartDetail"
+import ReadSmartButton from "./ReadSmartButton"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
@@ -137,7 +138,9 @@ function DriveReport({ drive, onOpenSmart, onShown }: {
       {loaded.state === "loading" ? (
         <p className="smart-empty">Loading SMART data…</p>
       ) : !data ? (
-        <p className="smart-empty">No full SMART read for this drive yet.</p>
+        <p className="smart-empty">
+          No full SMART read for this drive yet. <ReadSmartButton guids={[drive.guid]} onDone={loaded.reload} />
+        </p>
       ) : (
         <>
           <SmartReadLine data={data} drive={drive} onRefresh={loaded.reload} />

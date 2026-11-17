@@ -6,6 +6,7 @@ import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatThroughput } from "./format"
 import AsOf from "./AsOf"
+import { useSmartRead } from "./smartReadContext"
 import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
 import { JobRow } from "./JobRow"
@@ -88,6 +89,8 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // whenever there isn't much card below the task zone.
   const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS, disabled: menuOpen })
   const { cancelJob } = useJobs()
+  // A full read asked for by hand is under way: the footer's age says so.
+  const smartReading = useSmartRead().reading.has(drive.guid)
 
   // The menu opens at the pointer, where this card's popover would open
   // too, on top of it: close that (and any pending one) first.
@@ -307,10 +310,12 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
         </div>
         {/* The age of every value to its left: one SMART read. Pinned outside
             .dc-fs so a narrow card fades a stat, never the age. */}
-        {drive.last_polled_at && (
+        {(drive.last_polled_at || smartReading) && (
           <div className="dc-stat dc-asof">
             <div className="dc-stat-label">SMART</div>
-            <AsOf className="dc-stat-value" at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
+            {smartReading
+              ? <div className="dc-stat-value dc-reading">reading…</div>
+              : <AsOf className="dc-stat-value" at={drive.last_polled_at!} staleAfterS={drive.stale_after_s.smart} />}
           </div>
         )}
         <div {...trendTrigger("io")} className={`dc-io dc-trend${vitalsStale ? " stale" : ""}`}>

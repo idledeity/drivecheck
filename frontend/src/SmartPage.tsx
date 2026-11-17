@@ -4,6 +4,7 @@ import { DriveChipHeader } from "./DriveChip"
 import { formatFieldValue, hasNewerRead, hasSmartData, useSmartDetail } from "./smartDetail"
 import { formatClock } from "./format"
 import AsOf from "./AsOf"
+import ReadSmartButton from "./ReadSmartButton"
 import "./SmartPage.css"
 
 /*
@@ -36,7 +37,11 @@ function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
   const loaded = useSmartDetail(guid)
   if (loaded.state === "loading") return <p className="smart-empty">Loading SMART data…</p>
   if (loaded.state === "none" || !loaded.data.detail || !hasSmartData(loaded.data.detail)) {
-    return <p className="smart-empty">No SMART data for this drive.</p>
+    return (
+      <p className="smart-empty">
+        No SMART data for this drive. <ReadSmartButton guids={[guid]} onDone={loaded.reload} />
+      </p>
+    )
   }
   const detail = loaded.data.detail
   const { self_test_log } = loaded.data
@@ -107,7 +112,9 @@ function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
   )
 }
 
-/** When the full read shown was taken, and a way to a newer one once the drive is read again. */
+/** When the full read shown was taken, a way to read the drive again now,
+ *  and a way to a newer one once the drive is read again. A read asked for
+ *  here shows its values as soon as it's back. */
 export function SmartReadLine({ data, drive, onRefresh }: {
   data: SmartDetailResponse; drive?: Drive; onRefresh: () => void
 }) {
@@ -115,6 +122,7 @@ export function SmartReadLine({ data, drive, onRefresh }: {
   return (
     <p className="smart-asof">
       Full SMART read <AsOf at={data.captured_at} staleAfterS={drive?.stale_after_s.smart} />
+      {drive && <> · <ReadSmartButton guids={[drive.guid]} onDone={onRefresh} /></>}
       {newer && hasNewerRead(data, newer) && (
         <span className="smart-newer">
           New values from {formatClock(newer)} · <button className="smart-refresh-btn" onClick={onRefresh}>Refresh</button>

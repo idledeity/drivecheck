@@ -7,6 +7,8 @@ import { jobCancelConfirmation } from "./jobCancelConfirmation"
 import { DRIVE_COPY_FIELDS, driveCopyText, type DriveCopyField } from "./driveCopyText"
 import { copyText } from "./clipboard"
 import ContextSubmenu from "./ContextSubmenu"
+import { useSmartRead } from "./smartReadContext"
+import { READ_SMART_TITLE } from "./ReadSmartButton"
 
 interface Props {
   pos: { x: number; y: number }
@@ -30,6 +32,7 @@ const COPIED_MS = 600
 export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLocked, onRename, onRunTask, activeJobs = [] }: Props) {
   const { cancelJob } = useJobs()
   const confirm = useConfirm()
+  const { reading, readSmart } = useSmartRead()
   const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const [renamingInMenu, setRenamingInMenu] = useState(false)
   const [renameInput, setRenameInput] = useState("")
@@ -105,6 +108,14 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
     e.stopPropagation()
     onClose()
     onRunTask?.(guids)
+  }
+
+  // Runs on after the menu closes; the cards say "Reading…" meanwhile.
+  const toRead = guids.filter(g => !reading.has(g))
+  const handleReadSmart = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onClose()
+    void readSmart(toRead)
   }
 
   // Says whether it worked in place of the item's text, then closes.
@@ -183,6 +194,9 @@ export default function DriveContextMenu({ pos, guids, drives, onClose, onSetLoc
               )}
             </div>
           )}
+          <button className="dc-ctx-item" onClick={handleReadSmart} disabled={toRead.length === 0} title={READ_SMART_TITLE}>
+            {toRead.length === 0 ? "Reading SMART…" : "Read SMART now"}
+          </button>
           <button className="dc-ctx-item" onClick={handleRenameClick}>
             Rename drive{guids.length > 1 ? "s" : ""}
           </button>

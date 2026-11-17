@@ -117,7 +117,7 @@ describe('SmartPanel', () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response()))
     render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
     const time = await screen.findByText(/ago$/)
-    expect(time.closest('.smart-asof')).toHaveTextContent(/^Full SMART read \d+d ago$/)
+    expect(time.closest('.smart-asof')).toHaveTextContent(/^Full SMART read \d+d ago · Read now$/)
   })
 
   it('holds still when the drive has a newer full read, offering it', async () => {

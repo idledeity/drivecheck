@@ -10,6 +10,7 @@ import { toLocalIso } from "./format"
 import { useUnseenResults } from "./jobHistory"
 import { JobsContext, type JobsContextValue } from "./jobsContext"
 import ConfirmProvider from "./ConfirmProvider"
+import { SmartReadContext, type SmartReadContextValue } from "./smartReadContext"
 import type { Drive, Job, Settings, SortState } from "./types"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import "./App.css"
@@ -221,17 +222,36 @@ export default function App() {
 
   const handleUnselectAll = () => setSelected([])
 
-  const handleProbe = () =>
-    fetch("/api/drives/refresh", {
+  // Full SMART reads asked for by hand, by drive, while they run. A drive
+  // already being read isn't asked again; the ref sees a double click.
+  const [smartReading, setSmartReading] = useState<ReadonlySet<string>>(new Set())
+  const smartReadingRef = useRef<Set<string>>(new Set())
+  const setReading = (guids: string[], on: boolean) => {
+    const next = new Set(smartReadingRef.current)
+    guids.forEach(g => (on ? next.add(g) : next.delete(g)))
+    smartReadingRef.current = next
+    setSmartReading(next)
+  }
+  const readSmart = (guids: string[]): Promise<boolean> => {
+    const todo = guids.filter(g => !smartReadingRef.current.has(g))
+    if (todo.length === 0) return Promise.resolve(false)
+    setReading(todo, true)
+    return fetch("/api/drives/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guids: selected.length > 0 ? selected : undefined }),
+      body: JSON.stringify({ guids: todo }),
     })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return loadDrives()
       })
-      .catch(() => setError("Backend unavailable — retrying…"))
+      .then(() => true)
+      .catch(() => { setError("Backend unavailable — retrying…"); return false })
+      .finally(() => setReading(todo, false))
+  }
+  const smartReadContext: SmartReadContextValue = { reading: smartReading, readSmart }
+
+  const handleProbe = () => readSmart(selected.length > 0 ? selected : drives.map(d => d.guid))
 
   const handleScan = () =>
     fetch("/api/drives/scan", { method: "POST" })
@@ -313,6 +333,7 @@ export default function App() {
 
   return (
     <JobsContext.Provider value={jobsContext}>
+    <SmartReadContext.Provider value={smartReadContext}>
     <ConfirmProvider>
     <div>
       {error && <div className="status-error">{error}</div>}
@@ -372,6 +393,7 @@ export default function App() {
       <WorkspacePanel drives={drives} selected={selected} />
     </div>
     </ConfirmProvider>
+    </SmartReadContext.Provider>
     </JobsContext.Provider>
   )
 }

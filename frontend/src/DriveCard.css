@@ -102,6 +102,7 @@
   border-radius: 4px;
 }
 .dc-ctx-item:hover { background: var(--bi); color: var(--t1); }
+.dc-ctx-item:disabled { color: var(--t5); cursor: default; background: none; }
 .dc-ctx-item.dc-ctx-item-warn { color: #d97706; }
 .dc-ctx-item.dc-ctx-item-warn:hover { color: #f59e0b; }
 /* Destructive: the same salmon as .tint-re (App.css), the confirm button. */
@@ -546,6 +547,7 @@
 /* The footer stats' age: quieter than the values it dates. */
 .dc-asof .dc-stat-value { font-weight: 400; color: var(--t4); }
 .dc-asof .dc-stat-value.asof-stale { color: var(--wa); }
+.dc-asof .dc-stat-value.dc-reading { color: var(--cy); }
 
 /* ── Footer: stacked IO (read/write throughput) ── */
 .dc-io     { display: flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; }

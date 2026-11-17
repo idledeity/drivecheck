@@ -3,13 +3,14 @@ import { REPORT_SIGNALS, formatSignal, signalLabel } from "./signals"
 import SignalValue from "./SignalValue"
 import { DriveChipHeader } from "./DriveChip"
 import AsOf from "./AsOf"
+import ReadSmartButton from "./ReadSmartButton"
 import { isStale, useNow } from "./useNow"
 import "./DriveOverview.css"
 
 // A drive's health at a glance: score, temperature, power-on hours and any
 // flagged signals. Shown on Health > Overview, and without the drive header
 // in the health popover on that drive's card. Everything but temperature is
-// from one SMART read, dated at the bottom; live temperature is dated only
+// from one SMART read, dated at the bottom (with Read now); live temperature is dated only
 // once it's overdue.
 export default function DriveOverview({ drive, header = true }: { drive: Drive; header?: boolean }) {
   const score    = drive.health_pct
@@ -42,9 +43,12 @@ export default function DriveOverview({ drive, header = true }: { drive: Drive; 
         <p className="hov-no-flags">No flagged signals</p>
       ) : null}
 
-      {drive.last_polled_at && (
-        <p className="hov-asof">SMART read <AsOf at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} /></p>
-      )}
+      <p className="hov-asof">
+        {drive.last_polled_at
+          ? <>SMART read <AsOf at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} /></>
+          : "No SMART read yet"}
+        {" · "}<ReadSmartButton guids={[drive.guid]} />
+      </p>
     </div>
   )
 }

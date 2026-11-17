@@ -1,0 +1,11 @@
+.read-smart-btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--cy);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.read-smart-btn:hover:not(:disabled) { text-decoration: underline; }
+.read-smart-btn:disabled { color: var(--t4); cursor: default; font-weight: 400; }

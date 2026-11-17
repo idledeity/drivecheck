@@ -4,18 +4,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import DriveContextMenu from './DriveContextMenu'
 import ConfirmProvider from './ConfirmProvider'
 import { JobsContext } from './jobsContext'
+import { SmartReadContext } from './smartReadContext'
 import type { Job } from './types'
 import { makeDrive, makeJob } from './test/fixtures'
 import { copyText } from './clipboard'
 
 vi.mock('./clipboard', () => ({ copyText: vi.fn().mockResolvedValue(true) }))
 
-function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(guid => makeDrive({ guid }))) {
+function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(guid => makeDrive({ guid })), reading: ReadonlySet<string> = new Set()) {
+  const readSmart = vi.fn().mockResolvedValue(true)
   const cancelJob = vi.fn()
   const onClose = vi.fn()
   const onRunTask = vi.fn()
   render(
     <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn() }}>
+      <SmartReadContext.Provider value={{ reading, readSmart }}>
       <ConfirmProvider>
         <DriveContextMenu
           pos={{ x: 10, y: 10 }}
@@ -27,9 +30,10 @@ function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(gu
           activeJobs={activeJobs}
         />
       </ConfirmProvider>
+      </SmartReadContext.Provider>
     </JobsContext.Provider>,
   )
-  return { cancelJob, onClose, onRunTask }
+  return { cancelJob, onClose, onRunTask, readSmart }
 }
 
 describe('tasks group', () => {
@@ -91,6 +95,26 @@ describe('cancel task', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Cancel 2 tasks?')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel tasks' }))
     await vi.waitFor(() => expect(cancelJob.mock.calls).toEqual([['j1'], ['j2']]))
+  })
+})
+
+describe('read SMART now', () => {
+  it("closes the menu and reads the menu's drives", () => {
+    const { onClose, readSmart } = renderMenu([], ['guid-1', 'guid-2'])
+    fireEvent.click(screen.getByRole('button', { name: 'Read SMART now' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(readSmart).toHaveBeenCalledWith(['guid-1', 'guid-2'])
+  })
+
+  it('skips drives already being read', () => {
+    const { readSmart } = renderMenu([], ['guid-1', 'guid-2'], undefined, new Set(['guid-1']))
+    fireEvent.click(screen.getByRole('button', { name: 'Read SMART now' }))
+    expect(readSmart).toHaveBeenCalledWith(['guid-2'])
+  })
+
+  it('is disabled while every drive is being read', () => {
+    renderMenu([], ['guid-1'], undefined, new Set(['guid-1']))
+    expect(screen.getByRole('button', { name: 'Reading SMART…' })).toBeDisabled()
   })
 })
 

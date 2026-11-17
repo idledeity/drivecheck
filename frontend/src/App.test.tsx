@@ -226,7 +226,7 @@ describe('App', () => {
     expect(screen.getByTestId('drive-card-d1')).toHaveAttribute('data-selected', 'false')
   })
 
-  it('probes with no body guids when nothing is selected', async () => {
+  it('probes every drive when nothing is selected', async () => {
     router.state.drives = [makeDrive({ guid: 'd1' })]
     render(<App />)
     await waitFor(() => expect(screen.getByTestId('drive-card-d1')).toBeInTheDocument())
@@ -234,7 +234,7 @@ describe('App', () => {
     await userEvent.click(screen.getByTitle('Probe all drives'))
     await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/drives/refresh', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ guids: undefined }),
+      body: JSON.stringify({ guids: ['d1'] }),
     })))
   })
 

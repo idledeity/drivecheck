@@ -81,7 +81,7 @@ describe('HealthTab', () => {
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
     await userEvent.click(screen.getByRole('button', { name: 'Report' }))
     expect((await screen.findByText('Full SMART read', { exact: false })).closest('.smart-asof'))
-      .toHaveTextContent(/^Full SMART read 3h ago$/)
+      .toHaveTextContent(/^Full SMART read 3h ago · Read now$/)
     expect(screen.getByText('72')).toBeInTheDocument()
     expect(screen.getByText('Degraded')).toBeInTheDocument()
     expect(screen.getByText('31°C')).toBeInTheDocument()
