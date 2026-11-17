@@ -138,10 +138,14 @@ def _job_settings(operation: str, params: dict) -> list[dict]:
 
 
 def _job_logs(job_id: str, summary_log: str | None) -> dict:
-    """Which of a job's logs exist, with their sizes (GET /api/jobs/<id>/logs/<kind>)."""
+    """Which of a job's logs exist, with their sizes (GET /api/jobs/<id>/logs/<kind>).
+    The summary's text is included too, for showing inline: it is small (see
+    job_logs.SUMMARY_MAX_BYTES), unlike the raw log."""
     return {
         "raw": job_logs.raw_log_info(job_id),
-        "summary": {"size": len(summary_log.encode("utf-8"))} if summary_log is not None else None,
+        "summary": (
+            {"size": len(summary_log.encode("utf-8")), "text": summary_log} if summary_log is not None else None
+        ),
     }
 
 
