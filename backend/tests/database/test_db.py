@@ -294,6 +294,18 @@ def test_record_job_and_get_job_history():
     assert history[0]["status"] == "completed"
 
 
+def test_summary_log_round_trips_through_the_job_row():
+    job = Job(
+        id="job-1", drive_guid="guid-1", operation="badblocks_write_test", category="Scan",
+        params={}, status=JobStatus.COMPLETED, finished_at=datetime(2026, 1, 1),
+        summary_log="Pass completed, 0 bad blocks found. (0/0/0 errors)\n",
+    )
+    db.record_job(job)
+    assert db.get_job_summary_log("job-1") == job.summary_log
+    assert db.get_job_history("guid-1")[0]["summary_log"] == job.summary_log
+    assert db.get_job_summary_log("no-such-job") is None
+
+
 def test_get_job_history_respects_limit_and_ordering():
     for i in range(3):
         db.record_job(Job(
@@ -407,6 +419,22 @@ def test_migration_adds_snapshot_columns_to_an_existing_jobs_table(isolated_data
     db.init()
     db.record_job(_job_with_snapshots())
     assert db.get_job_smart("job-s") == (_BEFORE, _AFTER_FAILED)
+
+
+def test_migration_adds_the_summary_log_column(isolated_data_dir):
+    with db._connection() as conn:
+        conn.execute("DROP TABLE jobs")
+        conn.execute("""CREATE TABLE jobs (id TEXT PRIMARY KEY, drive_guid TEXT NOT NULL, operation TEXT NOT NULL,
+                        category TEXT NOT NULL, params_json TEXT NOT NULL, status TEXT NOT NULL, result_json TEXT,
+                        error TEXT, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, reattach_json TEXT,
+                        smart_before_json TEXT, smart_after_json TEXT, queue_position INTEGER)""")
+        conn.execute("""INSERT INTO jobs (id, drive_guid, operation, category, params_json, status, created_at)
+                        VALUES ('old', 'g', 'dd_read_test', 'Test', '{}', 'completed', '2026-01-01T00:00:00')""")
+    db.init()
+    assert db.get_job_summary_log("old") is None  # rows from before it existed have none
+    db.record_job(Job(id="new", drive_guid="g", operation="dd_read_test", category="Test", params={},
+                      status=JobStatus.COMPLETED, summary_log="lines\n"))
+    assert db.get_job_summary_log("new") == "lines\n"
 
 
 def test_migration_adds_the_queue_position_column(isolated_data_dir):

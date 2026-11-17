@@ -10,7 +10,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_file
 from werkzeug.serving import make_server
 from werkzeug.utils import secure_filename
 from settings import cfg
@@ -19,6 +19,7 @@ from system_utils.logging import log_utils
 from system_utils import auth, origin_guard, tls
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
+from operations import job_logs
 from operations.operation import ParamError
 from operations.operation_registry import OPERATIONS, discover as discover_operations
 from jobs.job_registry import JobRegistry
@@ -136,6 +137,14 @@ def _job_settings(operation: str, params: dict) -> list[dict]:
     return [{"name": k, "label": labels.get(k), "value": v} for k, v in params.items()]
 
 
+def _job_logs(job_id: str, summary_log: str | None) -> dict:
+    """Which of a job's logs exist, with their sizes (GET /api/jobs/<id>/logs/<kind>)."""
+    return {
+        "raw": job_logs.raw_log_info(job_id),
+        "summary": {"size": len(summary_log.encode("utf-8"))} if summary_log is not None else None,
+    }
+
+
 def _job_to_dict(job):
     progress = job_registry.get_progress(job.id) if job.status == JobStatus.RUNNING else None
     return {
@@ -155,6 +164,7 @@ def _job_to_dict(job):
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         "smart": _smart_summary(job.smart_before, job.smart_after),
+        "logs": _job_logs(job.id, job.summary_log),
         "queue_position": job.queue_position,
     }
 
@@ -377,6 +387,7 @@ def _history_row_to_dict(row):
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
         "smart": _smart_summary(_json_or_none(row["smart_before_json"]), _json_or_none(row["smart_after_json"])),
+        "logs": _job_logs(row["id"], row["summary_log"]),
     }
 
 
@@ -471,6 +482,23 @@ def job_smart(job_id):
         **_smart_summary(before, after),
         "reports": {"before": _full_report(before), "after": _full_report(after)},
     })
+
+
+@app.route("/api/jobs/<job_id>/logs/<kind>")
+def job_log(job_id, kind):
+    """A job's raw program output (kind "raw", a file) or the summary of its
+    important lines stored with the job ("summary"), as plain text. 404 if the
+    job has no such log."""
+    if kind == "summary":
+        summary = db.get_job_summary_log(job_id)
+        if summary is None:
+            return jsonify({"error": "no summary log for this job"}), 404
+        return Response(summary, mimetype="text/plain")  # Flask adds charset=utf-8
+    path = job_logs.existing_raw_log(job_id) if kind == "raw" else None
+    if path is None:
+        return jsonify({"error": f"no {kind} log for this job"}), 404
+    # Not cached: a running job's raw log keeps growing.
+    return send_file(path, mimetype="text/plain", max_age=0)
 
 
 @app.route("/api/jobs/<job_id>/cancel", methods=["POST"])

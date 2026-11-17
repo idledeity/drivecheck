@@ -176,6 +176,12 @@ class OperationBase(ABC):
     def cancel(self) -> None:
         """Request cancellation of a running operation. Default: no-op."""
 
+    def get_summary_log(self) -> str | None:
+        """The important lines of the run's raw output, once run()/reattach()
+        has returned or raised; stored with the job. Default: None — this
+        operation keeps no summary."""
+        return None
+
     # ------------------------------------------------------------------
     # Restart-reattachment interface
     # ------------------------------------------------------------------

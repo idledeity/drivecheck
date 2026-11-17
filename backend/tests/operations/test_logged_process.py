@@ -87,6 +87,60 @@ def test_run_reports_the_real_exit_code(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Summary log, for operations that support one
+# ---------------------------------------------------------------------------
+
+class _SummarizingShellOperation(_ShellOperation):
+    def _summarize_log(self, raw_log):
+        return (line.upper() for line in raw_log.read_text().splitlines() if "keep" in line)
+
+
+class _FailingShellOperation(_SummarizingShellOperation):
+    def _verdict(self, returncode):
+        raise RuntimeError("bad run")
+
+
+def test_no_summary_log_unless_the_operation_supports_one(tmp_path):
+    op = _ShellOperation()
+    op.run(_SHELL_CONTEXT, {"script": "echo keep me >&2; echo done >&2"})
+    assert op.get_summary_log() is None
+
+
+def test_summary_log_kept_when_the_run_ends(tmp_path):
+    op = _SummarizingShellOperation()
+    op._job_id = "job"
+    op.run(_SHELL_CONTEXT, {"script": "echo keep me >&2; echo noise >&2; echo done >&2"})
+    assert op.get_summary_log() == "KEEP ME\n"
+    assert "noise" in (tmp_path / "job_logs" / "job.log").read_text()  # raw log untouched
+    assert sorted(p.name for p in (tmp_path / "job_logs").iterdir()) == ["job.log"]  # no summary file
+
+
+def test_summary_log_kept_for_a_failed_run_too(tmp_path):
+    op = _FailingShellOperation()
+    with pytest.raises(RuntimeError, match="bad run"):
+        op.run(_SHELL_CONTEXT, {"script": "echo keep the evidence >&2"})
+    assert op.get_summary_log() == "KEEP THE EVIDENCE\n"
+
+
+def test_a_summary_that_fails_does_not_change_the_job_outcome(tmp_path):
+    class _Broken(_ShellOperation):
+        def _summarize_log(self, raw_log):
+            raise ValueError("summarizer bug")
+
+    op = _Broken()
+    assert op.run(_SHELL_CONTEXT, {"script": "echo done >&2"})["returncode"] == 0
+    assert op.get_summary_log() is None
+
+
+def test_no_summary_when_the_run_never_started(monkeypatch, tmp_path):
+    op = _SummarizingShellOperation()
+    monkeypatch.setattr(op, "_build_command", lambda *_: (_ for _ in ()).throw(RuntimeError("refused")))
+    with pytest.raises(RuntimeError, match="refused"):
+        op.run(_SHELL_CONTEXT, {"script": ""})
+    assert op.get_summary_log() is None
+
+
+# ---------------------------------------------------------------------------
 # Reattached after a restart
 # ---------------------------------------------------------------------------
 
@@ -119,6 +173,16 @@ def test_reattach_to_a_process_started_by_a_previous_backend_finishes(tmp_path):
     result = _ShellOperation().reattach(_SHELL_CONTEXT, {}, _reattach_data(pid, log))
     assert result["returncode"] is None  # exit code isn't recoverable for a non-child
     assert "done" in result["log"]
+
+
+def test_summary_log_kept_after_a_reattached_run_ends(tmp_path):
+    log = tmp_path / "job.log"
+    log.write_text("keep this\ndone\n")
+    proc = subprocess.Popen(["true"])
+    proc.wait()  # gone: the run finished while the backend was down
+    op = _SummarizingShellOperation()
+    op.reattach(_SHELL_CONTEXT, {}, _reattach_data(proc.pid, log))
+    assert op.get_summary_log() == "KEEP THIS\n"
 
 
 # ---------------------------------------------------------------------------

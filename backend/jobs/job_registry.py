@@ -29,6 +29,7 @@ from settings import cfg
 from database import db
 
 logger = logging.getLogger(__name__)
+from operations import job_logs
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed, validate_params
 from operations.operation_registry import OPERATIONS
 from drives.drive_models import DriveContext
@@ -404,6 +405,8 @@ class JobRegistry:
             job.error = str(e)
             logger.warning("job %s failed: %s — %s", job.id[:8], job.operation, e)
         job.finished_at = datetime.now()
+        if (summary := instance.get_summary_log()) is not None:
+            job.summary_log = job_logs.limit_summary(summary, job.id)
         if started and not self._shutting_down:
             job.smart_after = self._snapshot(job, "after")
 

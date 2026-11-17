@@ -11,6 +11,7 @@ from drives.drive_models import DriveContext, DriveDescriptor
 from jobs import job_registry as job_registry_module
 from jobs.job_models import Job, JobStatus
 from jobs.job_registry import JobRegistry
+from operations import job_logs
 from operations.operation import OperationBase, OperationCancelled, ParamError, ParamSpec
 
 
@@ -227,6 +228,37 @@ def test_job_completion_persists_to_db_history():
     assert len(history) == 1
     assert history[0]["id"] == job.id
     assert history[0]["status"] == "completed"
+
+
+def test_summary_log_is_stored_with_the_finished_job():
+    registry = _make_registry()
+    job = registry.create_jobs(["d1"], "controllable", {"fail": True})[0]
+    instance = _ControllableOperation.instances[0]
+    instance.get_summary_log = lambda: "the important lines\n"
+    instance.release()
+    _wait_until(lambda: registry.list_jobs()[0].status == JobStatus.FAILED)
+    assert job.summary_log == "the important lines\n"
+    assert db.get_job_history("d1")[0]["summary_log"] == "the important lines\n"
+    assert db.get_job_summary_log(job.id) == "the important lines\n"
+
+
+def test_an_oversized_summary_log_is_cut_before_it_is_stored():
+    registry = _make_registry()
+    job = registry.create_jobs(["d1"], "controllable", {})[0]
+    instance = _ControllableOperation.instances[0]
+    instance.get_summary_log = lambda: "line\n" * 10_000
+    instance.release()
+    _wait_until(lambda: registry.list_jobs()[0].status == JobStatus.COMPLETED)
+    assert "omitted" in job.summary_log
+    assert len(db.get_job_summary_log(job.id).encode()) <= job_logs.SUMMARY_MAX_BYTES
+
+
+def test_no_summary_log_for_an_operation_without_one():
+    registry = _make_registry()
+    job = registry.create_jobs(["d1"], "controllable", {})[0]
+    _ControllableOperation.instances[0].release()
+    _wait_until(lambda: registry.list_jobs()[0].status == JobStatus.COMPLETED)
+    assert db.get_job_summary_log(job.id) is None
 
 
 def test_job_failure_is_recorded_with_error():

@@ -17,6 +17,8 @@ restart reattachment. Subclasses supply only what differs per program:
   _on_log_line(line) / _on_log_bytes(chunk)  progress parsing
   _verdict(returncode)          judge a finished run from its whole log
   _finished_in_log()            does the log show the run ended? (reattach)
+  _summarize_log(raw_log)       optional: the log's important lines, stored
+                                with the job when it ends (get_summary_log)
 
 Reattach outcomes:
   - process still running → resume following the log
@@ -38,8 +40,8 @@ from pathlib import Path
 
 from drives.collector.probes.vitals.block_device import run as resolve_block_device
 from drives.drive_models import DriveContext
+from operations import job_logs
 from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed
-from system_utils import paths
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +153,7 @@ class LoggedProcessOperation(OperationBase):
         self._percent: float | None = 0.0
         self._message: str | None = "Queued"
         self._line_buf = b""
+        self._summary_log: str | None = None
 
     @staticmethod
     def supports(context: DriveContext) -> bool:
@@ -195,6 +198,14 @@ class LoggedProcessOperation(OperationBase):
         process gone. Default: never — the job is marked INTERRUPTED."""
         return False
 
+    def _summarize_log(self, raw_log: Path) -> Iterator[str] | None:
+        """The important lines of a finished run's raw log, for a short summary
+        log beside it. Called once the job ends, however it ended (also failed,
+        cancelled or interrupted runs: their partial output is evidence too).
+        The raw log can be tens of MB, so read it in chunks. Default: None —
+        no summary for this operation."""
+        return None
+
     def _extra_reattach_data(self) -> dict:
         """Extra state to persist for reattach, beyond pid/log_path/device."""
         return {}
@@ -207,6 +218,18 @@ class LoggedProcessOperation(OperationBase):
     # ------------------------------------------------------------------
 
     def run(self, context: DriveContext, params: dict) -> dict:
+        try:
+            return self._run(context, params)
+        finally:
+            self._build_summary()
+
+    def reattach(self, context: DriveContext, params: dict, reattach_data: dict) -> dict:
+        try:
+            return self._reattach(context, params, reattach_data)
+        finally:
+            self._build_summary()
+
+    def _run(self, context: DriveContext, params: dict) -> dict:
         if self._cancel_event.is_set():
             raise OperationCancelled()
 
@@ -261,7 +284,7 @@ class LoggedProcessOperation(OperationBase):
 
         return self._watch_and_wait(start_offset=0, startup_timeout=self.startup_timeout_seconds)
 
-    def reattach(self, context: DriveContext, params: dict, reattach_data: dict) -> dict:
+    def _reattach(self, context: DriveContext, params: dict, reattach_data: dict) -> dict:
         try:
             pid = int(reattach_data["pid"])
             log_path = Path(reattach_data["log_path"])
@@ -354,9 +377,25 @@ class LoggedProcessOperation(OperationBase):
             except ProcessLookupError:
                 pass
 
+    def _build_summary(self) -> None:
+        """Keep _summarize_log()'s lines for get_summary_log(). Never raises: a
+        summary is a convenience and must not change how the job ended."""
+        log_path = self._log_path
+        if log_path is None or not log_path.exists() or self._process_alive():
+            return  # never started, or still running (backend shutting down mid-run)
+        try:
+            lines = self._summarize_log(log_path)
+            if lines is not None:
+                self._summary_log = "".join(f"{line}\n" for line in lines)
+        except Exception:
+            logger.warning("could not summarize %s", log_path, exc_info=True)
+
+    def get_summary_log(self) -> str | None:
+        return self._summary_log
+
     def _job_log_path(self) -> Path:
         job_id = getattr(self, "_job_id", None) or "unknown"
-        return paths.data_dir() / "job_logs" / f"{job_id}.log"
+        return job_logs.raw_log_path(job_id)
 
     def get_reattach_data(self) -> dict | None:
         if self._pid is None:

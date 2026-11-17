@@ -151,7 +151,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- each one's snapshot_id references the full report in drive_raw_snapshots.
     smart_before_json TEXT,
     smart_after_json  TEXT,
-    queue_position    INTEGER  -- Job.queue_position: run order while queued, else NULL
+    queue_position    INTEGER, -- Job.queue_position: run order while queued, else NULL
+    summary_log       TEXT     -- Job.summary_log: the run's important output lines, or NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
@@ -202,6 +203,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     if "queue_position" not in job_cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN queue_position INTEGER")
+    if "summary_log" not in job_cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN summary_log TEXT")
 
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     if version < 1:
@@ -720,8 +723,9 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
             INSERT OR REPLACE INTO jobs (
                 id, drive_guid, operation, category, params_json, status,
                 result_json, error, created_at, started_at, finished_at,
-                reattach_json, smart_before_json, smart_after_json, queue_position
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reattach_json, smart_before_json, smart_after_json, queue_position,
+                summary_log
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id, job.drive_guid, job.operation, job.category,
@@ -735,6 +739,7 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 json.dumps(job.smart_before) if job.smart_before is not None else None,
                 json.dumps(job.smart_after) if job.smart_after is not None else None,
                 job.queue_position,
+                job.summary_log,
             ),
         )
 
@@ -804,6 +809,13 @@ def get_job_history(
     with _connection() as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(sql, (*args, limit)).fetchall()
+
+
+def get_job_summary_log(job_id: str) -> str | None:
+    """A job's stored summary log, or None if it has none (or no such job)."""
+    with _connection() as conn:
+        row = conn.execute("SELECT summary_log FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    return row[0] if row else None
 
 
 def get_job_smart(job_id: str) -> tuple[dict | None, dict | None] | None:

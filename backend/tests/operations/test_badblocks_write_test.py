@@ -14,7 +14,11 @@ import pytest
 from drives.drive_models import DriveContext, DriveDescriptor
 from operations import logged_process
 from operations.catalog import badblocks_write_test
-from operations.catalog.badblocks_write_test import BadblocksWriteTestOperation, _read_badblocks_outcome
+from operations.catalog.badblocks_write_test import (
+    BadblocksWriteTestOperation,
+    _read_badblocks_outcome,
+    _summarize_badblocks_log,
+)
 from operations.operation import ReattachFailed
 
 DEVICE = "/dev/sdz"
@@ -257,3 +261,66 @@ def test_reattach_rebuilds_progress_from_the_whole_log(tmp_path):
     op._log_path = path
     op._restore_reattach_data({})
     assert op._message == "pass 1/1 · 0x55 write · 25.3%"
+
+
+# ---------------------------------------------------------------------------
+# Summary log — the real log's lines, each phase collapsed to its last update
+# ---------------------------------------------------------------------------
+
+def test_summary_of_a_real_clean_pass(tmp_path):
+    lines = list(_summarize_badblocks_log(_write_log(tmp_path, REAL_LOG)))
+    assert lines == [
+        "Checking for bad blocks in read-write mode",
+        "From block 0 to 76799",
+        "Testing with pattern 0xaa: 96.00% done, 0:06 elapsed. (0/0/0 errors) \u2026 done",
+        "Reading and comparing: 50.67% done, 0:08 elapsed. (0/0/0 errors) \u2026 done",
+        "Testing with pattern 0x55: 65.33% done, 0:12 elapsed. (0/0/0 errors) \u2026 done",
+        "Reading and comparing: 42.67% done, 0:14 elapsed. (0/0/0 errors) \u2026 done",
+        "Testing with pattern 0xff: 78.67% done, 0:19 elapsed. (0/0/0 errors) \u2026 done",
+        "Reading and comparing: 84.00% done, 0:22 elapsed. (0/0/0 errors) \u2026 done",
+        "Testing with pattern 0x00: 69.33% done, 0:25 elapsed. (0/0/0 errors) \u2026 done",
+        "Reading and comparing: 94.67% done, 0:29 elapsed. (0/0/0 errors) \u2026 done",
+        "Pass completed, 0 bad blocks found. (0/0/0 errors)",
+    ]
+
+
+def test_summary_of_a_run_killed_mid_phase_ends_at_its_last_update(tmp_path):
+    lines = list(_summarize_badblocks_log(_write_log(tmp_path, MID_0X55_WRITE)))
+    assert lines[-1] == "Testing with pattern 0x55: 25.33% done"
+
+
+def test_summary_of_a_phase_with_no_update_before_done(tmp_path):
+    # The first update shares the label's segment; with no later one it is the last.
+    log = b"Reading and comparing:   0.00% done, 0:06 elapsed. (0/0/0 errors)\x08\x08\x08done   \n"
+    assert list(_summarize_badblocks_log(_write_log(tmp_path, log))) == [
+        "Reading and comparing: 0.00% done, 0:06 elapsed. (0/0/0 errors) \u2026 done",
+    ]
+
+
+def test_summary_is_the_same_however_the_log_is_chunked(tmp_path, monkeypatch):
+    # Chunk boundaries fall inside updates and inside backspace runs.
+    whole = list(_summarize_badblocks_log(_write_log(tmp_path, REAL_LOG)))
+    real_open = open
+
+    class _Tiny:
+        def __init__(self, f):
+            self._f = f
+
+        def read(self, _n):
+            return self._f.read(7)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self._f.close()
+
+    monkeypatch.setattr("builtins.open", lambda *a, **k: _Tiny(real_open(*a, **k)))
+    assert list(_summarize_badblocks_log(tmp_path / "job.log")) == whole
+
+
+def test_summary_keeps_error_lines(tmp_path):
+    log = HEADER + b"badblocks: Input/output error during test data write, block 1234\n" + _pass(1)
+    lines = list(_summarize_badblocks_log(_write_log(tmp_path, log)))
+    assert "badblocks: Input/output error during test data write, block 1234" in lines
+    assert lines[-1] == "Pass completed, 1 bad blocks found. (0/0/1 errors)"

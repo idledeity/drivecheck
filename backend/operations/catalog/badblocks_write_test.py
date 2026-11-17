@@ -32,6 +32,7 @@ Real -w -s -v output (e2fsprogs; \\b-overwritten progress shown as "|"):
 import logging
 import re
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 
 from drives.drive_models import DriveContext
@@ -92,6 +93,66 @@ def _read_badblocks_outcome(path: Path) -> tuple[int, int]:
     except OSError:
         pass
     return passes, bad_blocks
+
+
+# A run of backspaces (one progress update overwriting the last) or a line end.
+_SUMMARY_SPLIT_RE = re.compile(rb"(\x08+|\n)")
+# Longest text kept from one progress update; real ones are ~60 bytes.
+_SEGMENT_CAP = 4096
+
+
+def _summarize_badblocks_log(path: Path) -> Iterator[str]:
+    """The log's lines with each phase's progress collapsed to its last update.
+
+    A phase line is "<label>: <update>" followed by many "\\b...<update>"
+    overwrites and a final "\\b...done". It becomes
+    "<label>: <last update> … done", keeping badblocks' own text, e.g.
+        Testing with pattern 0xaa: 96.00% done, 0:06 elapsed. (0/0/0 errors) … done
+    A phase cut short (killed, cancelled) ends at its last update, possibly
+    itself cut short. Other lines
+    (header, "Pass completed, ...", error messages) pass through unchanged.
+    Streamed: one phase line can be tens of MB after days of progress.
+    """
+    head: bytes | None = None   # text before the first backspace run
+    last = b""                  # most recent complete update after the head
+    cur = bytearray()           # text since the last backspace run / line end
+
+    def emit() -> str | None:
+        if head is None:
+            line = bytes(cur).rstrip()
+        else:
+            label, _, first_update = head.partition(b":")
+            update = (last or first_update).strip()
+            final = bytes(cur).strip()
+            if b"%" in final:  # cut off mid-update (killed): that is the last update
+                update, final = final, b""
+            line = label + b": " + update
+            if final:
+                line += b" \xe2\x80\xa6 " + final  # " … "
+        text = line.decode("utf-8", errors="replace")
+        return text if text.strip() else None
+
+    with open(path, "rb") as f:
+        while chunk := f.read(1 << 20):
+            for token in _SUMMARY_SPLIT_RE.split(chunk):
+                if not token:
+                    continue
+                if token == b"\n":
+                    if (line := emit()) is not None:
+                        yield line
+                    head, last, cur = None, b"", bytearray()
+                elif token[0] == 0x08:
+                    if cur.strip():
+                        if head is None:
+                            head = bytes(cur)
+                        else:
+                            last = bytes(cur)
+                    cur = bytearray()
+                elif len(cur) < _SEGMENT_CAP:
+                    cur += token[:_SEGMENT_CAP - len(cur)]
+    if cur or head is not None:
+        if (line := emit()) is not None:
+            yield line
 
 
 class BadblocksWriteTestOperation(LoggedProcessOperation):
@@ -174,6 +235,9 @@ class BadblocksWriteTestOperation(LoggedProcessOperation):
             else f"pass {current_pass} (repeat after bad blocks)"
         )
         self._message = f"{pass_label} · {self._phase_label} · {self._phase_pct:.1f}%"
+
+    def _summarize_log(self, raw_log: Path) -> Iterator[str]:
+        return _summarize_badblocks_log(raw_log)
 
     def _restore_reattach_data(self, reattach_data: dict) -> None:
         # Rebuild the progress position from everything logged so far; the base

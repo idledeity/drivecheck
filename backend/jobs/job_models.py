@@ -47,3 +47,7 @@ class Job:
     # Place in the run queue (0 starts first) while QUEUED, else None. Persisted
     # so a restart keeps the order the user set, not just creation order.
     queue_position: int | None = None
+    # The important lines of the run's raw output (OperationBase.get_summary_log),
+    # set when the job ends; None for operations that keep no summary. Stored in
+    # the row so it outlives the raw log file.
+    summary_log: str | None = None
