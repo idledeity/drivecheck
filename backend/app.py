@@ -313,17 +313,24 @@ def drive_raw_snapshot_latest(guid):
 
 @app.route("/api/drives/<guid>/smart/detail")
 def drive_smart_detail(guid):
-    """The SMART page for a drive's latest stored smartctl read: named fields,
-    the full attribute table / counter logs, and the drive's self-test log.
-    detail is null when the read holds no smartctl output."""
+    """The Health Report and SMART page for a drive's latest stored full
+    smartctl read, as one point in time: the read's signals with their flags
+    and health score, its named fields, the full attribute table / counter
+    logs, and the drive's self-test log. detail is null when the read holds no
+    smartctl output; signals (and flags, health) when it was stored without
+    them (an older version)."""
     row = db.get_latest_raw_snapshot(guid)
     if row is None:
         return jsonify(None), 404
     raw = judge_report(json.loads(row["raw_json"]))
     smartctl = raw.get("smartctl")
+    judged = _with_judgements({"signals": raw["signals"]}) if raw.get("signals") else {}
     return jsonify({
         "captured_at": row["captured_at"],
         "probe": row["probe"],
+        "signals": judged.get("signals"),
+        "signal_flags": judged.get("signal_flags"),
+        "health": judged.get("health"),
         "detail": build_smart_detail(smartctl) if smartctl else None,
         "self_test_log": raw.get("self_test_log", []),
     })
