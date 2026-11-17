@@ -92,12 +92,25 @@ describe('SmartPanel', () => {
     expect(within(unknown).getByText('-10')).toBeInTheDocument()      // margin below threshold
   })
 
+  it('opens the main sections, and every section collapses', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response()))
+    render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
+    const attributes = await screen.findByText('All SMART attributes (3)')
+    expect(attributes).toHaveClass('smart-section-title')
+    expect(attributes.closest('details')).toHaveAttribute('open')
+    expect(screen.getByText('Key values').closest('details')).toHaveAttribute('open')
+    await userEvent.click(attributes)
+    expect(attributes.closest('details')).not.toHaveAttribute('open')
+  })
+
   it('keeps everything else smartctl reported behind a disclosure', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response()))
     render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
     const summary = await screen.findByText('Everything else smartctl reported (1)')
     expect(summary.closest('details')).not.toHaveAttribute('open')
-    expect(screen.getByText('model_family')).toBeInTheDocument()
+    expect(screen.queryByText('model_family')).toBeNull()      // rendered once opened
+    await userEvent.click(summary)
+    expect(await screen.findByText('model_family')).toBeInTheDocument()
   })
 
   it('says when the values were read', async () => {
@@ -128,13 +141,13 @@ describe('SmartPanel', () => {
   it('shows further logs as tables, flagged rows tinted', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({ tables: [table(3, { title: 'SATA PHY event counters', key: 'phy' })] })))
     render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
-    expect(await screen.findByText('SATA PHY event counters (3)')).toBeInTheDocument()
+    await userEvent.click(await screen.findByText('SATA PHY event counters (3)'))
     const first = screen.getByText((1000).toLocaleString()).closest('tr') as HTMLElement
     expect(first).toHaveClass('smart-row-warn')
     expect(within(first).getByText('Require Write or Reassign Blocks command')).toHaveAttribute('data-label', 'Reassign status')
   })
 
-  it('starts long tables and raw lists closed, rendering them only once opened', async () => {
+  it('starts the extended logs and raw lists closed with a minor header, rendering them only once opened', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({
       tables: [table(108)],
       raw_sections: [{ key: 'ata_log_directory', label: 'Log directory', leaves: [{ path: 'ata_log_directory.gp_dir_version', value: 1 }] }],
@@ -142,6 +155,7 @@ describe('SmartPanel', () => {
     render(<SmartPanel drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
     const scan = await screen.findByText('Background scan results (108)')
     expect(scan.closest('details')).not.toHaveAttribute('open')
+    expect(scan).toHaveClass('smart-section-title-minor')
     expect(screen.queryByText((1000).toLocaleString())).toBeNull()
     expect(screen.getByText('Log directory (1)')).toBeInTheDocument()
     expect(screen.queryByText('ata_log_directory.gp_dir_version')).toBeNull()

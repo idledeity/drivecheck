@@ -105,7 +105,17 @@
 .smart-leaf dt { font-family: ui-monospace, Consolas, monospace; color: var(--t4); overflow-wrap: anywhere; }
 .smart-leaf dd { margin: 0; color: var(--t2); text-align: right; overflow-wrap: anywhere; }
 
-.smart-other > summary { cursor: pointer; }
+/* ── Collapsible sections ── */
+.smart-section > summary { cursor: pointer; }
+.smart-section > summary:hover { color: var(--t2); }
+.smart-section > summary::marker { font-size: 0.9em; }
+/* A less important section: a smaller, quieter header, no rule above. */
+.smart-section-title-minor {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--t4);
+  margin: 6px 0 4px;
+}
 
 /* A newer full read than the one shown: the page holds still until Refresh. */
 .smart-newer { margin-left: 10px; color: var(--t2); white-space: nowrap; }
@@ -119,7 +129,6 @@
   cursor: pointer;
 }
 .smart-refresh-btn:hover { text-decoration: underline; }
-.smart-other > summary:hover { color: var(--t2); }
 
 /* ── Report summary ── */
 .smart-summary-ok { font-size: 12px; color: var(--t3); margin: 0 0 6px; }

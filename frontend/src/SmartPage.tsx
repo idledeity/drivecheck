@@ -45,72 +45,63 @@ function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
     <>
       <SmartReadLine data={loaded.data} drive={drive} onRefresh={loaded.reload} />
 
-      <div className="smart-groups">
-        {detail.groups.map(group => (
-          <div key={group.key} className="smart-group">
-            <h3 className="smart-group-title">{group.label}</h3>
-            {group.fields.map(field => (
-              <FieldRow key={field.key} field={field} attribute={attributeFor(detail, field)} />
-            ))}
-          </div>
-        ))}
-      </div>
+      {/* Every section collapses. The main ones start open; the less
+          important (unnamed values, the extended -x logs) start closed with a
+          smaller header, at the bottom like an appendix. */}
+      <Section title="Key values">
+        <div className="smart-groups">
+          {detail.groups.map(group => (
+            <div key={group.key} className="smart-group">
+              <h3 className="smart-group-title">{group.label}</h3>
+              {group.fields.map(field => (
+                <FieldRow key={field.key} field={field} attribute={attributeFor(detail, field)} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </Section>
 
       {detail.attributes && detail.attributes.length > 0 && (
-        <>
-          <h3 className="smart-section-title">All SMART attributes ({detail.attributes.length})</h3>
+        <Section title={`All SMART attributes (${detail.attributes.length})`}>
           <AttributeTable attributes={detail.attributes} />
-        </>
+        </Section>
       )}
 
       {detail.scsi_error_counters && detail.scsi_error_counters.rows.length > 0 && (
-        <>
-          <h3 className="smart-section-title">Error counter log</h3>
+        <Section title="Error counter log">
           <ScsiCounterTable counters={detail.scsi_error_counters} />
-        </>
+        </Section>
       )}
 
       {detail.nvme_health_log && detail.nvme_health_log.length > 0 && (
-        <>
-          <h3 className="smart-section-title">SMART / Health Information log</h3>
+        <Section title="SMART / Health Information log">
           <LeafList leaves={detail.nvme_health_log} />
-        </>
+        </Section>
       )}
 
       {self_test_log.length > 0 && (
-        <>
-          {/* The drive's own onboard log; may predate any test DriveCheck has run. */}
-          <h3 className="smart-section-title">Self-test history (drive log)</h3>
+        // The drive's own onboard log; may predate any test DriveCheck has run.
+        <Section title="Self-test history (drive log)">
           <AttrList rows={self_test_log} />
-        </>
+        </Section>
       )}
 
       {detail.other_fields.length > 0 && (
-        <details className="smart-other">
-          <summary className="smart-section-title">Everything else smartctl reported ({detail.other_fields.length})</summary>
+        <Section minor title={`Everything else smartctl reported (${detail.other_fields.length})`}>
           <LeafList leaves={detail.other_fields} />
-        </details>
+        </Section>
       )}
 
-      {/* Appendix: the extended logs (-x), after everything the page summarises above. */}
       {detail.tables.filter(t => t.rows.length > 0).map(table => (
-        // A long table (e.g. 100+ background scan results) starts closed.
-        table.rows.length > LONG_TABLE_ROWS ? (
-          <LazyDetails key={table.key} title={`${table.title} (${table.rows.length})`}>
-            <GenericTable table={table} />
-          </LazyDetails>
-        ) : (
-          <div key={table.key}>
-            <h3 className="smart-section-title">{table.title} ({table.rows.length})</h3>
-            <GenericTable table={table} />
-          </div>
-        )
+        <Section key={table.key} minor title={`${table.title} (${table.rows.length})`}>
+          <GenericTable table={table} />
+        </Section>
       ))}
 
       {detail.raw_sections.map(section => (
-        <LazyDetails key={section.key} title={`${section.label} (${section.leaves.length})`}>
+        <Section key={section.key} minor title={`${section.label} (${section.leaves.length})`}>
           <LeafList leaves={section.leaves} />
-        </LazyDetails>
+        </Section>
       ))}
     </>
   )
@@ -213,8 +204,6 @@ function AttributeTable({ attributes }: { attributes: SmartAttribute[] }) {
   )
 }
 
-const LONG_TABLE_ROWS = 40
-
 /* A further log as a table; like the attribute table, each row stacks into a
    labelled card on a phone, text columns full width. */
 function GenericTable({ table }: { table: SmartTable }) {
@@ -238,13 +227,23 @@ function GenericTable({ table }: { table: SmartTable }) {
   )
 }
 
-/* A closed disclosure whose content is only rendered once opened (some hold hundreds of values). */
-function LazyDetails({ title, children }: { title: string; children: ReactNode }) {
-  const [opened, setOpened] = useState(false)
+/**
+ * A collapsible section of the page. A minor one starts closed with a smaller
+ * header, and its content is only rendered once first opened (some hold
+ * hundreds of values).
+ */
+function Section({ title, minor = false, children }: { title: string; minor?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(!minor)
+  const [rendered, setRendered] = useState(!minor)
   return (
-    <details className="smart-other" onToggle={e => { if ((e.target as HTMLDetailsElement).open) setOpened(true) }}>
-      <summary className="smart-section-title">{title}</summary>
-      {opened && children}
+    <details className={`smart-section${minor ? " smart-section-minor" : ""}`} open={open}
+             onToggle={e => {
+               const nowOpen = (e.currentTarget as HTMLDetailsElement).open
+               setOpen(nowOpen)
+               if (nowOpen) setRendered(true)
+             }}>
+      <summary className={minor ? "smart-section-title-minor" : "smart-section-title"}>{title}</summary>
+      {rendered && children}
     </details>
   )
 }
