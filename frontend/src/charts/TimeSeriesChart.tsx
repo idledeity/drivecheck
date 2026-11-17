@@ -1,6 +1,7 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useId, useLayoutEffect, useMemo, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
 import { useChartHover, useLeftGutter } from "./chartHover"
+import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
 import { seriesPaths, valueAt, nearest } from "./chartGeometry"
@@ -71,7 +72,6 @@ const TICK_GAP = 6
 // not on its top edge, where a span covering the whole range would read as a
 // line of data. Overlapping spans simply merge into one bar.
 const RAIL = { gap: 3, height: 2 }
-const FALLBACK_WIDTH = 600   // before the first measure (and in jsdom, which has no layout)
 // Below this chart width the tooltip would cover most of the plot (and run
 // off a phone screen), so the readings show under the chart instead.
 const TIP_BELOW_WIDTH = 520
@@ -384,21 +384,4 @@ function mergeSpans(boxes: { id: string; x: number; w: number }[]) {
     else merged.push({ ...b })
   }
   return merged
-}
-
-/** The element's width in px, kept up to date as it resizes. The chart draws
- *  at this width rather than scaling a fixed viewBox, so it stays crisp in a
- *  wide workspace panel and a narrow card popover alike. */
-function useWidth(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [width, setWidth] = useState(FALLBACK_WIDTH)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const measure = () => { if (el.clientWidth > 0) setWidth(el.clientWidth) }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [ref])
-  return width
 }

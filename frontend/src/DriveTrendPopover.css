@@ -17,6 +17,7 @@
 
 .dtp-sub { font-size: 11px; color: var(--t4); }
 .dtp-sub b { color: var(--t1); font-weight: 600; }
+.dtp-counter-sub { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; }
 .dtp-note { font-size: 11.5px; color: var(--t5); padding: 8px 0; }
 
 @media (prefers-reduced-motion: reduce) {

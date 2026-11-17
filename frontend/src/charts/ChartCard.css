@@ -17,6 +17,14 @@
   margin-bottom: 4px;
 }
 
+.chart-card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
 .chart-card-title {
   font-size: 13px;
   font-weight: 600;

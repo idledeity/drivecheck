@@ -13,7 +13,10 @@ import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
 import { momentLabel } from "./charts/scales"
 import { SIGNALS } from "./signals"
-import { COUNTER_SIGNALS, counterScale, counterSubtitle } from "./charts/counters"
+import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, popoverCounterViews, useCounterView } from "./charts/counters"
+import CounterLanesChart from "./charts/CounterLanesChart"
+import CounterViewControls from "./charts/CounterViewControls"
+import { RATE_BUCKET, counterWindows } from "./charts/counterTrends"
 import type { CounterSignal } from "./charts/counters"
 import AsOf from "./AsOf"
 import "./DriveTrendPopover.css"
@@ -100,17 +103,34 @@ function Body({ data, drives, metric }: { data: DriveHistoryData; drives: ChartD
       <HealthScoreChart data={data} drives={drives} height={130} />
     </>
   }
+  return <CounterBody data={data} drives={drives} metric={metric} />
+}
+
+/** A counter in a popover: Total, Events or Rate, as last picked in any card
+ *  popover this session (Trends keeps its own). No window settings here: the
+ *  recent window follows the range, compared against the rest of it. */
+function CounterBody({ data, drives, metric }: { data: DriveHistoryData; drives: ChartDrive[]; metric: CounterSignal }) {
+  const [view, setView] = useCounterView(popoverCounterViews, metric)
+  const windows = useMemo(() => counterWindows(data.start, data.end, data.range, "auto", "rest"), [data])
   const { changed, missing } = counterSummary(data, drives, metric)
   if (missing.length) return <div className="dtp-note">No history of this counter for this drive.</div>
   const { beyond } = counterThresholds(data, drives, metric)
   const change = changed[0] && changed[0].to - changed[0].from
+  const what = view.view === "total" ? counterSubtitle(metric, beyond)
+    : view.view === "events" ? `Each change · shaded: last ${windows.label}`
+    : `Change per ${RATE_BUCKET[data.range].label} · shaded: last ${windows.label}`
   return <>
-    <div className="dtp-sub">
-      {counterSubtitle(metric, beyond)}
-      {" · "}
-      {change ? <b>{change > 0 ? "+" : "−"}{Math.abs(change).toLocaleString()} in range</b> : "no change in range"}
+    <div className="dtp-sub dtp-counter-sub">
+      <span>
+        {what}
+        {" · "}
+        {change ? <b>{change > 0 ? "+" : "−"}{Math.abs(change).toLocaleString()} in range</b> : "no change in range"}
+      </span>
+      <CounterViewControls value={view} onChange={setView} label={TITLE[metric]} />
     </div>
-    <CounterChart data={data} drives={drives} signal={metric} label={TITLE[metric]}
-      scale={counterScale(metric)} height={120} />
+    {view.view === "total"
+      ? <CounterChart data={data} drives={drives} signal={metric} label={TITLE[metric]} scale={counterScale(metric)} height={120} />
+      : <CounterLanesChart data={data} drives={drives} signal={metric} label={TITLE[metric]} view={view.view}
+          kind={counterKind(metric)} windows={windows} showTotal={view.showTotal} log={counterScale(metric) === "log1p"} chips={false} />}
   </>
 }

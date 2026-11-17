@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TrendsPanel from './TrendsPanel'
 import { fetchJsonResponse, makeDrive } from './test/fixtures'
@@ -164,15 +164,42 @@ describe('TrendsPanel', () => {
     expect(cycles).toHaveTextContent(/\+1.*Exos X16/)
   })
 
-  it('shrinks a counter that is 0 throughout to a line, naming drives without it (but not ones with no SMART at all)', async () => {
+  it('charts a counter that is 0 throughout in full, naming drives without it (but not ones with no SMART at all)', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Pending sectors' })).toBeInTheDocument())
+    await waitFor(() => expect(lines('Pending sectors over time')).toHaveLength(1))
     const pending = card('Pending sectors')
-    expect(pending).toHaveTextContent('0 throughout')
-    expect(pending.querySelector('svg.tsc-svg')).toBeNull()
+    expect(pending).toHaveTextContent('No change in this range')
     expect(pending.querySelector('.chart-card-foot')).toHaveTextContent(/^Not reported by.*Ultrastar/)
     expect(pending.querySelector('.chart-card-foot')).not.toHaveTextContent('QEMU')
+  })
+
+  it('switches a counter to its Events view: a lane per drive with its status line', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
+    const realloc = card('Reallocated sectors')
+    fireEvent.click(within(realloc).getByRole('button', { name: 'Events' }))
+    const lanes = within(realloc).getByRole('group', { name: /Reallocated sectors, changes per drive/ })
+    expect(lanes.querySelectorAll('.clc-lane')).toHaveLength(2)
+    expect(lanes.querySelectorAll('.clc-mark')).toHaveLength(1)                 // d1: 0 → 3
+    expect(lanes).toHaveTextContent(/3 · \+3 in last 4h/)                       // 24h range: Auto is 4h
+    expect(lanes).toHaveTextContent(/6 · unchanged in range/)
+    expect(realloc).toHaveTextContent('Each change, sized by its jump · shaded: last 4h')
+    expect(within(realloc).getByLabelText('Show total')).not.toBeChecked()
+  })
+
+  it('switches a wear counter to its Rate view, with bars and a rate status', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Load/unload cycles over time')).toHaveLength(1))
+    const cycles = card('Load/unload cycles')
+    fireEvent.click(within(cycles).getByRole('button', { name: 'Rate' }))
+    const lanes = within(cycles).getByRole('group', { name: /rate per drive/ })
+    expect(lanes.querySelectorAll('.clc-bar')).toHaveLength(1)
+    expect(lanes).toHaveTextContent(/\/day/)
+    fireEvent.focus(lanes)                                                      // keyboard: a reading straight away
+    expect(within(cycles).getByRole('status')).toBeInTheDocument()
   })
 
   it('leaves out a counter no charted drive reports', async () => {

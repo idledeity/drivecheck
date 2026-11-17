@@ -9,7 +9,11 @@ import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
 import CounterChart from "./charts/CounterChart"
 import ChartDriveChip from "./charts/ChartDriveChip"
-import { COUNTER_SIGNALS, counterScale, counterSubtitle } from "./charts/counters"
+import CounterLanesChart from "./charts/CounterLanesChart"
+import CounterViewControls from "./charts/CounterViewControls"
+import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
+import { RATE_BUCKET, RECENT_WINDOWS, autoWindowLabel, counterWindows, windowFits } from "./charts/counterTrends"
+import type { Baseline, CounterWindows, RecentWindow } from "./charts/counterTrends"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
@@ -20,8 +24,6 @@ import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
 import { SIGNALS } from "./signals"
 import "./TrendsPanel.css"
-
-// The error counters charted as small multiples, in this order.
 
 // Bucket width per range, as the chart subtitles say it ("average per 5 min").
 const BUCKET_TEXT: Record<HistoryRange, string> = {
@@ -38,6 +40,11 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   const [range, setRange] = useState<HistoryRange>("24h")
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showJobs, setShowJobs] = useState(true)
+  // The counters' Events and Rate views compare a recent window against the
+  // rest of the range (or the window before it); one setting for every card,
+  // so the same words mean the same thing in each.
+  const [recent, setRecent] = useState<RecentWindow>("auto")
+  const [baseline, setBaseline] = useState<Baseline>("rest")
   // The drive whose legend chip is hovered or focused: its line comes forward
   // in every chart (others dim), which also finds it where lines coincide.
   const [hovered, setHovered] = useState<string | null>(null)
@@ -72,6 +79,12 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   }, [all, hidden])
 
   const highlight = hovered && shown.some(d => d.guid === hovered) ? hovered : null
+  // A window picked for a longer range reads as Auto until it fits again.
+  const rangeMs = data ? data.end - data.start : Infinity
+  const recentShown: RecentWindow = windowFits(recent, rangeMs) ? recent : "auto"
+  const windows = useMemo(
+    () => (data ? counterWindows(data.start, data.end, data.range, recentShown, baseline) : null),
+    [data, recentShown, baseline])
 
   if (selectedGuids.length === 0) {
     return <p className="health-empty">Select one or more drives to view their trends.</p>
@@ -112,6 +125,22 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             </button>
           ))}
         </div>
+        <Control label="Recent" htmlFor="trends-recent">
+          <select id="trends-recent" className="ctl-select" value={recentShown} onChange={e => setRecent(e.target.value as RecentWindow)}
+            title="The window counter status lines and shading speak of">
+            {RECENT_WINDOWS.map(w => (
+              <option key={w} value={w} disabled={!windowFits(w, rangeMs)}>
+                {w === "auto" ? `Auto (${autoWindowLabel(range)})` : `Last ${w}`}
+              </option>
+            ))}
+          </select>
+        </Control>
+        <Control label="Compare with" htmlFor="trends-baseline">
+          <select id="trends-baseline" className="ctl-select" value={baseline} onChange={e => setBaseline(e.target.value as Baseline)}>
+            <option value="rest">Rest of range</option>
+            <option value="prev">Window before</option>
+          </select>
+        </Control>
         <label className="ctl-check trends-jobs">
           <input type="checkbox" checked={showJobs} onChange={e => setShowJobs(e.target.checked)} />
           Show jobs
@@ -121,7 +150,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       {error && <p className="health-empty">Couldn't load history: {error}</p>}
       {!data && !error && <p className="health-empty">Loading history…</p>}
 
-      {data && (
+      {data && windows && (
         <ChartHoverSync>
           <div className="trends-charts">
             <ChartCard
@@ -151,7 +180,8 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             </ChartCard>
             <div className="trends-counters">
               {COUNTER_SIGNALS.map(name => (
-                <CounterCard key={name} name={name} data={data} drives={shown} showJobs={showJobs} highlight={highlight} stale={stale} />
+                <CounterCard key={name} name={name} data={data} drives={shown} windows={windows} baseline={baseline}
+                  showJobs={showJobs} highlight={highlight} stale={stale} />
               ))}
             </div>
           </div>
@@ -191,41 +221,38 @@ function HealthCallout({ data, drives }: { data: DriveHistoryData; drives: Chart
 // How many changed drives a counter's callout names before "+N more".
 const CALLOUT_DRIVES = 2
 
-/** One error counter's card. Left out when no charted drive reports the
- *  counter; just a line, with no chart, when it's 0 throughout on every drive
- *  that does — an empty baseline says nothing a sentence can't. */
-function CounterCard({ name, data, drives, showJobs, highlight, stale }: {
+/** One counter's card, as its running total (the default), each change per
+ *  drive, or its rate per drive against the usual. Left out when no charted
+ *  drive reports the counter. A counter at 0 throughout still gets its full
+ *  chart: a flat line reads as "nothing happened", where a missing chart
+ *  would read as "no data". */
+function CounterCard({ name, data, drives, windows, baseline, showJobs, highlight, stale }: {
   name: string
   data: DriveHistoryData
   drives: ChartDrive[]
+  windows: CounterWindows
+  baseline: Baseline
   showJobs: boolean
   highlight: string | null
   stale: boolean
 }) {
+  const [view, setView] = useCounterView(trendsCounterViews, name)
   const { changed, steady, missing } = counterSummary(data, drives, name)
-  const reporting = changed.length + steady.length
-  if (!reporting) return null
+  if (!changed.length && !steady.length) return null
   const title = SIGNALS[name]?.name ?? name
-  const allZero = !changed.length && steady.every(c => c.to === 0)
   // A drive with no signals at all (no SMART, e.g. a virtual disk) is named
   // once, under the health chart, rather than under every counter.
   const footer = notReported("Not reported by", missing.filter(d => hasSignals(data, d.guid)))
   // Thresholds too far above the data to draw are named in the subtitle.
   const { beyond } = counterThresholds(data, drives, name)
-  if (allZero) {
-    return (
-      <ChartCard
-        title={title}
-        subtitle={reporting === 1 ? "0 throughout" : `0 throughout, on all ${reporting} drives that report it`}
-        stale={stale}
-        footer={footer}
-      />
-    )
-  }
+  const subtitle = view.view === "total" ? counterSubtitle(name, beyond)
+    : view.view === "events" ? `Each change, sized by its jump · shaded: last ${windows.label}`
+    : `Change per ${RATE_BUCKET[data.range].label} · band: usual ${baseline === "prev" ? `in the ${windows.label} before` : "earlier in range"} · shaded: last ${windows.label}`
   return (
     <ChartCard
       title={title}
-      subtitle={counterSubtitle(name, beyond)}
+      subtitle={subtitle}
+      controls={<CounterViewControls value={view} onChange={setView} label={title} idPrefix={`trends-${name}-view`} />}
       callout={changed.length ? (
         <span className="trends-callout">
           {changed.slice(0, CALLOUT_DRIVES).map(c => (
@@ -239,7 +266,10 @@ function CounterCard({ name, data, drives, showJobs, highlight, stale }: {
       stale={stale}
       footer={footer}
     >
-      <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
+      {view.view === "total"
+        ? <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
+        : <CounterLanesChart data={data} drives={drives} signal={name} label={title} view={view.view} kind={counterKind(name)}
+            windows={windows} showTotal={view.showTotal} log={counterScale(name) === "log1p"} showJobs={showJobs} highlight={highlight} />}
     </ChartCard>
   )
 }

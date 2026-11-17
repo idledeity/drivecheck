@@ -755,10 +755,26 @@ small component over these:
   a card popover can reuse it as is. `highlight` (a guid) dims the other lines
   — the Trends legend sets it while a chip is hovered or focused.
   `ChartDriveChip` is how charts name a drive in dense places (thin chip, line
-  key, serial tail). Trends hides a counter no shown drive reports, shrinks one
-  that's 0 throughout to a line, and footnotes drives without it (drives with
-  no signals at all are noted once, under health). `ChartCard` is the dashboard frame (title,
-  subtitle, callout, dims when `stale`). `historySeries.ts` holds the glue:
+  key, serial tail). Trends hides a counter no shown drive reports and
+  footnotes drives without it (drives with no signals at all are noted once,
+  under health). A counter at 0 or unchanged throughout still gets its full
+  chart — a collapsed card reads as "no data", a flat line as "nothing happened".
+- Counter views — each counter card switches **Total** (default: `CounterChart`)
+  | **Events** | **Rate** (`CounterViewControls`); the last two are
+  `CounterLanesChart`: one lane per drive, headed by its chip and a status line,
+  on the shared gutter and crosshair. Events: ▲/▽ per change, sized by the jump,
+  fading with age, near ones merged, tint since the last change. Rate: net
+  change per `RATE_BUCKET` as √-scaled bars over a band (25–75 % of the
+  comparison buckets) and dashed mean. "Show total" draws the running total
+  faintly behind either. The recent window and what it's compared with are
+  one Trends filter-row setting (`counterWindows`; Auto follows the range);
+  popovers use Auto vs rest of range. Status lines, buckets and ratios
+  (`counterTrends.ts`, ≥ 1.5× faster, ≤ 0.67× slower, ≥ 3 comparison buckets)
+  are derived when drawn. Buckets are half-open: a change on an edge belongs
+  to the bucket it starts. The view is remembered per counter for the session,
+  separately for Trends and for card popovers (`useCounterView`).
+- `ChartCard` is the dashboard frame (title, subtitle, optional `controls` and
+  callout on the right, dims when `stale`). `historySeries.ts` holds the glue:
   `chartDrive` (name + serial tail), job spans and the tooltip's job line,
   callout helpers.
 - Left margin is sized to each chart's y tick labels; under a `ChartHoverSync`
