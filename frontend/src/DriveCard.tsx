@@ -50,7 +50,7 @@ interface Props {
 const HOVER_DELAY_MS = 400
 
 export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], menuOpen = false, trendStyle = DEFAULT_TREND_STYLE }: Props) {
-  const health  = drive.health_status ? HEALTH_DISPLAY[drive.health_status] : HEALTH_DISPLAY.Unrated
+  const health  = (drive.health_status && HEALTH_DISPLAY[drive.health_status]) || HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
@@ -336,7 +336,9 @@ const DEFAULT_TREND_STYLE = seriesStyle(0)
 
 const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; label: string }> = {
   Healthy:  { bar: "green", label: "SMART OK" },
+  Aging:    { bar: "green", label: "Aging"    },
   Degraded: { bar: "warn",  label: "Degraded" },
   Failing:  { bar: "red",   label: "Failing"  },
+  Critical: { bar: "red",   label: "Critical" },
   Unrated:  { bar: "grey",  label: "Unrated"  },
 }

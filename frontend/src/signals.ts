@@ -67,5 +67,5 @@ export function severityClass(flag: string | null | undefined): string {
 
 // A drive's overall health status as a severity, to colour it the same way.
 export function healthSeverity(status: string | null | undefined): Severity {
-  return status === "Failing" ? "crit" : status === "Degraded" ? "warn" : "ok"
+  return status === "Failing" || status === "Critical" ? "crit" : status === "Degraded" ? "warn" : "ok"
 }

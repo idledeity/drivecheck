@@ -179,8 +179,14 @@ class DriveTelemetry:
 class DriveHealth:
     """Derived health signals, computed by the collector after each poll."""
     health_pct: int     | None = None
-    health_status: str  | None = None   # "Healthy" | "Degraded" | "Failing" | None (Unrated)
+    health_status: str  | None = None   # "Healthy" | "Aging" | "Degraded" | "Failing" | "Critical" | None (Unrated)
     signal_flags: dict[str, str] = field(default_factory=dict)  # DCSignals field name -> "ok" | "warn" | "crit"
+    # What made the score (analysis.health): each factor's standalone score,
+    # its role ("start" for the worst, "adds" for the others) and the points
+    # it changed the score by.
+    factors: list[dict] = field(default_factory=list)
+    # The floor that held the score up (age/wear alone stay Aging), if one did.
+    floor: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +251,8 @@ class AttributeFact:
       signal       — the DCSignals field this row shows; it takes that signal's flag
       metric       — a number judged by the rule for its kind
       drive_report — the drive's own statement about it: "ok" | "marginal" | "failed"
-                     (e.g. ATA when_failed, a self-test result, SMART overall status)
+                     | "past" (e.g. ATA when_failed now / past, a self-test
+                     result, SMART overall status)
     """
     key: str
     label: str

@@ -475,8 +475,9 @@ Note: `pending` is an imperfect mapping for SAS — the UI surfaces this distinc
 ### DriveSnapshot
 Point-in-time capture of one collector poll. Persisted to SQLite; one row per poll per drive.
 - `telemetry` — DriveTelemetry (contains DCSignals + last_polled_at)
-- `health` — DriveHealth (health_pct, health_status), scored by the collector
-  after the whole telemetry chain — probes never set it
+- `health` — DriveHealth (health_pct, health_status, signal_flags, factors,
+  floor), scored by the collector after the whole telemetry chain — probes
+  never set it. See **Health score** below.
 - `extras` — free-form dict for arbitrary probe output; raw JSON blobs live here.
   Also holds `extras["smart_attributes"]` and `extras["self_test_log"]`
   (`AttributeFact[]`, parsed by `probes/telemetry/smartctl_attributes.py` and
@@ -491,6 +492,34 @@ Flags, health score/status and attribute statuses are derived at the API layer
 (`app._with_judgements`, `analysis.smart_attributes.judge_report`), so old records
 are always shown against current thresholds. Rows stored by older versions with a
 `status` are served as stored.
+
+### Health score
+`analysis/health.py`. Answers "how likely is this drive to fail, with data
+loss, soon" — not a sum of penalties:
+- Each problem is a *factor* with a standalone score (the drive's health if it
+  were its only problem): signal curves in `SIGNAL_FACTORS` (log-scale for
+  sector/error counts), cycle counts against the drive's own rating and NVMe
+  wear (`_rated_factors`), one `drive_verdict` factor for everything the drive
+  says about itself (overall FAILED, attribute at its own threshold, NVMe
+  critical warning = 10; attribute failed in the past = 75), and the latest
+  self-test failing (30).
+- The worst factor is the start; each other one multiplies what's left by
+  `1 − weight × (100 − standalone)/100` (weights: verdict/self-test/pending/
+  uncorrected 0.35, reallocated 0.3, wear 0.2, environment 0.1).
+- Floors: wear (+environment) alone ≥ 80, environment alone ≥ 95; an
+  answering drive ≥ 1 (0 is for a dead drive).
+- Bands (`HEALTH_BANDS`): Healthy ≥95 · Aging ≥80 · Degraded ≥40 · Failing ≥15 ·
+  Critical below. Curves keep the band true to the cause: any media error or
+  drive statement starts ≤79; the drive saying it's failing is Critical.
+- Flags from the same curves: warn once a signal costs anything, crit once it
+  alone would be Failing (<40); `SIGNAL_THRESHOLDS` is those crossing points.
+  Wear and environment are never crit. `link_errors` isn't scored (cable/
+  backplane, noisy SAS counters).
+- Attribute-level inputs (verdicts, ratings, self-tests) need the read's
+  extras: the live drive and the SMART detail/Report have them; job summaries
+  and the history chart score from signals alone.
+- API: `/api/drives` `health_factors` / `health_floor`; snapshot `health`
+  carries `factors` / `floor`.
 
 ### DriveVitals
 Cheap, high-rate readings (temperature + disk IO activity) collected on the
@@ -1055,7 +1084,7 @@ identify a drive before targeting it with a destructive task.
 4. Task zone — active task · progress bar · counters · ETA · queued count
 5. Footer — key dc_signals (POH, reallocated, errors) · live IO (read/write MB/s)
 
-**Card states:** Healthy · Degraded · Failing · Unrated/NEW · Idle · Active · Selected
+**Card states:** Healthy · Aging · Degraded · Failing · Critical · Unrated/NEW · Idle · Active · Selected
 
 **NEW badge:** Drive has no existing Drive Record in SQLite — first time seen by this
 drivecheck instance. Not necessarily a new drive physically.

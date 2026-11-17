@@ -48,7 +48,9 @@ def _ata_rows(data: dict) -> list[AttributeFact]:
             signal=_ATA_SIGNAL_IDS.get(attr_id),
             # The drive's normalized value against its own threshold (0 = none).
             metric=AttributeMetric("normalized_value", value, thresh) if value is not None else None,
-            drive_report="failed" if entry.get("when_failed") else None,
+            # when_failed: "now" (at or below its threshold now), "past" (it
+            # was once; "in_the_past" accepted too), or "" (never).
+            drive_report={"now": "failed", "past": "past", "in_the_past": "past"}.get(entry.get("when_failed") or ""),
         ))
     return rows
 

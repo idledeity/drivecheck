@@ -68,13 +68,13 @@ def test_health_is_scored_after_the_whole_telemetry_chain(monkeypatch):
     # A later probe correcting a signal must be what health is judged on.
     collector = _collector_with_drive(monkeypatch)
     def mark_failing(snapshot, _context):
-        signals = replace(snapshot.telemetry.signals, smart_passed=False, uncorrected=3)
+        signals = replace(snapshot.telemetry.signals, smart_passed=False, uncorrected=10)
         snapshot.telemetry = replace(snapshot.telemetry, signals=signals)
         return snapshot
     collector._telemetry_probes = [*collector._telemetry_probes, SimpleNamespace(run=mark_failing)]
     state = collector._drive_states["g1"]
     snapshot = collector._run_telemetry(state, 0)
-    assert snapshot.health.health_status == "Failing"
+    assert snapshot.health.health_status == "Critical"
     assert snapshot.health.signal_flags["uncorrected"] == "crit"
     assert snapshot.health.signal_flags["smart_passed"] == "crit"
     assert state.snapshot.health is snapshot.health

@@ -71,9 +71,9 @@ export function HealthScoreBar({ score, status }: { score: number | null; status
 }
 
 function scoreColorCls(status: string | null): string {
-  if (status === "Healthy")  return "score-ok"
+  if (status === "Healthy" || status === "Aging") return "score-ok"
   if (status === "Degraded") return "score-warn"
-  if (status === "Failing")  return "score-fail"
+  if (status === "Failing" || status === "Critical") return "score-fail"
   return "score-unrated"
 }
 

@@ -612,7 +612,7 @@ class Collector:
             snapshot = run(snapshot, state.context)
         # Scored here, after the whole chain, not by a probe: probes report facts,
         # and the last probe has final authority over every signal health is judged on.
-        snapshot.health = score_health(snapshot.telemetry.signals)
+        snapshot.health = score_health(snapshot.telemetry.signals, snapshot.extras)
         guid = state.context.guid
         with self._lock:
             if not full:
@@ -624,7 +624,7 @@ class Collector:
                 missing = {f.name: getattr(previous, f.name) for f in fields(DCSignals)
                            if getattr(snapshot.telemetry.signals, f.name) is None}
                 snapshot.telemetry.signals = replace(snapshot.telemetry.signals, **missing)
-                snapshot.health = score_health(snapshot.telemetry.signals)
+                snapshot.health = score_health(snapshot.telemetry.signals, snapshot.extras)
             state.snapshot = snapshot
             sched = self._schedules.get(guid)
             if sched is not None:
@@ -934,7 +934,7 @@ class Collector:
             telemetry=DriveTelemetry(signals=signals, last_polled_at=captured_at),
             extras={k: v for k, v in report.items() if k != "signals"},
         )
-        snapshot.health = score_health(signals)
+        snapshot.health = score_health(signals, snapshot.extras)
         state.snapshot = snapshot
         self._latest_snapshots[guid] = {
             "snapshot_id": row["id"], "captured_at": row["captured_at"], "signals": asdict(signals),

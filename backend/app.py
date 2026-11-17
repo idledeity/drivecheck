@@ -90,19 +90,25 @@ def _unsupported_media_type(_e):
     return jsonify({"error": "request body must be JSON (Content-Type: application/json)"}), 415
 
 
-def _with_judgements(snapshot: dict | None) -> dict | None:
+def _health_json(health) -> dict:
+    return {
+        "health_pct": health.health_pct,
+        "health_status": health.health_status,
+        "factors": health.factors,
+        "floor": health.floor,
+    }
+
+
+def _with_judgements(snapshot: dict | None, report: dict | None = None) -> dict | None:
     """A stored snapshot summary plus what its signals mean: per-signal
-    ok/warn/crit flags and the health score. Derived when served, never stored,
-    so every snapshot is judged by the current thresholds. Replaces any health
-    stored by older versions."""
+    ok/warn/crit flags and the health score with its factors. Derived when
+    served, never stored, so every snapshot is judged by the current rules.
+    Replaces any health stored by older versions. report: the raw report the
+    signals came from, where at hand, for the drive's own statements in it."""
     if not snapshot or "signals" not in snapshot:
         return snapshot
-    health = score_signals(snapshot["signals"])
-    return {
-        **snapshot,
-        "signal_flags": health.signal_flags,
-        "health": {"health_pct": health.health_pct, "health_status": health.health_status},
-    }
+    health = score_signals(snapshot["signals"], report)
+    return {**snapshot, "signal_flags": health.signal_flags, "health": _health_json(health)}
 
 
 def _smart_summary(before: dict | None, after: dict | None) -> dict:
@@ -228,6 +234,8 @@ def drives():
             "health_pct": health.health_pct,
             "health_status": health.health_status,
             "signal_flags": health.signal_flags,
+            "health_factors": health.factors,
+            "health_floor": health.floor,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
             "last_full_read_at": collector.last_full_read_at(ctx.guid),
             "stale_after_s": stale_after,
@@ -325,9 +333,10 @@ def drive_smart_detail(guid):
     row = db.get_latest_raw_snapshot(guid)
     if row is None:
         return jsonify(None), 404
-    raw = judge_report(json.loads(row["raw_json"]))
+    report = json.loads(row["raw_json"])
+    raw = judge_report(report)
     smartctl = raw.get("smartctl")
-    judged = _with_judgements({"signals": raw["signals"]}) if raw.get("signals") else {}
+    judged = _with_judgements({"signals": raw["signals"]}, report) if raw.get("signals") else {}
     return jsonify({
         "captured_at": row["captured_at"],
         "probe": row["probe"],

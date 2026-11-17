@@ -28,7 +28,7 @@ export type VitalsField = "temp_avg" | "temp_min" | "temp_max" | "read_bps" | "w
 export interface HistoryThresholds {
   /** Per signal: the value at or above which it counts as warn / crit. */
   signals: Record<string, { warn_gte: number | null; crit_gte: number | null }>
-  health: { healthy_gte: number; degraded_gte: number }
+  health: { healthy_gte: number; aging_gte: number; degraded_gte: number; failing_gte: number }
 }
 
 /** Vitals per bucket, columnar: t[i] is bucket i's start. Buckets with no

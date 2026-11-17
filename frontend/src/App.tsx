@@ -31,7 +31,7 @@ function cmpNum(a: number | null, b: number | null) {
   return a - b
 }
 
-const HEALTH_RANK: Record<string, number> = { Healthy: 0, Unrated: 1, Degraded: 2, Failing: 3 }
+const HEALTH_RANK: Record<string, number> = { Healthy: 0, Aging: 1, Unrated: 2, Degraded: 3, Failing: 4, Critical: 5 }
 
 function sortDrives(drives: Drive[], sort: SortState, jobs: Job[]): Drive[] {
   const taskRank = (guid: string) =>
@@ -46,7 +46,7 @@ function sortDrives(drives: Drive[], sort: SortState, jobs: Job[]): Drive[] {
       case "manufacturer": cmp = cmpStr(a.white_label ?? a.manufacturer_short, b.white_label ?? b.manufacturer_short); break
       case "model":        cmp = cmpStr(a.model, b.model); break
       case "capacity":     cmp = cmpNum(a.capacity_bytes, b.capacity_bytes); break
-      case "health":       cmp = (HEALTH_RANK[a.health_status ?? ""] ?? 1) - (HEALTH_RANK[b.health_status ?? ""] ?? 1); break
+      case "health":       cmp = (HEALTH_RANK[a.health_status ?? ""] ?? 2) - (HEALTH_RANK[b.health_status ?? ""] ?? 2); break
       case "active_task":  cmp = taskRank(a.guid) - taskRank(b.guid); break
       case "first_seen":   cmp = cmpStr(a.first_seen, b.first_seen); break
       case "locked":       cmp = (a.locked ? 0 : 1) - (b.locked ? 0 : 1); break

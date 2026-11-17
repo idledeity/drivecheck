@@ -66,15 +66,15 @@ def test_signals_are_sent_only_where_they_change_with_the_carried_in_value_at_th
 def test_health_is_scored_per_poll_and_sent_only_when_it_changes():
     _signals("g1", "2026-01-01T13:00:00")
     _signals("g1", "2026-01-01T14:00:00", temp=31)                  # signal moves, score doesn't
-    _signals("g1", "2026-01-01T15:00:00", reallocated=1)            # -15 -> 85 Degraded
-    _signals("g1", "2026-01-01T16:00:00", reallocated=1, smart_passed=False)   # capped at 40
+    _signals("g1", "2026-01-01T15:00:00", reallocated=1)            # 79 Degraded
+    _signals("g1", "2026-01-01T16:00:00", reallocated=1, smart_passed=False)   # the drive says it's failing
 
     health = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"]
 
     assert health == [
         {"t": "2026-01-01T13:00:00", "health_pct": 100, "health_status": "Healthy"},
-        {"t": "2026-01-01T15:00:00", "health_pct": 85, "health_status": "Degraded"},
-        {"t": "2026-01-01T16:00:00", "health_pct": 40, "health_status": "Failing"},
+        {"t": "2026-01-01T15:00:00", "health_pct": 79, "health_status": "Degraded"},
+        {"t": "2026-01-01T16:00:00", "health_pct": 9, "health_status": "Critical"},
     ]
 
 
@@ -113,8 +113,8 @@ def test_jobs_overlapping_the_range_are_included_with_extra_fields():
 
 def test_thresholds_are_published_with_the_history():
     t = build_history(["g1"], "1h", now=NOW)["thresholds"]
-    assert t["signals"]["temp"] == {"warn_gte": 45, "crit_gte": None}
-    assert t["health"] == {"healthy_gte": 90, "degraded_gte": 60}
+    assert t["signals"]["temp"] == {"warn_gte": 46, "crit_gte": None}
+    assert t["health"] == {"healthy_gte": 95, "aging_gte": 80, "degraded_gte": 40, "failing_gte": 15}
 
 
 def test_ranges_of_a_week_or_more_read_the_30_minute_rollup():
@@ -140,7 +140,7 @@ def test_temperature_counts_toward_health_by_its_highest_value_per_bucket():
 
     assert [(h["t"], h["health_pct"]) for h in d["health"]] == [
         ("2026-01-01T12:00:00", 100),
-        ("2026-01-02T08:00:00", 95),       # temp warn: -5 for the bucket holding the 47
+        ("2026-01-02T08:00:00", 99),       # temp warn: 47°C costs a point for the bucket holding it
         ("2026-01-02T08:05:00", 100),
     ]
     assert "temp" not in d["signals"]

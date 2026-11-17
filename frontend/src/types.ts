@@ -25,6 +25,25 @@ export type ConfigProp = {
   none_label: string | null
 }
 
+export type HealthStatus = "Healthy" | "Aging" | "Degraded" | "Failing" | "Critical"
+
+/** One factor behind a health score (analysis.health). */
+export type HealthFactor = {
+  key: string
+  kind: "drive" | "media" | "wear" | "environment"
+  label: string
+  /** The DCSignals field it judges, if any. */
+  signal: string | null
+  /** Display text. */
+  value: string
+  /** The drive's health if this were its only problem. */
+  standalone: number
+  weight: number
+  role: "start" | "adds"
+  /** What it did to the score: its standalone for the start, else ≤ 0. */
+  points: number
+}
+
 export type ProbeWarning = {
   path: string
   reason: string
@@ -264,8 +283,12 @@ export type Drive = {
   data_written: number | null
   data_read: number | null
   health_pct: number | null
-  health_status: "Healthy" | "Degraded" | "Failing" | null
+  health_status: HealthStatus | null
   signal_flags: Record<string, "ok" | "warn" | "crit">
+  /** What made the score, worst first: the first starts it, each other lowers it. */
+  health_factors: HealthFactor[]
+  /** The floor that held the score up (age/wear alone stay Aging), if one did. */
+  health_floor: number | null
   /** The latest SMART read of either kind (attribute or full): health and the signals above. */
   last_polled_at: string | null
   /** The latest full SMART read (attributes table, self-test log). */

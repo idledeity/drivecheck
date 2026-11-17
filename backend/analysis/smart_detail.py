@@ -221,7 +221,8 @@ def _ata_attribute_row(entry: dict) -> dict:
     when_failed = entry.get("when_failed") or None
     status = _worst(
         _metric_status("normalized_value", value, thresh),
-        "crit" if when_failed else "ok",
+        # Failing now is crit; failed once, in the past, warn.
+        "crit" if when_failed == "now" else "warn" if when_failed else "ok",
         _signal_status(_ATA_SIGNALS.get(attr_id), raw.get("value")),
     )
     return {

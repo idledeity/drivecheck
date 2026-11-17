@@ -84,5 +84,5 @@ def test_judge_report_uses_the_report_s_own_signals():
 
 def test_judge_report_falls_back_to_given_signals_for_a_report_stored_without_them():
     raw = {"smart_attributes": [_fact(signal="power_on_hours")]}
-    assert judge_report(raw, {"power_on_hours": 61000})["smart_attributes"][0]["status"] == "crit"
+    assert judge_report(raw, {"power_on_hours": 61000})["smart_attributes"][0]["status"] == "warn"
     assert judge_report(raw)["smart_attributes"][0]["status"] == "ok"

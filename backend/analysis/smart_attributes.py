@@ -7,7 +7,8 @@ always judged by the current rules:
   signal       — the row takes that DCSignals field's flag (analysis.health),
                  one threshold definition for the card and the SMART tab alike
   metric       — judged by the METRIC_RULES rule for its kind
-  drive_report — the drive's own statement: failed → crit, marginal → warn
+  drive_report — the drive's own statement: failed → crit, marginal or
+                 failed in the past → warn
 A row takes the worst status of the inputs it has; a row with none is ok.
 """
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _RANK = {"ok": 0, "warn": 1, "crit": 2}
 
-_DRIVE_REPORT_STATUS = {"failed": "crit", "marginal": "warn", "ok": "ok"}
+_DRIVE_REPORT_STATUS = {"failed": "crit", "marginal": "warn", "past": "warn", "ok": "ok"}
 
 
 def _normalized_value(measured: float, drive_threshold: float | None) -> str:
@@ -83,7 +84,7 @@ def judge_report(raw: dict, signals: dict | None = None) -> dict:
     smart_attributes and self_test_log rows judged. Signal flags come from the
     snapshot's own stored signals, else `signals` (e.g. the job summary that
     points at an older snapshot stored without them)."""
-    signal_flags = score_signals(raw.get("signals") or signals).signal_flags
+    signal_flags = score_signals(raw.get("signals") or signals, raw).signal_flags
     judged = dict(raw)
     for key in ("smart_attributes", "self_test_log"):
         if key in raw:

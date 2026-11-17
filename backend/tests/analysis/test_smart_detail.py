@@ -97,13 +97,16 @@ def test_ata_attribute_at_or_below_its_threshold_is_crit(read):
     assert next(a for a in build_smart_detail(data)["attributes"] if a["id"] == 1)["status"] == "crit"
 
 
-def test_ata_when_failed_is_crit(read):
+def test_ata_failing_now_is_crit_and_failed_in_the_past_warn(read):
     data = read("exos_x16")
     for entry in data["ata_smart_attributes"]["table"]:
         if entry["id"] == 7:
-            entry["when_failed"] = "in_the_past"
-    attr = next(a for a in build_smart_detail(data)["attributes"] if a["id"] == 7)
-    assert (attr["status"], attr["when_failed"]) == ("crit", "in_the_past")
+            entry["when_failed"] = "past"
+        if entry["id"] == 3:
+            entry["when_failed"] = "now"
+    attrs = {a["id"]: a for a in build_smart_detail(data)["attributes"]}
+    assert (attrs[7]["status"], attrs[7]["when_failed"]) == ("warn", "past")
+    assert (attrs[3]["status"], attrs[3]["when_failed"]) == ("crit", "now")
 
 
 def test_failed_smart_status_and_self_test_are_crit(read):
@@ -294,7 +297,7 @@ def test_sas_x_background_scan_errors_not_reassigned(read_x):
     detail = build_smart_detail(read_x("hgst_hus726060_sas"))
     fields = _fields(detail)
     errors = fields["background_scan_errors"]
-    assert (errors["value"], errors["status"], errors["detail"]) == (108, "warn", "108 not reassigned")
+    assert (errors["value"], errors["status"], errors["detail"]) == (108, "crit", "108 not reassigned")
     assert fields["background_scan"]["value"] == "halted - vendor specific cause"
     table = _table(detail, "scsi_background_scan")
     first = table["rows"][0]

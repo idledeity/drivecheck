@@ -47,13 +47,13 @@ def test_ata_row_below_threshold_is_crit_when_unmapped():
     assert rows[0].status == "crit"
 
 
-def test_ata_row_when_failed_is_crit():
-    data = {"ata_smart_attributes": {"table": [
-        {"id": 3, "name": "Spin_Up_Time", "raw": {"string": "100"},
-         "value": 100, "worst": 100, "thresh": 0, "when_failed": "in_the_past"},
-    ]}}
-    rows = _judged(data, DriveType.HDD)
-    assert rows[0].status == "crit"
+def test_ata_row_failed_in_the_past_is_warn():
+    for when in ("past", "in_the_past"):
+        data = {"ata_smart_attributes": {"table": [
+            {"id": 3, "name": "Spin_Up_Time", "raw": {"string": "100"},
+             "value": 100, "worst": 100, "thresh": 0, "when_failed": when},
+        ]}}
+        assert _judged(data, DriveType.HDD)[0].status == "warn"
 
 
 def test_scsi_smart_status_row():
