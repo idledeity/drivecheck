@@ -103,9 +103,14 @@ export type SmartDetail = {
   other_fields: SmartLeaf[]
 }
 
+/** A drive's latest full SMART read (/smart/detail): the Report and SMART pages, as one point in time. */
 export type SmartDetailResponse = {
   captured_at: string
   probe: string
+  /** The read's own signals, flags and health score; null for a read stored without signals. */
+  signals: SmartSignals | null
+  signal_flags: Record<string, "ok" | "warn" | "crit"> | null
+  health: { health_pct: number | null; health_status: Drive["health_status"] } | null
   detail: SmartDetail | null
   self_test_log: SmartAttributeRow[]
 }

@@ -1,12 +1,11 @@
-import { useState } from "react"
-import type { Drive } from "./types"
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { Drive, SmartDetailResponse } from "./types"
 import { REPORT_SIGNALS, formatSignal, signalLabel } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatTimestamp } from "./format"
 import { DriveChipHeader } from "./DriveChip"
-import SmartPanel, { SmartSummary } from "./SmartPage"
-import AsOf from "./AsOf"
-import { isStale, useNow } from "./useNow"
+import SmartPanel, { SmartReadLine, SmartSummary } from "./SmartPage"
+import { useSmartDetail } from "./smartDetail"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
@@ -70,6 +69,12 @@ function OverviewPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGui
 // ── Report ────────────────────────────────────────────────────────────────────
 
 function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; selectedGuids: string[]; onOpenSmart: () => void }) {
+  // Each drive's full read as shown, so the download matches the page.
+  const shown = useRef(new Map<string, SmartDetailResponse | null>())
+  const onShown = useCallback((guid: string, data: SmartDetailResponse | null) => {
+    shown.current.set(guid, data)
+  }, [])
+
   if (selectedGuids.length === 0) {
     return <p className="health-empty">Select one or more drives to view a report.</p>
   }
@@ -79,7 +84,9 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
     .filter(Boolean) as Drive[]
 
   const handleExport = () => {
-    const text = selectedDrives.map(buildReportText).join("\n\n" + "=".repeat(40) + "\n\n")
+    const text = selectedDrives
+      .map(d => buildReportText(d, shown.current.get(d.guid) ?? null))
+      .join("\n\n" + "=".repeat(40) + "\n\n")
     const blob = new Blob([text], { type: "text/plain" })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement("a")
@@ -95,22 +102,23 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
         <button className="rep-export-btn" onClick={handleExport}>Download report</button>
       </div>
       {selectedDrives.map(drive => (
-        <DriveReport key={drive.guid} drive={drive} onOpenSmart={onOpenSmart} />
+        <DriveReport key={drive.guid} drive={drive} onOpenSmart={onOpenSmart} onShown={onShown} />
       ))}
     </div>
   )
 }
 
-function DriveReport({ drive, onOpenSmart }: { drive: Drive; onOpenSmart: () => void }) {
-  const liveTemp = drive.vitals.temp ?? drive.temp
-  const now = useNow()
-  // Health and every signal but temperature come from one SMART read;
-  // temperature is live (vitals), dated only once it's overdue.
-  const smartAge = drive.last_polled_at && (
-    <AsOf className="rep-asof" at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
-  )
-  const vitalsAt = drive.vitals.temp !== null ? drive.vitals.captured_at : null
-  const tempStale = isStale(vitalsAt, drive.stale_after_s.vitals, now)
+/* One drive's report: identity, then health, signals and SMART values all
+   from its latest full SMART read, as one point in time. It holds still
+   while read; a newer full read offers Refresh (SmartReadLine). */
+function DriveReport({ drive, onOpenSmart, onShown }: {
+  drive: Drive
+  onOpenSmart: () => void
+  onShown: (guid: string, data: SmartDetailResponse | null) => void
+}) {
+  const loaded = useSmartDetail(drive.guid)
+  const data = loaded.state === "ok" ? loaded.data : null
+  useEffect(() => { onShown(drive.guid, data) }, [drive.guid, data, onShown])
 
   return (
     <div className="rep-section">
@@ -123,34 +131,39 @@ function DriveReport({ drive, onOpenSmart }: { drive: Drive; onOpenSmart: () => 
         {drive.bus         && <RepRow label="Bus"         value={drive.bus} />}
         {drive.rpm         && <RepRow label="RPM"         value={drive.rpm.toLocaleString()} />}
         <RepRow label="Device" value={drive.device} />
-        {drive.first_seen     && <RepRow label="First seen"  value={formatTimestamp(drive.first_seen)} />}
-        {drive.last_polled_at    && <RepRow label="Last SMART read" value={formatTimestamp(drive.last_polled_at)} />}
-        {drive.last_full_read_at && <RepRow label="Last full read"  value={formatTimestamp(drive.last_full_read_at)} />}
+        {drive.first_seen && <RepRow label="First seen" value={formatTimestamp(drive.first_seen)} />}
       </div>
 
-      <h4 className="rep-section-title">Health{smartAge}</h4>
-      <HealthScoreBar drive={drive} />
+      {loaded.state === "loading" ? (
+        <p className="smart-empty">Loading SMART data…</p>
+      ) : !data ? (
+        <p className="smart-empty">No full SMART read for this drive yet.</p>
+      ) : (
+        <>
+          <SmartReadLine data={data} drive={drive} onRefresh={loaded.reload} />
 
-      <h4 className="rep-section-title">Signals{smartAge}</h4>
-      <div className="rep-signals">
-        {REPORT_SIGNALS.map(key => (
-          <div key={key} className="rep-signal-tile">
-            <div className="rep-signal-label">{signalLabel(key)}</div>
-            <SignalValue
-              className="rep-signal-value"
-              signal={key}
-              value={key === "temp" ? liveTemp : drive[key as keyof Drive] as number | null}
-              flag={drive.signal_flags?.[key]}
-            />
-            {key === "temp" && tempStale && vitalsAt && (
-              <AsOf className="rep-signal-asof" at={vitalsAt} staleAfterS={drive.stale_after_s.vitals} />
-            )}
+          <h4 className="rep-section-title">Health</h4>
+          <HealthScoreBar score={data.health?.health_pct ?? null} status={data.health?.health_status ?? null} />
+
+          <h4 className="rep-section-title">Signals</h4>
+          <div className="rep-signals">
+            {REPORT_SIGNALS.map(key => (
+              <div key={key} className="rep-signal-tile">
+                <div className="rep-signal-label">{signalLabel(key)}</div>
+                <SignalValue
+                  className="rep-signal-value"
+                  signal={key}
+                  value={(data.signals?.[key] ?? null) as number | null}
+                  flag={data.signal_flags?.[key]}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <h4 className="rep-section-title">SMART values needing attention</h4>
-      <SmartSummary key={drive.guid} guid={drive.guid} staleAfterS={drive.stale_after_s.smart} onOpenSmart={onOpenSmart} />
+          <h4 className="rep-section-title">SMART values needing attention</h4>
+          <SmartSummary data={data} onOpenSmart={onOpenSmart} />
+        </>
+      )}
     </div>
   )
 }
@@ -164,9 +177,9 @@ function RepRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function buildReportText(drive: Drive): string {
-  const score    = drive.health_pct
-  const liveTemp = drive.vitals.temp ?? drive.temp
+function buildReportText(drive: Drive, data: SmartDetailResponse | null): string {
+  const health   = data?.health
+  const passed   = data?.signals?.smart_passed
   const lines: (string | null)[] = [
     `DriveCheck Report`,
     `Generated: ${new Date().toLocaleString()}`,
@@ -180,20 +193,26 @@ function buildReportText(drive: Drive): string {
     drive.bus         ? `Bus:          ${drive.bus}` : null,
     drive.rpm         ? `RPM:          ${drive.rpm.toLocaleString()}` : null,
     `Device:       ${drive.device}`,
-    drive.first_seen     ? `First seen:   ${formatTimestamp(drive.first_seen)}`     : null,
-    drive.last_polled_at    ? `SMART read:   ${formatTimestamp(drive.last_polled_at)}`    : null,
-    drive.last_full_read_at ? `Full read:    ${formatTimestamp(drive.last_full_read_at)}` : null,
+    drive.first_seen ? `First seen:   ${formatTimestamp(drive.first_seen)}` : null,
     ``,
-    `Health: ${score !== null ? `${score}/100` : "Unrated"} (${drive.health_status ?? "Unrated"})`,
-    `SMART:  ${drive.smart_passed === true ? "Passed" : drive.smart_passed === false ? "Failed" : "—"}`,
+  ]
+  if (!data) {
+    lines.push(`No full SMART read for this drive yet.`)
+    return lines.filter(l => l !== null).join("\n")
+  }
+  lines.push(
+    `Full SMART read: ${formatTimestamp(data.captured_at)}`,
+    ``,
+    `Health: ${health?.health_pct != null ? `${health.health_pct}/100` : "Unrated"} (${health?.health_status ?? "Unrated"})`,
+    `SMART:  ${passed === true ? "Passed" : passed === false ? "Failed" : "—"}`,
     ``,
     `Signals:`,
     ...REPORT_SIGNALS.map(key => {
-      const val  = key === "temp" ? liveTemp : drive[key as keyof Drive] as number | null
-      const flag = drive.signal_flags?.[key]
+      const val  = (data.signals?.[key] ?? null) as number | null
+      const flag = data.signal_flags?.[key]
       const tag  = flag && flag !== "ok" ? ` [${flag.toUpperCase()}]` : ""
       return `  ${signalLabel(key)}: ${formatSignal(key, val)}${tag}`
     }),
-  ]
+  )
   return lines.filter(l => l !== null).join("\n")
 }

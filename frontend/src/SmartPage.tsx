@@ -1,13 +1,16 @@
-import type { Drive, SmartAttribute, SmartAttributeRow, SmartDetail, SmartField, SmartLeaf } from "./types"
+import type { Drive, SmartAttribute, SmartAttributeRow, SmartDetail, SmartDetailResponse, SmartField, SmartLeaf } from "./types"
 import { DriveChipHeader } from "./DriveChip"
-import { formatFieldValue, hasSmartData, useSmartDetail } from "./smartDetail"
+import { formatFieldValue, hasNewerRead, hasSmartData, useSmartDetail } from "./smartDetail"
+import { formatClock } from "./format"
 import AsOf from "./AsOf"
 import "./SmartPage.css"
 
 /*
  * Health -> SMART: everything smartctl reported for each selected drive, and
  * nothing from elsewhere (no vitals, no other probes). Values come from the
- * drive's latest stored full read (/api/drives/<guid>/smart/detail).
+ * drive's latest stored full read (/api/drives/<guid>/smart/detail), as one
+ * point in time. The page holds still while it's read: a newer full read
+ * shows "New values from HH:MM · Refresh" by its date instead.
  */
 export default function SmartPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids: string[] }) {
   if (selectedGuids.length === 0) {
@@ -20,7 +23,7 @@ export default function SmartPanel({ drives, selectedGuids }: { drives: Drive[];
         return (
           <section key={guid} className="smart-drive-section">
             <DriveChipHeader drive={drive} className="smart-drive-header" />
-            <DriveSmart key={guid} guid={guid} staleAfterS={drive?.stale_after_s.smart} />
+            <DriveSmart key={guid} guid={guid} drive={drive} />
           </section>
         )
       })}
@@ -28,20 +31,18 @@ export default function SmartPanel({ drives, selectedGuids }: { drives: Drive[];
   )
 }
 
-function DriveSmart({ guid, staleAfterS }: { guid: string; staleAfterS?: number }) {
+function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
   const loaded = useSmartDetail(guid)
   if (loaded.state === "loading") return <p className="smart-empty">Loading SMART data…</p>
   if (loaded.state === "none" || !loaded.data.detail || !hasSmartData(loaded.data.detail)) {
     return <p className="smart-empty">No SMART data for this drive.</p>
   }
   const detail = loaded.data.detail
-  const { captured_at, self_test_log } = loaded.data
+  const { self_test_log } = loaded.data
 
   return (
     <>
-      <p className="smart-asof">
-        Full SMART read <AsOf at={captured_at} staleAfterS={staleAfterS} />
-      </p>
+      <SmartReadLine data={loaded.data} drive={drive} onRefresh={loaded.reload} />
 
       <div className="smart-groups">
         {detail.groups.map(group => (
@@ -90,6 +91,23 @@ function DriveSmart({ guid, staleAfterS }: { guid: string; staleAfterS?: number 
         </details>
       )}
     </>
+  )
+}
+
+/** When the full read shown was taken, and a way to a newer one once the drive is read again. */
+export function SmartReadLine({ data, drive, onRefresh }: {
+  data: SmartDetailResponse; drive?: Drive; onRefresh: () => void
+}) {
+  const newer = drive?.last_full_read_at
+  return (
+    <p className="smart-asof">
+      Full SMART read <AsOf at={data.captured_at} staleAfterS={drive?.stale_after_s.smart} />
+      {newer && hasNewerRead(data, newer) && (
+        <span className="smart-newer">
+          New values from {formatClock(newer)} · <button className="smart-refresh-btn" onClick={onRefresh}>Refresh</button>
+        </span>
+      )}
+    </p>
   )
 }
 
@@ -237,13 +255,11 @@ function AttrList({ rows }: { rows: SmartAttributeRow[] }) {
 // ── Report summary ───────────────────────────────────────────────────────────
 
 /** For the Report: only what isn't ok, with a way to the full SMART page. */
-export function SmartSummary({ guid, staleAfterS, onOpenSmart }: { guid: string; staleAfterS?: number; onOpenSmart: () => void }) {
-  const loaded = useSmartDetail(guid)
-  if (loaded.state === "loading") return <p className="smart-empty">Loading SMART data…</p>
-  if (loaded.state === "none" || !loaded.data.detail || !hasSmartData(loaded.data.detail)) {
+export function SmartSummary({ data, onOpenSmart }: { data: SmartDetailResponse; onOpenSmart: () => void }) {
+  if (!data.detail || !hasSmartData(data.detail)) {
     return <p className="smart-empty">No SMART data for this drive.</p>
   }
-  const detail = loaded.data.detail
+  const detail = data.detail
 
   const fields = detail.groups.flatMap(g => g.fields).filter(f => f.status !== "ok")
   const shownIds = new Set(fields.map(f => f.attribute_id))
@@ -252,9 +268,6 @@ export function SmartSummary({ guid, staleAfterS, onOpenSmart }: { guid: string;
 
   return (
     <div className="smart-summary">
-      <p className="smart-asof">
-        Full SMART read <AsOf at={loaded.data.captured_at} staleAfterS={staleAfterS} />
-      </p>
       {fields.length === 0 && attributes.length === 0 ? (
         <p className="smart-summary-ok">Every SMART value is within limits.</p>
       ) : (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { SmartDetail, SmartDetailResponse, SmartField } from "./types"
 import { formatDuration } from "./format"
 
@@ -6,9 +6,13 @@ import { formatDuration } from "./format"
 
 type Loaded = { state: "loading" } | { state: "none" } | { state: "ok"; data: SmartDetailResponse }
 
-/** A drive's SMART detail, fetched once (the page holds still while it's read). */
-export function useSmartDetail(guid: string): Loaded {
+/**
+ * A drive's latest full SMART read, fetched once: the page holds still while
+ * it's read. reload() fetches it again, keeping what's shown until it lands.
+ */
+export function useSmartDetail(guid: string): Loaded & { reload: () => void } {
   const [loaded, setLoaded] = useState<Loaded>({ state: "loading" })
+  const [generation, setGeneration] = useState(0)
   useEffect(() => {
     let live = true
     fetch(`/api/drives/${guid}/smart/detail`)
@@ -18,8 +22,14 @@ export function useSmartDetail(guid: string): Loaded {
       })
       .catch(() => live && setLoaded({ state: "none" }))
     return () => { live = false }
-  }, [guid])
-  return loaded
+  }, [guid, generation])
+  const reload = useCallback(() => setGeneration(g => g + 1), [])
+  return { ...loaded, reload }
+}
+
+/** Whether the drive has had a full read since the one shown, i.e. Refresh would show newer values. */
+export function hasNewerRead(data: SmartDetailResponse, lastFullReadAt: string | null | undefined): boolean {
+  return !!lastFullReadAt && new Date(lastFullReadAt).getTime() > new Date(data.captured_at).getTime()
 }
 
 export function hasSmartData(detail: SmartDetail): boolean {

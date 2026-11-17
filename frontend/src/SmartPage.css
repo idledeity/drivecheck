@@ -106,6 +106,19 @@
 .smart-leaf dd { margin: 0; color: var(--t2); text-align: right; overflow-wrap: anywhere; }
 
 .smart-other > summary { cursor: pointer; }
+
+/* A newer full read than the one shown: the page holds still until Refresh. */
+.smart-newer { margin-left: 10px; color: var(--t2); white-space: nowrap; }
+.smart-refresh-btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--cy);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.smart-refresh-btn:hover { text-decoration: underline; }
 .smart-other > summary:hover { color: var(--t2); }
 
 /* ── Report summary ── */

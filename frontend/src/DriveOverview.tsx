@@ -23,7 +23,7 @@ export default function DriveOverview({ drive, header = true }: { drive: Drive; 
     <div className="hov-section">
       {header && <DriveChipHeader drive={drive} />}
 
-      <HealthScoreBar drive={drive} />
+      <HealthScoreBar score={drive.health_pct} status={drive.health_status} />
 
       <div className="hov-stats">
         <HealthStat drive={drive} signal="temp" value={liveTemp} liveAt={drive.vitals.temp !== null ? drive.vitals.captured_at : null} />
@@ -50,9 +50,7 @@ export default function DriveOverview({ drive, header = true }: { drive: Drive; 
 }
 
 // The health score as a bar, number and status word.
-export function HealthScoreBar({ drive }: { drive: Drive }) {
-  const score    = drive.health_pct
-  const status   = drive.health_status
+export function HealthScoreBar({ score, status }: { score: number | null; status: string | null }) {
   const colorCls = scoreColorCls(status)
   return (
     <div className="hov-score-row">

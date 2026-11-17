@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SmartPanel, { SmartSummary } from './SmartPage'
@@ -25,6 +25,9 @@ function response(overrides: Partial<SmartDetailResponse['detail'] & object> = {
   return {
     captured_at: '2026-01-01T00:00:00Z',
     probe: 'smartctl_telemetry',
+    signals: null,
+    signal_flags: null,
+    health: null,
     self_test_log: [],
     detail: {
       protocol: 'ATA',
@@ -90,6 +93,24 @@ describe('SmartPanel', () => {
     expect(time.closest('.smart-asof')).toHaveTextContent(/^Full SMART read \d+d ago$/)
   })
 
+  it('holds still when the drive has a newer full read, offering it', async () => {
+    const shown = response()
+    const newer = { ...response(), captured_at: '2026-01-01T06:00:00Z' }
+    vi.mocked(fetch).mockResolvedValueOnce(fetchJsonResponse(shown)).mockResolvedValueOnce(fetchJsonResponse(newer))
+    const drive = makeDrive({ guid: 'd1', last_full_read_at: shown.captured_at })
+    const { rerender } = render(<SmartPanel drives={[drive]} selectedGuids={['d1']} />)
+    await screen.findByText('Reallocated sectors')
+    expect(screen.queryByText(/New values from/)).toBeNull()
+
+    rerender(<SmartPanel drives={[{ ...drive, last_full_read_at: newer.captured_at }]} selectedGuids={['d1']} />)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/New values from/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.queryByText(/New values from/)).toBeNull())
+    expect(screen.getByText('Reallocated sectors')).toBeInTheDocument()  // no loading flash
+  })
+
   it('shows the SAS error counter grid', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({
       protocol: 'SCSI', attributes: undefined,
@@ -122,9 +143,8 @@ describe('SmartPanel', () => {
 
 describe('SmartSummary', () => {
   it('lists only values that are not ok, plus attributes not behind a listed field', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response()))
-    render(<SmartSummary guid="d1" onOpenSmart={() => {}} />)
-    expect(await screen.findByText('Reallocated sectors')).toBeInTheDocument()
+    render(<SmartSummary data={response()} onOpenSmart={() => {}} />)
+    expect(screen.getByText('Reallocated sectors')).toBeInTheDocument()
     expect(screen.getByText('Unknown HDD Attribute')).toBeInTheDocument()
     expect(screen.queryByText('Pending sectors')).not.toBeInTheDocument()
     expect(screen.queryByText('Reallocated Sector Ct')).not.toBeInTheDocument()   // already shown as a field
@@ -132,12 +152,11 @@ describe('SmartSummary', () => {
 
   it('says so when everything is within limits, and links to the SMART page', async () => {
     const onOpenSmart = vi.fn()
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(response({
+    render(<SmartSummary data={response({
       groups: [{ key: 'media', label: 'Media errors', fields: [field({ label: 'Pending sectors' })] }],
       attributes: [],
-    })))
-    render(<SmartSummary guid="d1" onOpenSmart={onOpenSmart} />)
-    expect(await screen.findByText('Every SMART value is within limits.')).toBeInTheDocument()
+    })} onOpenSmart={onOpenSmart} />)
+    expect(screen.getByText('Every SMART value is within limits.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'All SMART data →' }))
     expect(onOpenSmart).toHaveBeenCalled()
   })

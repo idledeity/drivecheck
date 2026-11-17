@@ -46,6 +46,11 @@ export function formatDuration(seconds: number): string {
   return `${s}s`
 }
 
+/** Just the clock time, e.g. "14:05" (locale's format). */
+export function formatClock(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+}
+
 export function formatTimestamp(isoTimestamp: string): string {
   return new Date(isoTimestamp).toLocaleString(undefined, {
     dateStyle: "medium",
