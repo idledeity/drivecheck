@@ -118,3 +118,39 @@ def test_real_shred_run_on_a_small_file_passes(tmp_path, monkeypatch):
         signal.signal(signal.SIGALRM, previous)
     assert result == {"device": str(img), "total_passes": 2}
     assert img.read_bytes() == b"\x00" * 1024 * 1024
+
+
+# ---------------------------------------------------------------------------
+# Summary log
+# ---------------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+from operations.catalog.secure_erase import _summarize_shred_log  # noqa: E402
+
+# Real shred 9.7 output: 1 random pass + zero fill of a 2 GiB file.
+REAL_2GIB = (Path(__file__).parent / "fixtures" / "shred_1_pass_zero_2gib.log").read_text()
+
+
+def _summary(tmp_path, text):
+    return list(_summarize_shred_log(_write_log(tmp_path, text)))
+
+
+def test_summary_keeps_each_pass_last_line(tmp_path):
+    assert _summary(tmp_path, REAL_2GIB) == [
+        "shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...2.0GiB/2.0GiB 100%",
+        "shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...2.0GiB/2.0GiB 100%",
+    ]
+
+
+def test_summary_of_a_killed_run_shows_how_far_it_got(tmp_path):
+    killed = REAL_2GIB.split("shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...1.5GiB", 1)[0]
+    assert _summary(tmp_path, killed)[-1] == "shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...747MiB/2.0GiB 36%"
+
+
+def test_summary_keeps_an_error_after_the_progress_it_interrupted(tmp_path):
+    assert _summary(tmp_path, KILLED_IN_LAST_PASS + WRITE_ERROR) == [
+        "shred: /dev/sdz: pass 1/2 (random)...400MiB/400MiB 100%",
+        "shred: /dev/sdz: pass 2/2 (000000)...208MiB/400MiB 52%",
+        WRITE_ERROR.strip(),
+    ]

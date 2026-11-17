@@ -28,15 +28,19 @@ shred prints no completion line. Progress (every ~5s) is only shown for a pass
 that takes that long, and such a pass then ends with a "100%" line — so for a
 real drive, the last pass's 100% line is the evidence the run finished. Any
 other "shred: <device>: ..." line is an error.
+
+The summary log keeps each pass's last line (shred prints no timings, so
+earlier progress adds nothing) and every other line (errors).
 """
 
 import logging
 import re
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 
 from drives.drive_models import DriveContext
-from operations.logged_process import LoggedProcessOperation
+from operations.logged_process import LoggedProcessOperation, iter_log_lines
 from operations.operation import ParamSpec
 
 logger = logging.getLogger(__name__)
@@ -69,6 +73,25 @@ def _read_shred_outcome(path: Path, total_passes: int) -> tuple[bool, list[str]]
         elif int(m.group(1)) == total_passes and m.group(3).endswith("100%"):
             finished = True
     return finished, errors
+
+
+def _summarize_shred_log(path: Path) -> Iterator[str]:
+    """shred's log with each pass collapsed to its last line."""
+    pending: str | None = None    # latest line of the current pass
+    pending_pass: str | None = None
+    for line in iter_log_lines(path):
+        m = _PASS_LINE_RE.match(line)
+        if m:
+            if pending is not None and m.group(1) != pending_pass:
+                yield pending
+            pending, pending_pass = line, m.group(1)
+        else:
+            if pending is not None:
+                yield pending  # the progress an error interrupted
+            pending = pending_pass = None
+            yield line
+    if pending is not None:
+        yield pending
 
 
 def _find_shred() -> str:
@@ -124,6 +147,9 @@ class SecureEraseOperation(LoggedProcessOperation):
             current_pass = int(m.group(1))
             self._percent = round((current_pass - 1) * 100 / self._total_passes, 1)
             self._message = line.split(": ", 2)[-1]
+
+    def _summarize_log(self, raw_log: Path) -> Iterator[str]:
+        return _summarize_shred_log(raw_log)
 
     def _finished_in_log(self) -> bool:
         finished, errors = _read_shred_outcome(self._log_path, self._total_passes)

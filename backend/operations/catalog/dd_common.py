@@ -12,22 +12,30 @@ A run that ends normally — or is interrupted by SIGINT — prints a summary:
 A killed process prints nothing, and every error is a "dd: ..." line. The
 verdict is taken from that summary, the error lines, and the expected size.
 
+The summary log keeps dd's own lines: the progress line at each 10% of the
+expected size (its MB/s is the average since the start, so the samples show
+where a drive slowed), the last progress line before an error or a kill, and
+every other line (errors, the final records/bytes summary).
+
 DDOperation leaves _build_command abstract, so operation discovery skips it.
 """
 
 import logging
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from drives.drive_models import DriveContext
-from operations.logged_process import LoggedProcessOperation
+from operations.logged_process import LoggedProcessOperation, iter_log_lines
 from operations.operation import format_bytes
 
 logger = logging.getLogger(__name__)
 
 _PROGRESS_RE = re.compile(r"^(\d+) bytes")
 _RECORDS_OUT_RE = re.compile(r"^\d+\+\d+ records out$")
+_RECORDS_IN_RE = re.compile(r"^\d+\+\d+ records in$")
+_SAMPLES = 10  # summary keeps a progress line at each 1/_SAMPLES of the expected size
 
 
 def _expected_bytes(block_size: int, count: int, skip: int, capacity: int | None) -> int | None:
@@ -38,6 +46,36 @@ def _expected_bytes(block_size: int, count: int, skip: int, capacity: int | None
         requested = count * block_size
         return min(requested, remaining) if remaining is not None else requested
     return remaining
+
+
+def _summarize_dd_log(path: Path, expected_bytes: int | None) -> Iterator[str]:
+    """dd's log with its once-a-second progress thinned (see module docstring)."""
+    next_sample = 1             # next 1/_SAMPLES mark of expected_bytes to keep
+    pending: str | None = None  # latest progress line not kept yet
+    after_records_out = False   # a bytes line right after "records out" is the final summary
+    for line in iter_log_lines(path):
+        match = _PROGRESS_RE.match(line)
+        if match and not after_records_out:
+            copied = int(match.group(1))
+            reached = False
+            while expected_bytes and next_sample <= _SAMPLES and copied >= expected_bytes * next_sample / _SAMPLES:
+                next_sample += 1
+                reached = True
+            if reached:
+                yield line
+                pending = None
+            else:
+                pending = line
+        else:
+            # The final summary follows; any other line (an error) is placed
+            # after the progress it interrupted.
+            if pending is not None and not _RECORDS_IN_RE.match(line):
+                yield pending
+            pending = None
+            yield line
+        after_records_out = bool(_RECORDS_OUT_RE.match(line))
+    if pending is not None:
+        yield pending  # killed: how far it got
 
 
 @dataclass
@@ -125,6 +163,9 @@ class DDOperation(LoggedProcessOperation):
             if self._total_bytes:
                 self._percent = min(100.0, round(copied / self._total_bytes * 100, 1))
             self._message = line
+
+    def _summarize_log(self, raw_log: Path) -> Iterator[str]:
+        return _summarize_dd_log(raw_log, self._total_bytes)
 
     def _finished_in_log(self) -> bool:
         outcome = DDOutcome.from_log(self._log_path)

@@ -1,0 +1,9 @@
+shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...
+shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...563MiB/2.0GiB 27%
+shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...1.1GiB/2.0GiB 55%
+shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...1.6GiB/2.0GiB 82%
+shred: /var/tmp/shredcap.4hc4/img: pass 1/2 (random)...2.0GiB/2.0GiB 100%
+shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...
+shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...747MiB/2.0GiB 36%
+shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...1.5GiB/2.0GiB 79%
+shred: /var/tmp/shredcap.4hc4/img: pass 2/2 (000000)...2.0GiB/2.0GiB 100%

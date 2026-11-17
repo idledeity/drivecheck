@@ -251,3 +251,68 @@ def test_killed_during_downtime_stays_interrupted(tmp_path, op_cls, params):
     log = _write_log(tmp_path, PROGRESS)
     with pytest.raises(ReattachFailed, match="stopped before finishing"):
         op_cls().reattach(_context(CAPACITY), params, _reattach_data(log))
+
+
+# ---------------------------------------------------------------------------
+# Summary log — real dd 9.7 output (an 800 MiB run, slowed through a pipe)
+# ---------------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+from operations.catalog.dd_common import _summarize_dd_log  # noqa: E402
+
+_FIXTURES = Path(__file__).parent / "fixtures"
+REAL_COMPLETE = (_FIXTURES / "dd_progress_800mib_complete.log").read_bytes()
+REAL_KILLED = (_FIXTURES / "dd_progress_killed.log").read_bytes()
+REAL_OPEN_ERROR = (_FIXTURES / "dd_open_error.log").read_bytes()
+REAL_SIZE = 800 * 1024 * 1024
+
+
+def _summary_lines(tmp_path, data: bytes, expected: int | None = REAL_SIZE) -> list[str]:
+    path = tmp_path / "job.log"
+    path.write_bytes(data)
+    return list(_summarize_dd_log(path, expected))
+
+
+def test_summary_keeps_a_progress_line_at_each_tenth_and_the_final_summary(tmp_path):
+    assert _summary_lines(tmp_path, REAL_COMPLETE) == [
+        "114294784 bytes (114 MB, 109 MiB) copied, 2 s, 57.0 MB/s",   # first past 10%
+        "168820736 bytes (169 MB, 161 MiB) copied, 3 s, 55.4 MB/s",   # 20%
+        "277872640 bytes (278 MB, 265 MiB) copied, 5 s, 55.5 MB/s",
+        "386924544 bytes (387 MB, 369 MiB) copied, 7 s, 54.7 MB/s",
+        "437256192 bytes (437 MB, 417 MiB) copied, 8 s, 54.5 MB/s",
+        "552599552 bytes (553 MB, 527 MiB) copied, 10 s, 55.2 MB/s",
+        "605028352 bytes (605 MB, 577 MiB) copied, 11 s, 54.8 MB/s",
+        "714080256 bytes (714 MB, 681 MiB) copied, 13 s, 54.6 MB/s",
+        "766509056 bytes (767 MB, 731 MiB) copied, 14 s, 54.7 MB/s",  # 90%
+        "800+0 records in",
+        "800+0 records out",
+        "838860800 bytes (839 MB, 800 MiB) copied, 15.3907 s, 54.5 MB/s",
+    ]
+
+
+def test_summary_of_a_killed_run_ends_at_its_last_progress_line(tmp_path):
+    assert _summary_lines(tmp_path, REAL_KILLED)[-1] == "219152384 bytes (219 MB, 209 MiB) copied, 4 s, 54.6 MB/s"
+
+
+def test_summary_without_an_expected_size_keeps_only_the_outcome(tmp_path):
+    assert _summary_lines(tmp_path, REAL_COMPLETE, expected=None) == [
+        "800+0 records in",
+        "800+0 records out",
+        "838860800 bytes (839 MB, 800 MiB) copied, 15.3907 s, 54.5 MB/s",
+    ]
+
+
+def test_summary_keeps_error_lines(tmp_path):
+    assert _summary_lines(tmp_path, REAL_OPEN_ERROR) == [
+        "dd: failed to open '/nonexistent-drive': No such file or directory",
+    ]
+
+
+def test_summary_places_an_error_after_the_progress_it_interrupted(tmp_path):
+    error = b"dd: error reading '/dev/sdz': Input/output error\n"
+    lines = _summary_lines(tmp_path, REAL_KILLED + b"\n" + error)
+    assert lines[-2:] == [
+        "219152384 bytes (219 MB, 209 MiB) copied, 4 s, 54.6 MB/s",
+        "dd: error reading '/dev/sdz': Input/output error",
+    ]

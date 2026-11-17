@@ -78,6 +78,8 @@ def test_dd_write_then_read_complete_on_a_real_file(tmp_path, monkeypatch):
     read = DDReadTestOperation()
     params = {"block_size": 1048576, "count": 0, "skip": 0, "conv_noerror": False, "conv_sync": False, "iflag_direct": False}
     assert read.run(context, params)["bytes_read"] == size
+    # Real dd output, summarized: its final records/bytes lines are kept.
+    assert "8+0 records out\n8388608 bytes" in read.get_summary_log()
 
 
 def test_run_reports_the_real_exit_code(tmp_path):
@@ -138,6 +140,28 @@ def test_no_summary_when_the_run_never_started(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="refused"):
         op.run(_SHELL_CONTEXT, {"script": ""})
     assert op.get_summary_log() is None
+
+
+def test_iter_log_lines_splits_on_cr_and_lf_across_chunks(tmp_path, monkeypatch):
+    log = tmp_path / "job.log"
+    log.write_bytes(b"\rone\rtwo\n\n  three  \r\nfour")
+    real_open = open
+
+    class _Tiny:  # 3-byte reads: line breaks and lines straddle chunk boundaries
+        def __init__(self, f):
+            self._f = f
+
+        def read(self, _n):
+            return self._f.read(3)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self._f.close()
+
+    monkeypatch.setattr("builtins.open", lambda *a, **k: _Tiny(real_open(*a, **k)))
+    assert list(logged_process.iter_log_lines(log)) == ["one", "two", "three", "four"]
 
 
 # ---------------------------------------------------------------------------

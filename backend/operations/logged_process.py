@@ -51,6 +51,21 @@ _TAIL_POLL_INTERVAL = 0.5
 _LINE_BREAK_RE = re.compile(rb"[\r\n]")
 
 
+def iter_log_lines(path: Path) -> Iterator[str]:
+    """A whole log's stripped, non-empty lines, split on \\r and \\n like
+    _on_log_bytes() does. Read in chunks: a log can be tens of MB."""
+    buf = b""
+    with open(path, "rb") as f:
+        while chunk := f.read(1 << 20):
+            parts = _LINE_BREAK_RE.split(buf + chunk)
+            buf = parts.pop()
+            for part in parts:
+                if line := part.decode("utf-8", errors="replace").strip():
+                    yield line
+    if line := buf.decode("utf-8", errors="replace").strip():
+        yield line
+
+
 def tail_log(
     path: Path,
     start_offset: int = 0,
