@@ -2,10 +2,13 @@
 analysis.drive_history — Drive history for charts: bucketed vitals, signal
 values where they change, the health score over time, and the jobs that ran.
 
-Everything comes from stored facts (drive_vitals_rollup, drive_signals, jobs);
-the health series is scored here, when served, by the current thresholds — the
-same ones published alongside it, so a chart's threshold lines and status bands
-match the score.
+Everything comes from stored facts (drive_vitals_rollup, drive_signals,
+drive_raw_snapshots, jobs); the health series is scored here, when served, by
+the current scorer — the one whose thresholds are published alongside it, so a
+chart's threshold lines and status bands match the score. Each point is scored
+with the signals at that time plus the attribute facts and self-test log of
+the latest full read at or before it, the same inputs the live score had
+(less any attribute read since that full read).
 """
 
 import logging
@@ -14,7 +17,8 @@ from datetime import datetime, timedelta
 
 from dataclasses import fields
 
-from analysis.health import HEALTH_BANDS, SIGNAL_THRESHOLDS, score_signals
+from analysis.health import health_thresholds, score_signals
+from analysis.stored_facts import many_snapshot_extras
 from database import db
 from drives.drive_models import DCSignals
 
@@ -43,6 +47,10 @@ _EXACT_SIGNALS = [f.name for f in fields(DCSignals) if f.name not in _BUCKETED_S
 
 # drive_signals stores every value as REAL; these are booleans in DCSignals.
 _BOOL_SIGNALS = {"smart_passed"}
+
+# A change row (in _signal_series) that sets the full read's facts from then
+# on: its value is that read's extras (None if they can't be read).
+_FULL_READ = "__full_read__"
 
 
 def build_history(
@@ -85,6 +93,11 @@ def build_history(
     for guid, bucket_rows in _by_drive_and_signal(
             db.get_signal_buckets(guids, _BUCKETED_SIGNALS, start_iso, end_iso, bucket)):
         changes[guid].extend(_bucket_events(bucket_rows, start, bucket, now))
+    full_reads = db.get_raw_snapshots_between(guids, start_iso, end_iso)
+    facts = many_snapshot_extras([(row["id"], row["captured_at"]) for row in full_reads])
+    for row in full_reads:
+        changes[row["drive_guid"]].append(
+            {"captured_at": row["captured_at"], "signal": _FULL_READ, "value": facts.get(row["id"])})
     for guid, rows in changes.items():
         rows.sort(key=lambda r: r["captured_at"])    # stable, so same-time rows keep their order
         drives[guid]["signals"], drives[guid]["health"] = _signal_series(rows, start_iso)
@@ -99,7 +112,7 @@ def build_history(
         "start": start_iso,
         "end": end_iso,
         "bucket_seconds": bucket,
-        "thresholds": {"signals": SIGNAL_THRESHOLDS, "health": HEALTH_BANDS},
+        "thresholds": health_thresholds(),
         "drives": drives,
         "jobs": jobs,
     }
@@ -109,16 +122,22 @@ def _signal_series(rows: list, start_iso: str) -> tuple[dict[str, list], list]:
     """One drive's change rows (time-ordered; bucketed signals at their bucket
     starts) as per-signal step series and a health step series. A value carried in from before the range is placed at
     the range start. Rows sharing a captured_at come from the same poll, so the
-    score is taken once all of them are applied."""
+    score is taken once all of them are applied. _FULL_READ rows aren't a
+    series: they set the attribute facts scored with from then on."""
     signals: dict[str, list] = {}
     health: list[dict] = []
     current: dict = {}
+    extras: dict | None = None
     i = 0
     while i < len(rows):
         at = rows[i]["captured_at"]
         t = max(at, start_iso)
         while i < len(rows) and rows[i]["captured_at"] == at:
             name, value = rows[i]["signal"], rows[i]["value"]
+            if name == _FULL_READ:
+                extras = value
+                i += 1
+                continue
             if name in _BOOL_SIGNALS and value is not None:
                 value = bool(value)
             current[name] = value
@@ -129,7 +148,9 @@ def _signal_series(rows: list, start_iso: str) -> tuple[dict[str, list], list]:
                 else:
                     series.append({"t": t, "value": value})
             i += 1
-        scored = score_signals(current)
+        if not current:
+            continue    # a full read before any signals: nothing to score yet
+        scored = score_signals(current, extras)
         point = {"t": t, "health_pct": scored.health_pct, "health_status": scored.health_status}
         if health and health[-1]["t"] == t:
             health[-1] = point

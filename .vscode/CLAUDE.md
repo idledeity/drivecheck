@@ -244,7 +244,7 @@ drivecheck/
 │   ├── analysis/
 │   │   ├── descriptor_rank.py  (scores DriveDescriptor candidates for dedup)
 │   │   ├── severity.py         (shared ok/warn/crit threshold helper)
-│   │   ├── health.py           (DCSignals -> DriveHealth: signal_flags + health_status)
+│   │   ├── health/             (scorer: factor tests + combiner -> DriveHealth; see Health score)
 │   │   └── smart_attributes.py (judges stored AttributeFact rows -> AttributeRow statuses, when served)
 │   └── drive_tools/
 │       └── smartctl.py         (raw subprocess wrapper around smartctl -j)
@@ -494,30 +494,36 @@ are always shown against current thresholds. Rows stored by older versions with 
 `status` are served as stored.
 
 ### Health score
-`analysis/health.py`. Answers "how likely is this drive to fail, with data
-loss, soon" — not a sum of penalties:
-- Each problem is a *factor* with a standalone score (the drive's health if it
-  were its only problem): signal curves in `SIGNAL_FACTORS` (log-scale for
-  sector/error counts), cycle counts against the drive's own rating and NVMe
-  wear (`_rated_factors`), one `drive_verdict` factor for everything the drive
-  says about itself (overall FAILED, attribute at its own threshold, NVMe
-  critical warning = 10; attribute failed in the past = 75), and the latest
-  self-test failing (30).
-- The worst factor is the start; each other one multiplies what's left by
-  `1 − weight × (100 − standalone)/100` (weights: verdict/self-test/pending/
-  uncorrected 0.35, reallocated 0.3, wear 0.2, environment 0.1).
-- Floors: wear (+environment) alone ≥ 80, environment alone ≥ 95; an
-  answering drive ≥ 1 (0 is for a dead drive).
-- Bands (`HEALTH_BANDS`): Healthy ≥95 · Aging ≥80 · Degraded ≥40 · Failing ≥15 ·
-  Critical below. Curves keep the band true to the cause: any media error or
-  drive statement starts ≤79; the drive saying it's failing is Critical.
-- Flags from the same curves: warn once a signal costs anything, crit once it
-  alone would be Failing (<40); `SIGNAL_THRESHOLDS` is those crossing points.
-  Wear and environment are never crit. `link_errors` isn't scored (cable/
-  backplane, noisy SAS counters).
-- Attribute-level inputs (verdicts, ratings, self-tests) need the read's
-  extras: the live drive and the SMART detail/Report have them; job summaries
-  and the history chart score from signals alone.
+`analysis/health/`. Answers "how likely is this drive to fail, with data
+loss, soon" — not a sum of penalties. Built to be swappable later (one
+scorer today, no settings UI yet):
+- `model.py`: `HealthFacts` (signals, attribute rows, self-test log — all
+  stored facts), `Factor`, and the two interfaces: `FactorTest.evaluate(facts)
+  → [Factor]` (+ `signal_curves()` for thresholds) and `Combiner`
+  (`combine`, `status_for`, `flag`, `bands`). Statuses are the fixed
+  `STATUSES` list the UI knows.
+- `scorer.py`: `Scorer(tests, combiner)` adds the shared rules (Unrated
+  without a verdict; a signal's flag from the factor that judged it) and
+  derives `signal_thresholds` from the curves + the combiner's flag rule.
+  `DEFAULT_SCORER` / `active_scorer()` / `health_thresholds()` in `__init__`.
+  Future: pick the scorer in settings, extra tests (per-model AFR,
+  reallocations growing), custom files discovered like custom probes.
+- Tests (`factors/`): `signal_curves` (log-scale for sector/error counts;
+  cycle counts against the drive's own rating and NVMe wear), `drive_verdict`
+  (one factor for everything the drive says about itself: overall FAILED,
+  attribute at its own threshold, NVMe critical warning = 10; attribute failed
+  in the past = 75), `self_test` (latest failed = 30).
+- Combiner `combiners/worst_first.py`: worst factor is the start; each other
+  multiplies what's left by `1 − weight × (100 − standalone)/100` (weights:
+  verdict/self-test/pending/uncorrected 0.35, reallocated 0.3, wear 0.2,
+  environment 0.1). Floors: wear (+environment) alone ≥ 80, environment alone
+  ≥ 95; an answering drive ≥ 1. Bands: Healthy ≥95 · Aging ≥80 · Degraded ≥40
+  · Failing ≥15 · Critical below. Flag warn once a factor costs anything, crit
+  below 40. Wear and environment are never crit; `link_errors` isn't scored.
+- Tests must stay pure and fast: the history chart rescores every point.
+  Each history point (and a job's before/after summary) is scored with its
+  signals plus the latest full read's extras at or before it
+  (`analysis/stored_facts.py`, cached by snapshot id + captured_at).
 - API: `/api/drives` `health_factors` / `health_floor`; snapshot `health`
   carries `factors` / `floor`.
 

@@ -395,6 +395,45 @@ def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
         ).fetchone()
 
 
+def get_raw_snapshot_facts(snapshot_ids: list[int]) -> list[tuple[int, str, str | None, str | None]]:
+    """(id, captured_at, smart_attributes JSON, self_test_log JSON) of each raw
+    snapshot still kept, without loading the rest of the report."""
+    if not snapshot_ids:
+        return []
+    with _connection() as conn:
+        return conn.execute(
+            """SELECT id, captured_at, json_extract(raw_json, '$.smart_attributes'),
+                      json_extract(raw_json, '$.self_test_log')
+                 FROM drive_raw_snapshots WHERE id IN (SELECT value FROM json_each(?))""",
+            (json.dumps(snapshot_ids),),
+        ).fetchall()
+
+
+def get_raw_snapshots_between(guids: list[str], start_iso: str, end_iso: str) -> list[sqlite3.Row]:
+    """(drive_guid, id, captured_at) of each drive's raw snapshots in
+    [start_iso, end_iso), plus its last one before start_iso (if any), ordered
+    by drive and time."""
+    if not guids:
+        return []
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            SELECT g.drive_guid, s.id, s.captured_at
+              FROM (SELECT value AS drive_guid FROM json_each(?)) g
+              JOIN drive_raw_snapshots s ON s.id = (
+                  SELECT id FROM drive_raw_snapshots
+                   WHERE drive_guid = g.drive_guid AND captured_at < ?
+                   ORDER BY captured_at DESC LIMIT 1)
+            UNION ALL
+            SELECT drive_guid, id, captured_at FROM drive_raw_snapshots
+             WHERE drive_guid IN ({_in(guids)}) AND captured_at >= ? AND captured_at < ?
+             ORDER BY 1, 3
+            """,
+            (json.dumps(guids), start_iso, *guids, start_iso, end_iso),
+        ).fetchall()
+
+
 # Minute bucket of an ISO captured_at ("2026-11-13T07:52:26.437121" -> "2026-11-13T07:52:00").
 _MINUTE_OF = "substr(captured_at, 1, 16) || ':00'"
 

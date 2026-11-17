@@ -1,5 +1,6 @@
 import pytest
 
+from analysis import stored_facts
 from system_utils import paths
 
 
@@ -27,4 +28,5 @@ def stray_data_dir(tmp_path_factory):
 def isolated_data_dir(tmp_path, monkeypatch):
     """Point paths.data_dir() at a per-test tmp_path so no test ever touches the real data dir."""
     monkeypatch.setattr(paths, "data_dir", lambda: tmp_path)
+    stored_facts.clear_cache()    # each test's database reuses the same ids
     return tmp_path

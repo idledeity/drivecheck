@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 import pytest
@@ -144,3 +145,42 @@ def test_temperature_counts_toward_health_by_its_highest_value_per_bucket():
         ("2026-01-02T08:05:00", 100),
     ]
     assert "temp" not in d["signals"]
+
+
+def _full_read(guid, at, attributes=(), self_test_log=()):
+    report = {"smart_attributes": list(attributes), "self_test_log": list(self_test_log)}
+    return db.record_raw_snapshot(guid, at, "smartctl_telemetry", json.dumps(report))
+
+
+_FAILING_NOW = {"key": "ata_3", "label": "Spin Up Time", "value": "0", "drive_report": "failed"}
+
+
+def test_each_point_is_scored_with_the_latest_full_reads_facts():
+    _signals("g1", "2026-01-01T06:00:00")
+    _full_read("g1", "2026-01-01T06:00:00")                             # carried in, clean
+    _signals("g1", "2026-01-01T13:00:00", reallocated=1)
+    _full_read("g1", "2026-01-01T18:00:00", [_FAILING_NOW])             # no signal changed with it
+    _full_read("g1", "2026-01-02T00:00:00")                             # clean again
+
+    health = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"]
+
+    assert [(p["t"], p["health_status"]) for p in health] == [
+        ("2026-01-01T12:00:00", "Healthy"),
+        ("2026-01-01T13:00:00", "Degraded"),
+        ("2026-01-01T18:00:00", "Critical"),
+        ("2026-01-02T00:00:00", "Degraded"),
+    ]
+
+
+def test_a_full_read_from_before_the_range_counts_from_the_start():
+    _signals("g1", "2026-01-01T06:00:00")
+    _full_read("g1", "2026-01-01T06:00:00", [_FAILING_NOW])
+
+    health = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"]
+
+    assert [(p["t"], p["health_status"]) for p in health] == [("2026-01-01T12:00:00", "Critical")]
+
+
+def test_a_full_read_before_any_signals_adds_no_point():
+    _full_read("g1", "2026-01-01T13:00:00", [_FAILING_NOW])
+    assert build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"] == []

@@ -1,9 +1,14 @@
 import pytest
 
-from analysis.health import (
-    HEALTH_BANDS, SIGNAL_FACTORS, SIGNAL_THRESHOLDS, score_health, score_signals, status_for,
-)
+from analysis.health import DEFAULT_SCORER, active_scorer, health_thresholds, score_health, score_signals
+from analysis.health.combiners.worst_first import WorstFirst
+from analysis.health.factors.signal_curves import SIGNAL_FACTORS
+from analysis.health.model import STATUSES, Combined, Factor, HealthFacts
+from analysis.health.scorer import Scorer
 from drives.drive_models import DCSignals
+
+HEALTH_BANDS = WorstFirst.bands
+SIGNAL_THRESHOLDS = DEFAULT_SCORER.signal_thresholds
 
 
 def _ok(**kw):
@@ -21,7 +26,7 @@ def _factor(health, key):
     (40, "Degraded"), (39, "Failing"), (15, "Failing"), (14, "Critical"), (1, "Critical"),
 ])
 def test_status_bands(score, status):
-    assert status_for(score) == status
+    assert WorstFirst().status_for(score) == status
 
 
 def test_no_verdict_is_unrated():
@@ -183,3 +188,42 @@ def test_score_signals_judges_a_stored_dict_like_the_live_drive():
 def test_score_signals_ignores_fields_dcsignals_no_longer_has():
     assert score_signals({"temp": 50, "retired_field": 7}).signal_flags["temp"] == "warn"
     assert score_signals(None).health_status is None
+
+
+# ── the parts ───────────────────────────────────────────────────────────────
+
+def test_the_default_scorer_is_active_and_publishes_its_thresholds_and_bands():
+    assert active_scorer() is DEFAULT_SCORER
+    assert health_thresholds() == {"signals": SIGNAL_THRESHOLDS, "health": HEALTH_BANDS}
+
+
+class _OneFactor:
+    name = "one"
+
+    def evaluate(self, facts):
+        return [Factor(key="x", kind="media", label="X", value="?", standalone=50, weight=1, signal="pending")]
+
+    def signal_curves(self):
+        return {"pending": lambda v: 100 if v < 7 else 10}
+
+
+class _Halver:
+    name = "halver"
+    bands = {}
+
+    def combine(self, factors):
+        return Combined(score=max(1, round(min(f.standalone for f in factors) / 2)), factors=[])
+
+    def status_for(self, score):
+        return STATUSES[-1]
+
+    def flag(self, standalone):
+        return "crit" if standalone < 20 else "ok"
+
+
+def test_a_scorer_takes_any_tests_and_combiner():
+    scorer = Scorer(name="other", tests=(_OneFactor(),), combiner=_Halver())
+    health = scorer.score(HealthFacts(signals=_ok()))
+    assert (health.health_pct, health.health_status) == (25, "Critical")
+    assert health.signal_flags == {"pending": "ok", "smart_passed": "ok"}
+    assert scorer.signal_thresholds == {"pending": {"warn_gte": 7, "crit_gte": 7}}

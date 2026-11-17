@@ -17,7 +17,7 @@ smartctl reported is shown: no vitals, no values from other probes.
   other_fields    every other leaf value smartctl reported, by JSON path
 
 Each value is judged on its own number: a field showing a DCSignals quantity
-takes that signal's thresholds (analysis.health.SIGNAL_THRESHOLDS) applied to
+takes that signal's thresholds (the active health scorer's signal_thresholds) applied to
 the value shown, not the drive's current flag, so a status never comes from a
 different read than its value.
 """
@@ -26,7 +26,7 @@ import logging
 import re
 from collections.abc import Iterable
 
-from analysis.health import SIGNAL_THRESHOLDS
+from analysis.health import active_scorer
 from analysis.severity import flag
 from analysis.smart_attributes import METRIC_RULES
 
@@ -98,7 +98,7 @@ def _signal_status(signal: str | None, value) -> str:
     """The signal's thresholds applied to this value (not the drive's live flag)."""
     if signal is None or not isinstance(value, (int, float)) or isinstance(value, bool):
         return "ok"
-    return flag(value, **SIGNAL_THRESHOLDS[signal])
+    return flag(value, **active_scorer().signal_thresholds[signal])
 
 
 def _metric_status(kind: str, measured, drive_threshold=None) -> str:

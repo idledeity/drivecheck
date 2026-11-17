@@ -25,6 +25,7 @@ from operations.operation_registry import OPERATIONS, discover as discover_opera
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
 from analysis.health import score_signals
+from analysis.stored_facts import snapshot_extras
 from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
 from analysis.smart_detail import build_smart_detail
@@ -104,9 +105,12 @@ def _with_judgements(snapshot: dict | None, report: dict | None = None) -> dict 
     ok/warn/crit flags and the health score with its factors. Derived when
     served, never stored, so every snapshot is judged by the current rules.
     Replaces any health stored by older versions. report: the raw report the
-    signals came from, where at hand, for the drive's own statements in it."""
+    signals came from, for the drive's own statements in it; when not given,
+    the one snapshot_id points at (if still kept) is looked up."""
     if not snapshot or "signals" not in snapshot:
         return snapshot
+    if report is None:
+        report = snapshot_extras(snapshot.get("snapshot_id"), snapshot.get("captured_at"))
     health = score_signals(snapshot["signals"], report)
     return {**snapshot, "signal_flags": health.signal_flags, "health": _health_json(health)}
 
