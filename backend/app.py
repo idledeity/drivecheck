@@ -27,6 +27,7 @@ from jobs.job_models import JobStatus
 from analysis.health import score_signals
 from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
+from analysis.smart_detail import build_smart_detail
 from analysis.smart_delta import compare_signals
 from database import db
 from settings import user_settings
@@ -307,6 +308,24 @@ def drive_raw_snapshot_latest(guid):
         "captured_at": row["captured_at"],
         "probe": row["probe"],
         "raw": judge_report(json.loads(row["raw_json"])),
+    })
+
+
+@app.route("/api/drives/<guid>/smart/detail")
+def drive_smart_detail(guid):
+    """The SMART page for a drive's latest stored smartctl read: named fields,
+    the full attribute table / counter logs, and the drive's self-test log.
+    detail is null when the read holds no smartctl output."""
+    row = db.get_latest_raw_snapshot(guid)
+    if row is None:
+        return jsonify(None), 404
+    raw = judge_report(json.loads(row["raw_json"]))
+    smartctl = raw.get("smartctl")
+    return jsonify({
+        "captured_at": row["captured_at"],
+        "probe": row["probe"],
+        "detail": build_smart_detail(smartctl) if smartctl else None,
+        "self_test_log": raw.get("self_test_log", []),
     })
 
 
