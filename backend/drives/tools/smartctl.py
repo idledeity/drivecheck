@@ -72,6 +72,15 @@ def attributes_all(device_name: str, access_type: str) -> dict:
     return run_smartctl("-a", "-d", access_type, device_name)
 
 
+def full_read(device_name: str, access_type: str) -> dict:
+    """smartctl -x -a: everything smartctl can read — -a plus the extended logs
+    (device statistics, SCT status, PHY event counters, SAS background scan
+    and port pages). Plain -x on ATA reports the extended self-test and error
+    logs instead of the standard ones; adding -a keeps both, so readers of
+    ata_smart_self_test_log.standard still work."""
+    return run_smartctl("-x", "-a", "-d", access_type, device_name)
+
+
 def attributes_and_health(device_name: str, access_type: str, error_counters: bool = False) -> dict:
     """smartctl -A -H: SMART attributes and the drive's health verdict, without
     the logs -a also reads (self-test, error, selective). error_counters adds

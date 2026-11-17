@@ -54,9 +54,9 @@ _SAS_DATA = json.loads(
 )["completed"]
 
 
-def _collector_with_drive(monkeypatch, attributes_all=lambda _d, _a: _SAS_DATA):
+def _collector_with_drive(monkeypatch, full_read=lambda _d, _a: _SAS_DATA):
     db.init()
-    monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_all", attributes_all)
+    monkeypatch.setattr(smartctl_telemetry.smartctl, "full_read", full_read)
     collector = _make_collector()
     context = DriveContext(guid="g1", descriptor=DriveDescriptor("/dev/sdz", "scsi", "/dev/sdz"),
                            traits=DriveTraits(drive_type=DriveType.SAS))
@@ -140,7 +140,7 @@ def test_capture_smart_reports_a_probe_failure_instead_of_raising(monkeypatch):
     def _boom(_d, _a):
         raise OSError("device vanished")
 
-    collector = _collector_with_drive(monkeypatch, attributes_all=_boom)
+    collector = _collector_with_drive(monkeypatch, full_read=_boom)
     summary = collector.capture_smart("g1")
     assert summary["error"] == "device vanished"
     assert "captured_at" in summary
@@ -348,12 +348,12 @@ def test_rollup_vitals_keeps_the_current_half_hour_up_to_date():
 # --- SMART read tiers: busy-gated attribute reads, full reads, restore ------
 
 class _Reads:
-    """Stand-ins for smartctl's full (-a) and attribute (-A -H) reads, counting each."""
+    """Stand-ins for smartctl's full (-x -a) and attribute (-A -H) reads, counting each."""
 
     def __init__(self, monkeypatch):
         self.full = 0
         self.attributes: list[bool] = []  # error_counters per call
-        monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_all", self._full)
+        monkeypatch.setattr(smartctl_telemetry.smartctl, "full_read", self._full)
         monkeypatch.setattr(smartctl_telemetry.smartctl, "attributes_and_health", self._attributes)
 
     def _full(self, _d, _a):

@@ -9,6 +9,11 @@ smartctl reported is shown: no vitals, no values from other probes.
   attributes      ATA: every SMART attribute, all columns
   scsi_error_counters  SAS: the read/write/verify error counter log
   nvme_health_log NVMe: every field of the SMART/Health Information log
+  tables          further logs as generic tables (title, columns, rows with
+                  a status): ATA device statistics and SATA PHY event
+                  counters; SAS background scan results and phy counters
+  raw_sections    bulky raw lists, each shown collapsed by the page (ATA log
+                  directory, SCT temperature history), by JSON path
   other_fields    every other leaf value smartctl reported, by JSON path
 
 Each value is judged on its own number: a field showing a DCSignals quantity
@@ -65,7 +70,8 @@ def build_smart_detail(smartctl: dict) -> dict:
              for key in smartctl if key not in skip
              for path, value in _leaves(smartctl[key], key)]
 
-    return {"protocol": protocol, "groups": groups, **extra, "other_fields": other}
+    return {"protocol": protocol, "groups": groups, "tables": [], "raw_sections": [],
+            **extra, "other_fields": other}
 
 
 # ── fields ────────────────────────────────────────────────────────────────────
@@ -141,6 +147,28 @@ def _common_status_fields(data: dict) -> list[dict]:
 
 def _yes_no(value) -> str:
     return "—" if value is None else "yes" if value else "no"
+
+
+def _table(key: str, title: str, columns: list[tuple[str, str, bool]], rows: list[dict],
+           summarized_by: str | None = None) -> dict:
+    """A generic table for the page. columns: (key, label, numeric). Each row
+    is {"cells": {column key: value}, "status": ok|warn|crit}. summarized_by
+    names the field that already counts its rows' problems, so a summary
+    lists that field rather than the table."""
+    return {"key": key, "title": title,
+            "columns": [{"key": k, "label": label, "numeric": numeric} for k, label, numeric in columns],
+            "rows": rows, "summarized_by": summarized_by}
+
+
+def _row(status: str = "ok", **cells) -> dict:
+    return {"cells": cells, "status": status}
+
+
+def _raw_section(data: dict, key: str, label: str) -> dict | None:
+    """A bulky raw list, kept out of other_fields; the page shows it collapsed."""
+    if key not in data:
+        return None
+    return {"key": key, "label": label, "leaves": [{"path": p, "value": v} for p, v in _leaves(data[key], key)]}
 
 
 # ── ATA ───────────────────────────────────────────────────────────────────────
@@ -270,6 +298,8 @@ def _ata(data: dict) -> tuple[list[dict], dict, set[str]]:
                                     f"{match.group(1)} / {match.group(2)}", "celsius", attr_id,
                                     detail="From the attribute's raw value; the period it covers is vendor-defined"))
 
+    fields.extend(_ata_temperature_extremes(data.get("temperature", {})))
+
     block = data.get("logical_block_size") or 512
     for attr_id, (name, direction) in _LBA_COUNTERS.items():
         attr = by_id.get(attr_id)
@@ -292,9 +322,72 @@ def _ata(data: dict) -> tuple[list[dict], dict, set[str]]:
         fields.append(_field("capabilities", "sct_erc", "Error recovery control (SCT ERC)",
                              _yes_no(sct["error_recovery_control_supported"]), source="ata_sct_capabilities"))
 
+    tables = []
+    phy = data.get("sata_phy_event_counters", {}).get("table", [])
+    if phy:
+        by_phy_id = {c.get("id"): c for c in phy}
+        icrc = by_phy_id.get(1)
+        if icrc is not None and icrc.get("value") is not None:
+            fields.append(_field("interface", "phy_icrc_errors", "ICRC errors (PHY)", icrc["value"], "count",
+                                 status=_signal_status("crc_errors", icrc["value"]),
+                                 source="sata_phy_event_counters", detail=icrc.get("name")))
+        tables.append(_table("sata_phy_event_counters", "SATA PHY event counters",
+                             [("id", "ID", True), ("name", "Counter", False), ("value", "Value", True),
+                              ("overflow", "Overflow", False)],
+                             [_row(id=c.get("id"), name=c.get("name"), value=c.get("value"),
+                                   overflow=_yes_no(c.get("overflow"))) for c in phy]))
+
+    stats = data.get("ata_device_statistics", {}).get("pages", [])
+    if stats:
+        tables.append(_table("ata_device_statistics", "Device statistics",
+                             [("page", "Page", False), ("name", "Statistic", False), ("value", "Value", True),
+                              ("flags", "Flags", False)],
+                             [_device_statistic_row(page, entry)
+                              for page in stats for entry in page.get("table", [])]))
+
+    raw = [r for r in (_raw_section(data, "ata_log_directory", "Log directory"),
+                       _raw_section(data, "ata_sct_temperature_history", "SCT temperature history"))
+           if r is not None]
+
     consumed = {"smart_status", "smart_support", "temperature", "power_on_time",
-                "power_cycle_count", "ata_smart_attributes", "ata_smart_self_test_log"}
-    return fields, {"attributes": attributes}, consumed
+                "power_cycle_count", "ata_smart_attributes", "ata_smart_self_test_log",
+                "sata_phy_event_counters", "ata_device_statistics", "ata_log_directory",
+                "ata_sct_temperature_history"}
+    return fields, {"attributes": attributes, "tables": tables, "raw_sections": raw}, consumed
+
+
+def _ata_temperature_extremes(temp: dict) -> list[dict]:
+    """The ranges -x adds to temperature (from device statistics / SCT)."""
+    fields = []
+    for key, label, low, high in (
+        ("temp_power_cycle", "This power cycle min / max", "power_cycle_min", "power_cycle_max"),
+        ("temp_lifetime", "Lifetime min / max", "lifetime_min", "lifetime_max"),
+        ("temp_op_limits", "Specified operating range", "op_limit_min", "op_limit_max"),
+        ("temp_limits", "Specified limit range", "limit_min", "limit_max"),
+    ):
+        if temp.get(low) is not None and temp.get(high) is not None:
+            # Not judged: one hot spell would flag the drive for life. Time
+            # above limit (below) is the drive's own measure of that.
+            fields.append(_field("temperature", key, label, f"{temp[low]} / {temp[high]}", "celsius",
+                                 source=f"temperature.{low}"))
+    over, under = temp.get("lifetime_over_limit_minutes"), temp.get("lifetime_under_limit_minutes")
+    if over is not None:
+        fields.append(_field("temperature", "temp_over_limit", "Time above limit", over, "minutes",
+                             status="warn" if over > 0 else "ok", source="temperature.lifetime_over_limit_minutes"))
+    if under is not None:
+        fields.append(_field("temperature", "temp_under_limit", "Time below limit", under, "minutes",
+                             source="temperature.lifetime_under_limit_minutes"))
+    return fields
+
+
+def _device_statistic_row(page: dict, entry: dict) -> dict:
+    """One device statistic. The drive itself marks one past its own threshold
+    (monitored_condition_met): warn."""
+    flags = entry.get("flags", {})
+    return _row("warn" if flags.get("monitored_condition_met") else "ok",
+                page=page.get("name"), name=entry.get("name"),
+                value=entry.get("value") if flags.get("valid", True) else None,
+                flags=(flags.get("string") or "").strip() or None)
 
 
 # ── SCSI / SAS ────────────────────────────────────────────────────────────────
@@ -398,11 +491,86 @@ def _scsi(data: dict) -> tuple[list[dict], dict, set[str]]:
         fields.append(_field("capabilities", "self_test_extended_minutes", "Extended self-test",
                              round(ext_secs / 60), "minutes", source="scsi_extended_self_test_seconds"))
 
+    tables = []
+    scan = data.get("scsi_background_scan")
+    if scan:
+        scan_fields, scan_table = _scsi_background_scan(scan)
+        fields.extend(scan_fields)
+        if scan_table:
+            tables.append(scan_table)
+
+    ports = sorted((k for k in data if re.fullmatch(r"scsi_sas_port_\d+", k)), key=lambda k: int(k.rsplit("_", 1)[1]))
+    phy_rows = [_sas_phy_row(port, data[port][phy]) for port in ports
+                for phy in data[port] if re.fullmatch(r"phy_\d+", phy)]
+    if phy_rows:
+        tables.append(_table("sas_phy_counters", "SAS phy error counters",
+                             [("port", "Port", True), ("phy", "Phy", True), ("link_rate", "Link rate", False),
+                              ("invalid_dwords", "Invalid dwords", True),
+                              ("disparity_errors", "Disparity errors", True),
+                              ("loss_of_sync", "Loss of sync", True),
+                              ("phy_reset_problems", "Phy reset problems", True)],
+                             phy_rows))
+    extra["tables"] = tables
+
     consumed = {"smart_status", "smart_support", "temperature", "temperature_warning",
                 "power_on_time", "scsi_start_stop_cycle_counter", "scsi_grown_defect_list",
-                "scsi_error_counter_log", "scsi_extended_self_test_seconds",
-                *(k for k in data if k.startswith("scsi_self_test_"))}
+                "scsi_error_counter_log", "scsi_extended_self_test_seconds", "scsi_background_scan",
+                *ports, *(k for k in data if k.startswith("scsi_self_test_"))}
     return fields, extra, consumed
+
+
+# Background scan results' reassign_status value for a medium error the drive
+# found but has not reassigned: it needs a write or REASSIGN BLOCKS (SBC).
+_SCAN_UNREPAIRED = 1
+
+
+def _scsi_background_scan(scan: dict) -> tuple[list[dict], dict | None]:
+    """The SAS background scan log: its status, and the medium errors it found.
+    One not yet reassigned is a pending sector by another name, so the count of
+    those is judged by the pending signal's thresholds."""
+    fields = []
+    status = scan.get("status", {})
+    if status:
+        scans = status.get("number_scans_performed")
+        fields.append(_field("status", "background_scan", "Background scan", status.get("string"),
+                             source="scsi_background_scan.status",
+                             detail=f"{scans:,} scans performed" if scans is not None else None))
+    results = [v for k, v in scan.items() if k.startswith("result_")]
+    if status or results:
+        unrepaired = sum(1 for r in results if r.get("reassign_status", {}).get("value") == _SCAN_UNREPAIRED)
+        fields.append(_field("media", "background_scan_errors", "Background scan medium errors", len(results),
+                             "count", status=_signal_status("pending", unrepaired),
+                             source="scsi_background_scan",
+                             detail=f"{unrepaired:,} not reassigned" if results else None))
+    if not results:
+        return fields, None
+    rows = []
+    for r in results:
+        minutes = r.get("accumulated_power_on", {}).get("minutes")
+        reassign = r.get("reassign_status", {})
+        asc, ascq = r.get("asc"), r.get("ascq")
+        rows.append(_row(
+            _signal_status("pending", 1) if reassign.get("value") == _SCAN_UNREPAIRED else "ok",
+            number=r.get("parameter_code"), lba=r.get("lba"),
+            power_on_hours=round(minutes / 60, 1) if minutes is not None else None,
+            sense=r.get("sense_key", {}).get("string"),
+            asc_ascq=f"0x{asc:02x}/0x{ascq:02x}" if asc is not None and ascq is not None else None,
+            reassign=reassign.get("string"),
+        ))
+    table = _table("scsi_background_scan", "Background scan results",
+                   [("number", "#", True), ("lba", "LBA", True), ("power_on_hours", "Power-on hours", True),
+                    ("sense", "Sense", False), ("asc_ascq", "ASC/ASCQ", False), ("reassign", "Reassign status", False)],
+                   rows, summarized_by="background_scan_errors")
+    return fields, table
+
+
+def _sas_phy_row(port: str, phy: dict) -> dict:
+    return _row(port=int(port.rsplit("_", 1)[1]), phy=phy.get("identifier"),
+                link_rate=phy.get("negotiated_logical_link_rate"),
+                invalid_dwords=phy.get("invalid_dword_count"),
+                disparity_errors=phy.get("running_disparity_error_count"),
+                loss_of_sync=phy.get("loss_of_dword_synchronization_count"),
+                phy_reset_problems=phy.get("phy_reset_problem_count"))
 
 
 def _number(value):

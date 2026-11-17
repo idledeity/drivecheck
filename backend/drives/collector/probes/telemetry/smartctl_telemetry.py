@@ -1,7 +1,7 @@
 """
 probes.telemetry.smartctl_telemetry — telemetry probe backed by smartctl.
 
-run() is the full read (smartctl -a); run_attributes() the collector's
+run() is the full read (smartctl -x -a); run_attributes() the collector's
 lighter attribute read (smartctl -A -H) between full ones. Both return a
 populated DriveTelemetry. Handles ATA, SCSI/SAS, and NVMe signal extraction.
 The DCSignals mapping is documented in drives.drive_models.DCSignals.
@@ -22,10 +22,10 @@ _PROBE_NAME = "drivecheck.probes.telemetry.smartctl_telemetry"
 
 
 def run(snapshot: DriveSnapshot, context: DriveContext) -> DriveSnapshot:
-    """Full read (smartctl -a): signals, attribute rows, the self-test log and
-    the raw report. What a saved snapshot is made from."""
+    """Full read (smartctl -x -a): signals, attribute rows, the self-test log
+    and the raw report. What a saved snapshot is made from."""
     descriptor = context.descriptor
-    data = smartctl.attributes_all(descriptor.device_name, descriptor.access_type)
+    data = smartctl.full_read(descriptor.device_name, descriptor.access_type)
     return _fill(snapshot, context, data, full=True)
 
 

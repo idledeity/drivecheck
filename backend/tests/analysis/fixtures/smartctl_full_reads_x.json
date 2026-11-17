@@ -1,0 +1,6796 @@
+{
+  "_source": "smartctl -j -x -a on real drives, the collector's planned full read, captured 2026-11-16; serial numbers, WWNs and logical unit IDs and SAS addresses removed",
+  "exos_x16": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-x",
+        "-a",
+        "-d",
+        "sat",
+        "/dev/sde"
+      ],
+      "drive_database_version": {
+        "string": "7.3/5528"
+      },
+      "messages": [
+        {
+          "string": "Warning: This result is based on an Attribute check.",
+          "severity": "warning"
+        }
+      ],
+      "exit_status": 4
+    },
+    "local_time": {
+      "time_t": 1794888895,
+      "asctime": "Mon Nov 16 22:14:55 2026 CST"
+    },
+    "device": {
+      "name": "/dev/sde",
+      "info_name": "/dev/sde [SAT]",
+      "type": "sat",
+      "protocol": "ATA"
+    },
+    "model_family": "Seagate Exos X16",
+    "model_name": "ST14000NM001G-2KJ103",
+    "firmware_version": "SN03",
+    "user_capacity": {
+      "blocks": 27344764928,
+      "bytes": 14000519643136
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 4096,
+    "rotation_rate": 7200,
+    "form_factor": {
+      "ata_value": 2,
+      "name": "3.5 inches"
+    },
+    "trim": {
+      "supported": false
+    },
+    "in_smartctl_database": true,
+    "ata_version": {
+      "string": "ACS-4 (minor revision not indicated)",
+      "major_value": 4064,
+      "minor_value": 65535
+    },
+    "sata_version": {
+      "string": "SATA 3.3",
+      "value": 511
+    },
+    "interface_speed": {
+      "max": {
+        "sata_value": 14,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      },
+      "current": {
+        "sata_value": 3,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      }
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "read_lookahead": {
+      "enabled": true
+    },
+    "write_cache": {
+      "enabled": true
+    },
+    "ata_dsn": {
+      "enabled": false
+    },
+    "ata_security": {
+      "state": 33,
+      "string": "Disabled, NOT FROZEN [SEC1]",
+      "enabled": false,
+      "frozen": false,
+      "master_password_id": 65534
+    },
+    "smart_status": {
+      "passed": true
+    },
+    "ata_smart_data": {
+      "offline_data_collection": {
+        "status": {
+          "value": 130,
+          "string": "was completed without error",
+          "passed": true
+        },
+        "completion_seconds": 567
+      },
+      "self_test": {
+        "status": {
+          "value": 0,
+          "string": "completed without error",
+          "passed": true
+        },
+        "polling_minutes": {
+          "short": 1,
+          "extended": 1286,
+          "conveyance": 2
+        }
+      },
+      "capabilities": {
+        "values": [
+          123,
+          3
+        ],
+        "exec_offline_immediate_supported": true,
+        "offline_is_aborted_upon_new_cmd": false,
+        "offline_surface_scan_supported": true,
+        "self_tests_supported": true,
+        "conveyance_self_test_supported": true,
+        "selective_self_test_supported": true,
+        "attribute_autosave_enabled": true,
+        "error_logging_supported": true,
+        "gp_logging_supported": true
+      }
+    },
+    "ata_sct_capabilities": {
+      "value": 28861,
+      "error_recovery_control_supported": true,
+      "feature_control_supported": true,
+      "data_table_supported": true
+    },
+    "ata_smart_attributes": {
+      "revision": 10,
+      "table": [
+        {
+          "id": 1,
+          "name": "Raw_Read_Error_Rate",
+          "value": 72,
+          "worst": 64,
+          "thresh": 44,
+          "when_failed": "",
+          "flags": {
+            "value": 15,
+            "string": "POSR-- ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 15231501,
+            "string": "15231501"
+          }
+        },
+        {
+          "id": 3,
+          "name": "Spin_Up_Time",
+          "value": 92,
+          "worst": 92,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 3,
+            "string": "PO---- ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 4,
+          "name": "Start_Stop_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 20,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 24,
+            "string": "24"
+          }
+        },
+        {
+          "id": 5,
+          "name": "Reallocated_Sector_Ct",
+          "value": 100,
+          "worst": 100,
+          "thresh": 10,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 7,
+          "name": "Seek_Error_Rate",
+          "value": 76,
+          "worst": 60,
+          "thresh": 45,
+          "when_failed": "",
+          "flags": {
+            "value": 15,
+            "string": "POSR-- ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 40375527,
+            "string": "40375527"
+          }
+        },
+        {
+          "id": 9,
+          "name": "Power_On_Hours",
+          "value": 77,
+          "worst": 77,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 20654,
+            "string": "20654"
+          }
+        },
+        {
+          "id": 10,
+          "name": "Spin_Retry_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 97,
+          "when_failed": "",
+          "flags": {
+            "value": 19,
+            "string": "PO--C- ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 12,
+          "name": "Power_Cycle_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 20,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 25,
+            "string": "25"
+          }
+        },
+        {
+          "id": 18,
+          "name": "Head_Health",
+          "value": 100,
+          "worst": 100,
+          "thresh": 50,
+          "when_failed": "",
+          "flags": {
+            "value": 11,
+            "string": "PO-R-- ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 187,
+          "name": "Reported_Uncorrect",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 188,
+          "name": "Command_Timeout",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 190,
+          "name": "Airflow_Temperature_Cel",
+          "value": 71,
+          "worst": 49,
+          "thresh": 40,
+          "when_failed": "",
+          "flags": {
+            "value": 34,
+            "string": "-O---K ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 538640413,
+            "string": "29 (Min/Max 27/32)"
+          }
+        },
+        {
+          "id": 192,
+          "name": "Power-Off_Retract_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 23,
+            "string": "23"
+          }
+        },
+        {
+          "id": 193,
+          "name": "Load_Cycle_Count",
+          "value": 99,
+          "worst": 99,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 3720,
+            "string": "3720"
+          }
+        },
+        {
+          "id": 194,
+          "name": "Temperature_Celsius",
+          "value": 29,
+          "worst": 40,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 34,
+            "string": "-O---K ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 73014444061,
+            "string": "29 (0 17 0 0 0)"
+          }
+        },
+        {
+          "id": 197,
+          "name": "Current_Pending_Sector",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 18,
+            "string": "-O--C- ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 198,
+          "name": "Offline_Uncorrectable",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 16,
+            "string": "----C- ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 199,
+          "name": "UDMA_CRC_Error_Count",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 62,
+            "string": "-OSRCK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 200,
+          "name": "Pressure_Limit",
+          "value": 100,
+          "worst": 100,
+          "thresh": 1,
+          "when_failed": "",
+          "flags": {
+            "value": 35,
+            "string": "PO---K ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 240,
+          "name": "Head_Flying_Hours",
+          "value": 100,
+          "worst": 253,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 0,
+            "string": "------ ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 2475327091638932,
+            "string": "660h+09m+36.332s"
+          }
+        },
+        {
+          "id": 241,
+          "name": "Total_LBAs_Written",
+          "value": 100,
+          "worst": 253,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 0,
+            "string": "------ ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 221098461,
+            "string": "221098461"
+          }
+        },
+        {
+          "id": 242,
+          "name": "Total_LBAs_Read",
+          "value": 100,
+          "worst": 253,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 0,
+            "string": "------ ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 138086730372,
+            "string": "138086730372"
+          }
+        }
+      ]
+    },
+    "power_on_time": {
+      "hours": 20654
+    },
+    "power_cycle_count": 25,
+    "temperature": {
+      "current": 29,
+      "power_cycle_min": 27,
+      "power_cycle_max": 34,
+      "lifetime_min": 22,
+      "lifetime_max": 35,
+      "op_limit_min": 5,
+      "op_limit_max": 60,
+      "limit_min": 5,
+      "limit_max": 60,
+      "lifetime_over_limit_minutes": 0,
+      "lifetime_under_limit_minutes": 0
+    },
+    "ata_log_directory": {
+      "gp_dir_version": 1,
+      "smart_dir_version": 1,
+      "smart_dir_multi_sector": true,
+      "table": [
+        {
+          "address": 0,
+          "name": "Log Directory",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 1,
+          "name": "Summary SMART error log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 1
+        },
+        {
+          "address": 2,
+          "name": "Comprehensive SMART error log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 5
+        },
+        {
+          "address": 3,
+          "name": "Ext. Comprehensive SMART error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 5
+        },
+        {
+          "address": 4,
+          "name": "Device Statistics log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 256,
+          "smart_sectors": 8
+        },
+        {
+          "address": 6,
+          "name": "SMART self-test log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 1
+        },
+        {
+          "address": 7,
+          "name": "Extended self-test log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 8,
+          "name": "Power Conditions log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 2
+        },
+        {
+          "address": 9,
+          "name": "Selective self-test log",
+          "read": true,
+          "write": true,
+          "smart_sectors": 1
+        },
+        {
+          "address": 10,
+          "name": "Device Statistics Notification",
+          "read": true,
+          "write": true,
+          "gp_sectors": 8
+        },
+        {
+          "address": 12,
+          "name": "Pending Defects log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 2048
+        },
+        {
+          "address": 16,
+          "name": "NCQ Command Error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 17,
+          "name": "SATA Phy Event Counters log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 19,
+          "name": "SATA NCQ Send and Receive log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 33,
+          "name": "Write stream error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 34,
+          "name": "Read stream error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 36,
+          "name": "Current Device Internal Status Data log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 768
+        },
+        {
+          "address": 47,
+          "name": "Set Sector Configuration",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 48,
+          "name": "IDENTIFY DEVICE data log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 9,
+          "smart_sectors": 9
+        },
+        {
+          "address": 128,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 129,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 130,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 131,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 132,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 133,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 134,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 135,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 136,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 137,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 138,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 139,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 140,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 141,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 142,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 143,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 144,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 145,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 146,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 147,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 148,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 149,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 150,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 151,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 152,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 153,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 154,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 155,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 156,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 157,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 158,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 159,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 161,
+          "name": "Device vendor specific log",
+          "gp_sectors": 160,
+          "smart_sectors": 160
+        },
+        {
+          "address": 162,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16320
+        },
+        {
+          "address": 164,
+          "name": "Device vendor specific log",
+          "gp_sectors": 160,
+          "smart_sectors": 160
+        },
+        {
+          "address": 166,
+          "name": "Device vendor specific log",
+          "gp_sectors": 192
+        },
+        {
+          "address": 168,
+          "name": "Device vendor specific log",
+          "gp_sectors": 136,
+          "smart_sectors": 136
+        },
+        {
+          "address": 169,
+          "name": "Device vendor specific log",
+          "gp_sectors": 136,
+          "smart_sectors": 136
+        },
+        {
+          "address": 171,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1
+        },
+        {
+          "address": 173,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16
+        },
+        {
+          "address": 190,
+          "name": "Device vendor specific log",
+          "gp_sectors": 65535
+        },
+        {
+          "address": 191,
+          "name": "Device vendor specific log",
+          "gp_sectors": 65535
+        },
+        {
+          "address": 193,
+          "name": "Device vendor specific log",
+          "gp_sectors": 8,
+          "smart_sectors": 8
+        },
+        {
+          "address": 195,
+          "name": "Device vendor specific log",
+          "gp_sectors": 56,
+          "smart_sectors": 56
+        },
+        {
+          "address": 199,
+          "name": "Device vendor specific log",
+          "gp_sectors": 8,
+          "smart_sectors": 8
+        },
+        {
+          "address": 201,
+          "name": "Device vendor specific log",
+          "gp_sectors": 8,
+          "smart_sectors": 8
+        },
+        {
+          "address": 202,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 205,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 206,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1
+        },
+        {
+          "address": 207,
+          "name": "Device vendor specific log",
+          "gp_sectors": 512
+        },
+        {
+          "address": 209,
+          "name": "Device vendor specific log",
+          "gp_sectors": 656
+        },
+        {
+          "address": 210,
+          "name": "Device vendor specific log",
+          "gp_sectors": 10000
+        },
+        {
+          "address": 212,
+          "name": "Device vendor specific log",
+          "gp_sectors": 2048
+        },
+        {
+          "address": 218,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 224,
+          "name": "SCT Command/Status",
+          "read": true,
+          "write": true,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 225,
+          "name": "SCT Data Transfer",
+          "read": true,
+          "write": true,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 226,
+          "name": "Reserved",
+          "gp_sectors": 160,
+          "smart_sectors": 160
+        }
+      ]
+    },
+    "ata_smart_error_log": {
+      "extended": {
+        "revision": 1,
+        "sectors": 5,
+        "count": 0
+      },
+      "summary": {
+        "revision": 1,
+        "count": 0
+      }
+    },
+    "ata_smart_self_test_log": {
+      "extended": {
+        "revision": 1,
+        "sectors": 1,
+        "table": [
+          {
+            "type": {
+              "value": 1,
+              "string": "Short offline"
+            },
+            "status": {
+              "value": 0,
+              "string": "Completed without error",
+              "passed": true
+            },
+            "lifetime_hours": 20513
+          }
+        ],
+        "count": 1,
+        "error_count_total": 0,
+        "error_count_outdated": 0
+      },
+      "standard": {
+        "revision": 1,
+        "table": [
+          {
+            "type": {
+              "value": 1,
+              "string": "Short offline"
+            },
+            "status": {
+              "value": 0,
+              "string": "Completed without error",
+              "passed": true
+            },
+            "lifetime_hours": 20513
+          }
+        ],
+        "count": 1,
+        "error_count_total": 0,
+        "error_count_outdated": 0
+      }
+    },
+    "ata_smart_selective_self_test_log": {
+      "revision": 1,
+      "table": [
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        }
+      ],
+      "flags": {
+        "value": 0,
+        "remainder_scan_enabled": false
+      },
+      "power_up_scan_resume_minutes": 0
+    },
+    "ata_sct_status": {
+      "format_version": 3,
+      "sct_version": 522,
+      "device_state": {
+        "value": 0,
+        "string": "Active"
+      },
+      "temperature": {
+        "current": 29,
+        "power_cycle_min": 27,
+        "power_cycle_max": 34,
+        "lifetime_min": 17,
+        "lifetime_max": 51,
+        "under_limit_count": 0,
+        "over_limit_count": 0
+      },
+      "smart_status": {
+        "passed": true
+      },
+      "vendor_specific": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "ata_sct_temperature_history": {
+      "version": 2,
+      "sampling_period_minutes": 4,
+      "logging_interval_minutes": 59,
+      "temperature": {
+        "op_limit_min": 10,
+        "op_limit_max": 40,
+        "limit_min": 5,
+        "limit_max": 60
+      },
+      "size": 128,
+      "index": 31,
+      "table": [
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        30,
+        30,
+        30,
+        30,
+        31,
+        31,
+        31,
+        31,
+        31,
+        32,
+        31,
+        31,
+        31,
+        31,
+        31,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        31,
+        31,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        31,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        29,
+        29,
+        29,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        31,
+        31,
+        31,
+        31,
+        30,
+        30,
+        30,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29
+      ]
+    },
+    "ata_device_statistics": {
+      "pages": [
+        {
+          "number": 1,
+          "name": "General Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Lifetime Power-On Resets",
+              "size": 4,
+              "value": 25,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Power-on Hours",
+              "size": 4,
+              "value": 20654,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Logical Sectors Written",
+              "size": 6,
+              "value": 218321682,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Number of Write Commands",
+              "size": 6,
+              "value": 1479239,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Logical Sectors Read",
+              "size": 6,
+              "value": 136681267961,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Number of Read Commands",
+              "size": 6,
+              "value": 240082254,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 56,
+              "name": "Date and Time TimeStamp",
+              "size": 6,
+              "flags": {
+                "value": 128,
+                "string": "---- ",
+                "valid": false,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 3,
+          "name": "Rotating Media Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Spindle Motor Power-on Hours",
+              "size": 4,
+              "value": 3528,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Head Flying Hours",
+              "size": 4,
+              "value": 773,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Head Load Events",
+              "size": 4,
+              "value": 3720,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Number of Reallocated Logical Sectors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Read Recovery Attempts",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Number of Mechanical Start Failures",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 56,
+              "name": "Number of Realloc. Candidate Logical Sectors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 64,
+              "name": "Number of High Priority Unload Events",
+              "size": 4,
+              "value": 23,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 4,
+          "name": "General Errors Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Number of Reported Uncorrectable Errors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Resets Between Cmd Acceptance and Completion",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Physical Element Status Changed",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 208,
+                "string": "V-D- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": true,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 5,
+          "name": "Temperature Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Current Temperature",
+              "size": 1,
+              "value": 29,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Average Short Term Temperature",
+              "size": 1,
+              "value": 29,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Average Long Term Temperature",
+              "size": 1,
+              "value": 30,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Highest Temperature",
+              "size": 1,
+              "value": 35,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Lowest Temperature",
+              "size": 1,
+              "value": 22,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Highest Average Short Term Temperature",
+              "size": 1,
+              "value": 33,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 56,
+              "name": "Lowest Average Short Term Temperature",
+              "size": 1,
+              "value": 22,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 64,
+              "name": "Highest Average Long Term Temperature",
+              "size": 1,
+              "value": 30,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 72,
+              "name": "Lowest Average Long Term Temperature",
+              "size": 1,
+              "value": 26,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 80,
+              "name": "Time in Over-Temperature",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 88,
+              "name": "Specified Maximum Operating Temperature",
+              "size": 1,
+              "value": 60,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 96,
+              "name": "Time in Under-Temperature",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 104,
+              "name": "Specified Minimum Operating Temperature",
+              "size": 1,
+              "value": 5,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 6,
+          "name": "Transport Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Number of Hardware Resets",
+              "size": 4,
+              "value": 61,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Number of ASR Events",
+              "size": 4,
+              "value": 35,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Number of Interface CRC Errors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 255,
+          "name": "Vendor Specific Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Vendor Specific",
+              "size": 7,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Vendor Specific",
+              "size": 7,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Vendor Specific",
+              "size": 7,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "ata_pending_defects_log": {
+      "size": 65535,
+      "count": 0
+    },
+    "sata_phy_event_counters": {
+      "table": [
+        {
+          "id": 10,
+          "name": "Device-to-host register FISes sent due to a COMRESET",
+          "size": 2,
+          "value": 2,
+          "overflow": false
+        },
+        {
+          "id": 1,
+          "name": "Command failed due to ICRC error",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 3,
+          "name": "R_ERR response for device-to-host data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 4,
+          "name": "R_ERR response for host-to-device data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 6,
+          "name": "R_ERR response for device-to-host non-data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 7,
+          "name": "R_ERR response for host-to-device non-data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        }
+      ],
+      "reset": false
+    },
+    "seagate_farm_log": {
+      "supported": true
+    }
+  },
+  "hp_mb3000gcvbt": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-x",
+        "-a",
+        "-d",
+        "sat",
+        "/dev/sdh"
+      ],
+      "drive_database_version": {
+        "string": "7.3/5528"
+      },
+      "messages": [
+        {
+          "string": "Warning: This result is based on an Attribute check.",
+          "severity": "warning"
+        }
+      ],
+      "exit_status": 4
+    },
+    "local_time": {
+      "time_t": 1794888896,
+      "asctime": "Mon Nov 16 22:14:56 2026 CST"
+    },
+    "device": {
+      "name": "/dev/sdh",
+      "info_name": "/dev/sdh [SAT]",
+      "type": "sat",
+      "protocol": "ATA"
+    },
+    "model_name": "MB3000GCVBT",
+    "firmware_version": "HPG3",
+    "user_capacity": {
+      "blocks": 5860533168,
+      "bytes": 3000592982016
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 512,
+    "rotation_rate": 7200,
+    "form_factor": {
+      "ata_value": 2,
+      "name": "3.5 inches"
+    },
+    "trim": {
+      "supported": false
+    },
+    "in_smartctl_database": false,
+    "ata_version": {
+      "string": "ATA8-ACS T13/1699-D revision 6",
+      "major_value": 510,
+      "minor_value": 40
+    },
+    "sata_version": {
+      "string": "SATA 3.0",
+      "value": 62
+    },
+    "interface_speed": {
+      "max": {
+        "sata_value": 14,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      },
+      "current": {
+        "sata_value": 3,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      }
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "read_lookahead": {
+      "enabled": true
+    },
+    "write_cache": {
+      "enabled": true
+    },
+    "smart_status": {
+      "passed": true
+    },
+    "ata_smart_data": {
+      "offline_data_collection": {
+        "status": {
+          "value": 130,
+          "string": "was completed without error",
+          "passed": true
+        },
+        "completion_seconds": 34560
+      },
+      "self_test": {
+        "status": {
+          "value": 0,
+          "string": "completed without error",
+          "passed": true
+        },
+        "polling_minutes": {
+          "short": 2,
+          "extended": 374,
+          "conveyance": 5
+        }
+      },
+      "capabilities": {
+        "values": [
+          123,
+          3
+        ],
+        "exec_offline_immediate_supported": true,
+        "offline_is_aborted_upon_new_cmd": false,
+        "offline_surface_scan_supported": true,
+        "self_tests_supported": true,
+        "conveyance_self_test_supported": true,
+        "selective_self_test_supported": true,
+        "attribute_autosave_enabled": true,
+        "error_logging_supported": true,
+        "gp_logging_supported": true
+      }
+    },
+    "ata_sct_capabilities": {
+      "value": 28733,
+      "error_recovery_control_supported": true,
+      "feature_control_supported": true,
+      "data_table_supported": true
+    },
+    "ata_smart_attributes": {
+      "revision": 16,
+      "table": [
+        {
+          "id": 1,
+          "name": "Raw_Read_Error_Rate",
+          "value": 200,
+          "worst": 200,
+          "thresh": 51,
+          "when_failed": "",
+          "flags": {
+            "value": 47,
+            "string": "POSR-K ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 3,
+          "name": "Spin_Up_Time",
+          "value": 231,
+          "worst": 230,
+          "thresh": 21,
+          "when_failed": "",
+          "flags": {
+            "value": 39,
+            "string": "POS--K ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 7408,
+            "string": "7408"
+          }
+        },
+        {
+          "id": 4,
+          "name": "Start_Stop_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 35,
+            "string": "35"
+          }
+        },
+        {
+          "id": 5,
+          "name": "Reallocated_Sector_Ct",
+          "value": 200,
+          "worst": 200,
+          "thresh": 140,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 7,
+          "name": "Seek_Error_Rate",
+          "value": 200,
+          "worst": 200,
+          "thresh": 51,
+          "when_failed": "",
+          "flags": {
+            "value": 47,
+            "string": "POSR-K ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 9,
+          "name": "Power_On_Hours",
+          "value": 10,
+          "worst": 9,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 65992,
+            "string": "65992"
+          }
+        },
+        {
+          "id": 10,
+          "name": "Spin_Retry_Count",
+          "value": 100,
+          "worst": 253,
+          "thresh": 51,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 11,
+          "name": "Calibration_Retry_Count",
+          "value": 100,
+          "worst": 253,
+          "thresh": 51,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 12,
+          "name": "Power_Cycle_Count",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 35,
+            "string": "35"
+          }
+        },
+        {
+          "id": 180,
+          "name": "Unknown_HDD_Attribute",
+          "value": 200,
+          "worst": 200,
+          "thresh": 100,
+          "when_failed": "",
+          "flags": {
+            "value": 47,
+            "string": "POSR-K ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": true,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 183,
+          "name": "Runtime_Bad_Block",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 184,
+          "name": "End-to-End_Error",
+          "value": 100,
+          "worst": 100,
+          "thresh": 97,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 187,
+          "name": "Reported_Uncorrect",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 188,
+          "name": "Command_Timeout",
+          "value": 100,
+          "worst": 100,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 190,
+          "name": "Airflow_Temperature_Cel",
+          "value": 71,
+          "worst": 66,
+          "thresh": 45,
+          "when_failed": "",
+          "flags": {
+            "value": 34,
+            "string": "-O---K ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 29,
+            "string": "29"
+          }
+        },
+        {
+          "id": 192,
+          "name": "Power-Off_Retract_Count",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 34,
+            "string": "34"
+          }
+        },
+        {
+          "id": 193,
+          "name": "Load_Cycle_Count",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 23,
+            "string": "23"
+          }
+        },
+        {
+          "id": 194,
+          "name": "Temperature_Celsius",
+          "value": 123,
+          "worst": 115,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 34,
+            "string": "-O---K ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": false,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 29,
+            "string": "29"
+          }
+        },
+        {
+          "id": 196,
+          "name": "Reallocated_Event_Count",
+          "value": 200,
+          "worst": 200,
+          "thresh": 140,
+          "when_failed": "",
+          "flags": {
+            "value": 51,
+            "string": "PO--CK ",
+            "prefailure": true,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 197,
+          "name": "Current_Pending_Sector",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 198,
+          "name": "Offline_Uncorrectable",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 48,
+            "string": "----CK ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 199,
+          "name": "UDMA_CRC_Error_Count",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 50,
+            "string": "-O--CK ",
+            "prefailure": false,
+            "updated_online": true,
+            "performance": false,
+            "error_rate": false,
+            "event_count": true,
+            "auto_keep": true
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        },
+        {
+          "id": 200,
+          "name": "Multi_Zone_Error_Rate",
+          "value": 200,
+          "worst": 200,
+          "thresh": 0,
+          "when_failed": "",
+          "flags": {
+            "value": 8,
+            "string": "---R-- ",
+            "prefailure": false,
+            "updated_online": false,
+            "performance": false,
+            "error_rate": true,
+            "event_count": false,
+            "auto_keep": false
+          },
+          "raw": {
+            "value": 0,
+            "string": "0"
+          }
+        }
+      ]
+    },
+    "power_on_time": {
+      "hours": 65992
+    },
+    "power_cycle_count": 35,
+    "temperature": {
+      "current": 29,
+      "power_cycle_min": 27,
+      "power_cycle_max": 34,
+      "lifetime_min": 21,
+      "lifetime_max": 34,
+      "op_limit_max": 60,
+      "op_limit_min": 0,
+      "limit_min": -41,
+      "limit_max": 85,
+      "lifetime_over_limit_minutes": 0,
+      "lifetime_under_limit_minutes": 0
+    },
+    "ata_log_directory": {
+      "gp_dir_version": 1,
+      "smart_dir_version": 1,
+      "smart_dir_multi_sector": true,
+      "table": [
+        {
+          "address": 0,
+          "name": "Log Directory",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 1,
+          "name": "Summary SMART error log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 1
+        },
+        {
+          "address": 2,
+          "name": "Comprehensive SMART error log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 5
+        },
+        {
+          "address": 3,
+          "name": "Ext. Comprehensive SMART error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 6
+        },
+        {
+          "address": 4,
+          "name": "Device Statistics log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 8,
+          "smart_sectors": 8
+        },
+        {
+          "address": 6,
+          "name": "SMART self-test log",
+          "read": true,
+          "write": false,
+          "smart_sectors": 1
+        },
+        {
+          "address": 7,
+          "name": "Extended self-test log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 9,
+          "name": "Selective self-test log",
+          "read": true,
+          "write": true,
+          "smart_sectors": 1
+        },
+        {
+          "address": 16,
+          "name": "NCQ Command Error log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 17,
+          "name": "SATA Phy Event Counters log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 36,
+          "name": "Current Device Internal Status Data log",
+          "read": true,
+          "write": false,
+          "gp_sectors": 1
+        },
+        {
+          "address": 128,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 129,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 130,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 131,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 132,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 133,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 134,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 135,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 136,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 137,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 138,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 139,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 140,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 141,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 142,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 143,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 144,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 145,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 146,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 147,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 148,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 149,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 150,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 151,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 152,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 153,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 154,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 155,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 156,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 157,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 158,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 159,
+          "name": "Host vendor specific log",
+          "read": true,
+          "write": true,
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 160,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 161,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 162,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 163,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 164,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 165,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 166,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 167,
+          "name": "Device vendor specific log",
+          "gp_sectors": 16,
+          "smart_sectors": 16
+        },
+        {
+          "address": 168,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 169,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 170,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 171,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 172,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 173,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 174,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 175,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 176,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 177,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 178,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 179,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 180,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 181,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 182,
+          "name": "Device vendor specific log",
+          "gp_sectors": 8192,
+          "smart_sectors": 1
+        },
+        {
+          "address": 183,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 189,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 192,
+          "name": "Device vendor specific log",
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 193,
+          "name": "Device vendor specific log",
+          "gp_sectors": 24
+        },
+        {
+          "address": 224,
+          "name": "SCT Command/Status",
+          "read": true,
+          "write": true,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        },
+        {
+          "address": 225,
+          "name": "SCT Data Transfer",
+          "read": true,
+          "write": true,
+          "gp_sectors": 1,
+          "smart_sectors": 1
+        }
+      ]
+    },
+    "ata_smart_error_log": {
+      "extended": {
+        "revision": 1,
+        "sectors": 6,
+        "count": 0
+      },
+      "summary": {
+        "revision": 1,
+        "count": 0
+      }
+    },
+    "ata_smart_self_test_log": {
+      "extended": {
+        "revision": 1,
+        "sectors": 1,
+        "count": 0
+      },
+      "standard": {
+        "revision": 1,
+        "count": 0
+      }
+    },
+    "ata_smart_selective_self_test_log": {
+      "revision": 1,
+      "table": [
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        },
+        {
+          "lba_min": 0,
+          "lba_max": 0,
+          "status": {
+            "value": 0,
+            "string": "Not_testing"
+          }
+        }
+      ],
+      "flags": {
+        "value": 0,
+        "remainder_scan_enabled": false
+      },
+      "power_up_scan_resume_minutes": 0
+    },
+    "ata_sct_status": {
+      "format_version": 3,
+      "sct_version": 258,
+      "device_state": {
+        "value": 0,
+        "string": "Active"
+      },
+      "temperature": {
+        "current": 29,
+        "power_cycle_min": 27,
+        "power_cycle_max": 34,
+        "lifetime_min": 13,
+        "lifetime_max": 34,
+        "op_limit_max": 60,
+        "under_limit_count": 0,
+        "over_limit_count": 0
+      },
+      "vendor_specific": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "ata_sct_temperature_history": {
+      "version": 2,
+      "sampling_period_minutes": 1,
+      "logging_interval_minutes": 1,
+      "temperature": {
+        "op_limit_min": 0,
+        "op_limit_max": 60,
+        "limit_min": -41,
+        "limit_max": 85
+      },
+      "size": 478,
+      "index": 239,
+      "table": [
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29
+      ]
+    },
+    "ata_device_statistics": {
+      "pages": [
+        {
+          "number": 1,
+          "name": "General Statistics",
+          "revision": 2,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Lifetime Power-On Resets",
+              "size": 4,
+              "value": 35,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Power-on Hours",
+              "size": 4,
+              "value": 65992,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Logical Sectors Written",
+              "size": 6,
+              "value": 439312103736,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Number of Write Commands",
+              "size": 6,
+              "value": 618101647,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Logical Sectors Read",
+              "size": 6,
+              "value": 732142599959,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Number of Read Commands",
+              "size": 6,
+              "value": 2821012879,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 3,
+          "name": "Rotating Media Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Spindle Motor Power-on Hours",
+              "size": 4,
+              "value": 68085,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Head Flying Hours",
+              "size": 4,
+              "value": 68084,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Head Load Events",
+              "size": 4,
+              "value": 58,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Number of Reallocated Logical Sectors",
+              "size": 4,
+              "value": 200,
+              "flags": {
+                "value": 224,
+                "string": "VN-- ",
+                "valid": true,
+                "normalized": true,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Read Recovery Attempts",
+              "size": 4,
+              "value": 12,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Number of Mechanical Start Failures",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 4,
+          "name": "General Errors Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Number of Reported Uncorrectable Errors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Resets Between Cmd Acceptance and Completion",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 5,
+          "name": "Temperature Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Current Temperature",
+              "size": 1,
+              "value": 29,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Average Short Term Temperature",
+              "size": 1,
+              "value": 29,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Average Long Term Temperature",
+              "size": 1,
+              "value": 29,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 32,
+              "name": "Highest Temperature",
+              "size": 1,
+              "value": 34,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 40,
+              "name": "Lowest Temperature",
+              "size": 1,
+              "value": 21,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 48,
+              "name": "Highest Average Short Term Temperature",
+              "size": 1,
+              "value": 33,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 56,
+              "name": "Lowest Average Short Term Temperature",
+              "size": 1,
+              "value": 23,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 64,
+              "name": "Highest Average Long Term Temperature",
+              "size": 1,
+              "value": 30,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 72,
+              "name": "Lowest Average Long Term Temperature",
+              "size": 1,
+              "value": 23,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 80,
+              "name": "Time in Over-Temperature",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 88,
+              "name": "Specified Maximum Operating Temperature",
+              "size": 1,
+              "value": 60,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 96,
+              "name": "Time in Under-Temperature",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 104,
+              "name": "Specified Minimum Operating Temperature",
+              "size": 1,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        },
+        {
+          "number": 6,
+          "name": "Transport Statistics",
+          "revision": 1,
+          "table": [
+            {
+              "offset": 8,
+              "name": "Number of Hardware Resets",
+              "size": 4,
+              "value": 76,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 16,
+              "name": "Number of ASR Events",
+              "size": 4,
+              "value": 150,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            },
+            {
+              "offset": 24,
+              "name": "Number of Interface CRC Errors",
+              "size": 4,
+              "value": 0,
+              "flags": {
+                "value": 192,
+                "string": "V--- ",
+                "valid": true,
+                "normalized": false,
+                "supports_dsn": false,
+                "monitored_condition_met": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "sata_phy_event_counters": {
+      "table": [
+        {
+          "id": 1,
+          "name": "Command failed due to ICRC error",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 2,
+          "name": "R_ERR response for data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 3,
+          "name": "R_ERR response for device-to-host data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 4,
+          "name": "R_ERR response for host-to-device data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 5,
+          "name": "R_ERR response for non-data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 6,
+          "name": "R_ERR response for device-to-host non-data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 7,
+          "name": "R_ERR response for host-to-device non-data FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 8,
+          "name": "Device-to-host non-data FIS retries",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 9,
+          "name": "Transition from drive PhyRdy to drive PhyNRdy",
+          "size": 2,
+          "value": 1,
+          "overflow": false
+        },
+        {
+          "id": 10,
+          "name": "Device-to-host register FISes sent due to a COMRESET",
+          "size": 2,
+          "value": 2,
+          "overflow": false
+        },
+        {
+          "id": 11,
+          "name": "CRC errors within host-to-device FIS",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 15,
+          "name": "R_ERR response for host-to-device data FIS, CRC",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 18,
+          "name": "R_ERR response for host-to-device non-data FIS, CRC",
+          "size": 2,
+          "value": 0,
+          "overflow": false
+        },
+        {
+          "id": 32768,
+          "name": "Vendor specific",
+          "size": 4,
+          "value": 10115928,
+          "overflow": false
+        }
+      ],
+      "reset": false
+    },
+    "seagate_farm_log": {
+      "supported": false
+    }
+  },
+  "netapp_x316_sas": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-x",
+        "-a",
+        "-d",
+        "scsi",
+        "/dev/sdc"
+      ],
+      "exit_status": 4
+    },
+    "local_time": {
+      "time_t": 1794888897,
+      "asctime": "Mon Nov 16 22:14:57 2026 CST"
+    },
+    "device": {
+      "name": "/dev/sdc",
+      "info_name": "/dev/sdc",
+      "type": "scsi",
+      "protocol": "SCSI"
+    },
+    "scsi_vendor": "NETAPP",
+    "scsi_product": "X316_SMBPE06TA07",
+    "scsi_model_name": "NETAPP X316_SMBPE06TA07",
+    "scsi_revision": "NA00",
+    "scsi_version": "SPC-4",
+    "user_capacity": {
+      "blocks": 11721045168,
+      "bytes": 6001175126016
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 4096,
+    "scsi_lb_provisioning": {
+      "name": "fully provisioned",
+      "value": 0,
+      "management_enabled": {
+        "name": "LBPME",
+        "value": 0
+      },
+      "read_zeros": {
+        "name": "LBPRZ",
+        "value": 0
+      }
+    },
+    "rotation_rate": 7200,
+    "form_factor": {
+      "scsi_value": 2,
+      "name": "3.5 inches"
+    },
+    "device_type": {
+      "scsi_terminology": "Peripheral Device Type [PDT]",
+      "scsi_value": 0,
+      "name": "disk"
+    },
+    "scsi_transport_protocol": {
+      "name": "SAS (SPL-4)",
+      "value": 6
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "temperature_warning": {
+      "enabled": true
+    },
+    "smart_status": {
+      "passed": true
+    },
+    "scsi_format_status": {
+      "grown_defects_during_cert": 0,
+      "blocks_reassigned_during_format": 1,
+      "total_new_block_since_format": 0,
+      "power_on_minutes_since_format": 311411
+    },
+    "temperature": {
+      "current": 33,
+      "drive_trip": 40
+    },
+    "scsi_start_stop_cycle_counter": {
+      "year_of_manufacture": "2017",
+      "week_of_manufacture": "29",
+      "specified_cycle_count_over_device_lifetime": 10000,
+      "accumulated_start_stop_cycles": 113,
+      "specified_load_unload_count_over_device_lifetime": 300000,
+      "accumulated_load_unload_cycles": 2779
+    },
+    "scsi_grown_defect_list": 1,
+    "seagate_farm_log": {
+      "supported": false
+    },
+    "scsi_error_counter_log": {
+      "read": {
+        "errors_corrected_by_eccfast": 2748721516,
+        "errors_corrected_by_eccdelayed": 0,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 2748721516,
+        "correction_algorithm_invocations": 0,
+        "gigabytes_processed": "2526525.336",
+        "total_uncorrected_errors": 0
+      },
+      "write": {
+        "errors_corrected_by_eccfast": 0,
+        "errors_corrected_by_eccdelayed": 0,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 0,
+        "correction_algorithm_invocations": 0,
+        "gigabytes_processed": "237617.128",
+        "total_uncorrected_errors": 0
+      },
+      "verify": {
+        "errors_corrected_by_eccfast": 2806707197,
+        "errors_corrected_by_eccdelayed": 0,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 2806707197,
+        "correction_algorithm_invocations": 0,
+        "gigabytes_processed": "291936.809",
+        "total_uncorrected_errors": 0
+      }
+    },
+    "scsi_self_test_0": {
+      "code": {
+        "value": 1,
+        "string": "Background short"
+      },
+      "result": {
+        "value": 0,
+        "string": "Completed"
+      },
+      "power_on_time": {
+        "hours": 51435,
+        "aka": "accumulated_power_on_hours"
+      }
+    },
+    "scsi_self_test_1": {
+      "code": {
+        "value": 2,
+        "string": "Background long"
+      },
+      "result": {
+        "value": 0,
+        "string": "Completed"
+      },
+      "power_on_time": {
+        "hours": 46434,
+        "aka": "accumulated_power_on_hours"
+      }
+    },
+    "scsi_self_test_2": {
+      "code": {
+        "value": 1,
+        "string": "Background short"
+      },
+      "result": {
+        "value": 0,
+        "string": "Completed"
+      },
+      "power_on_time": {
+        "hours": 46424,
+        "aka": "accumulated_power_on_hours"
+      }
+    },
+    "scsi_extended_self_test_seconds": 38632,
+    "scsi_background_scan": {
+      "status": {
+        "value": 0,
+        "string": "no scans active",
+        "number_scans_performed": 0,
+        "scan_progress": "0.00%",
+        "number_medium_scans_performed": 0
+      }
+    },
+    "power_on_time": {
+      "hours": 51468,
+      "minutes": 47
+    },
+    "scsi_sas_port_0": {
+      "relative_target_port_id": 1,
+      "generation_code": 2,
+      "number_of_phys": 1,
+      "phy_0": {
+        "identifier": 0,
+        "attached_device_type": "SAS or SATA device",
+        "attached_reason": "unknown",
+        "reason": "unknown",
+        "negotiated_logical_link_rate": "phy enabled; 6 Gbps",
+        "attached_initiator_port": {
+          "ssp_stp_smp": "111"
+        },
+        "attached_target_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_phy_identifier": 5,
+        "invalid_dword_count": 4,
+        "running_disparity_error_count": 4,
+        "loss_of_dword_synchronization_count": 1,
+        "phy_reset_problem_count": 0
+      }
+    },
+    "scsi_sas_port_1": {
+      "relative_target_port_id": 2,
+      "generation_code": 2,
+      "number_of_phys": 1,
+      "phy_0": {
+        "identifier": 1,
+        "attached_device_type": "no device attached",
+        "attached_reason": "unknown",
+        "reason": "unknown",
+        "negotiated_logical_link_rate": "phy enabled; unknown",
+        "attached_initiator_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_target_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_phy_identifier": 0,
+        "invalid_dword_count": 0,
+        "running_disparity_error_count": 0,
+        "loss_of_dword_synchronization_count": 0,
+        "phy_reset_problem_count": 0
+      }
+    }
+  },
+  "hgst_hus726060_sas": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-x",
+        "-a",
+        "-d",
+        "scsi",
+        "/dev/sdi"
+      ],
+      "exit_status": 0
+    },
+    "local_time": {
+      "time_t": 1794888898,
+      "asctime": "Mon Nov 16 22:14:58 2026 CST"
+    },
+    "device": {
+      "name": "/dev/sdi",
+      "info_name": "/dev/sdi",
+      "type": "scsi",
+      "protocol": "SCSI"
+    },
+    "scsi_vendor": "HGST",
+    "scsi_product": "HUS726060ALS640",
+    "scsi_model_name": "HGST HUS726060ALS640",
+    "scsi_revision": "A280",
+    "scsi_version": "SPC-4",
+    "user_capacity": {
+      "blocks": 11721045168,
+      "bytes": 6001175126016
+    },
+    "logical_block_size": 512,
+    "scsi_lb_provisioning": {
+      "name": "fully provisioned",
+      "value": 0,
+      "management_enabled": {
+        "name": "LBPME",
+        "value": 0
+      },
+      "read_zeros": {
+        "name": "LBPRZ",
+        "value": 0
+      }
+    },
+    "rotation_rate": 7200,
+    "form_factor": {
+      "scsi_value": 2,
+      "name": "3.5 inches"
+    },
+    "device_type": {
+      "scsi_terminology": "Peripheral Device Type [PDT]",
+      "scsi_value": 0,
+      "name": "disk"
+    },
+    "scsi_transport_protocol": {
+      "name": "SAS (SPL-4)",
+      "value": 6
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "temperature_warning": {
+      "enabled": true
+    },
+    "smart_status": {
+      "passed": true
+    },
+    "temperature": {
+      "current": 29,
+      "drive_trip": 85
+    },
+    "scsi_start_stop_cycle_counter": {
+      "year_of_manufacture": "2015",
+      "week_of_manufacture": "22",
+      "specified_cycle_count_over_device_lifetime": 50000,
+      "accumulated_start_stop_cycles": 60,
+      "specified_load_unload_count_over_device_lifetime": 600000,
+      "accumulated_load_unload_cycles": 2119
+    },
+    "scsi_grown_defect_list": 5,
+    "seagate_farm_log": {
+      "supported": false
+    },
+    "scsi_error_counter_log": {
+      "read": {
+        "errors_corrected_by_eccfast": 51478591,
+        "errors_corrected_by_eccdelayed": 2025,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 51480616,
+        "correction_algorithm_invocations": 35609823,
+        "gigabytes_processed": "333494.563",
+        "total_uncorrected_errors": 7
+      },
+      "write": {
+        "errors_corrected_by_eccfast": 0,
+        "errors_corrected_by_eccdelayed": 1426,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 1426,
+        "correction_algorithm_invocations": 4455692,
+        "gigabytes_processed": "74649.922",
+        "total_uncorrected_errors": 0
+      },
+      "verify": {
+        "errors_corrected_by_eccfast": 0,
+        "errors_corrected_by_eccdelayed": 0,
+        "errors_corrected_by_rereads_rewrites": 0,
+        "total_errors_corrected": 0,
+        "correction_algorithm_invocations": 144825,
+        "gigabytes_processed": "0.000",
+        "total_uncorrected_errors": 0
+      }
+    },
+    "scsi_self_test_0": {
+      "code": {
+        "value": 2,
+        "string": "Background long"
+      },
+      "result": {
+        "value": 0,
+        "string": "Completed"
+      },
+      "power_on_time": {
+        "hours": 31278,
+        "aka": "accumulated_power_on_hours"
+      }
+    },
+    "scsi_self_test_1": {
+      "code": {
+        "value": 1,
+        "string": "Background short"
+      },
+      "result": {
+        "value": 0,
+        "string": "Completed"
+      },
+      "power_on_time": {
+        "hours": 31166,
+        "aka": "accumulated_power_on_hours"
+      }
+    },
+    "scsi_background_scan": {
+      "status": {
+        "value": 6,
+        "string": "halted - vendor specific cause",
+        "number_scans_performed": 136,
+        "scan_progress": "0.00%",
+        "number_medium_scans_performed": 136
+      },
+      "result_1": {
+        "parameter_code": 1,
+        "accumulated_power_on": {
+          "minutes": 3050080
+        },
+        "lba": 83866,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_2": {
+        "parameter_code": 2,
+        "accumulated_power_on": {
+          "minutes": 3050080
+        },
+        "lba": 83865,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_3": {
+        "parameter_code": 3,
+        "accumulated_power_on": {
+          "minutes": 3050080
+        },
+        "lba": 83864,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_4": {
+        "parameter_code": 4,
+        "accumulated_power_on": {
+          "minutes": 3050080
+        },
+        "lba": 83863,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_5": {
+        "parameter_code": 5,
+        "accumulated_power_on": {
+          "minutes": 3050072
+        },
+        "lba": 83702,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_6": {
+        "parameter_code": 6,
+        "accumulated_power_on": {
+          "minutes": 3050072
+        },
+        "lba": 83701,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_7": {
+        "parameter_code": 7,
+        "accumulated_power_on": {
+          "minutes": 3050072
+        },
+        "lba": 83696,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_8": {
+        "parameter_code": 8,
+        "accumulated_power_on": {
+          "minutes": 3050072
+        },
+        "lba": 83695,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_9": {
+        "parameter_code": 9,
+        "accumulated_power_on": {
+          "minutes": 3050067
+        },
+        "lba": 83505,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_10": {
+        "parameter_code": 10,
+        "accumulated_power_on": {
+          "minutes": 3050067
+        },
+        "lba": 83504,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_11": {
+        "parameter_code": 11,
+        "accumulated_power_on": {
+          "minutes": 3050067
+        },
+        "lba": 83498,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_12": {
+        "parameter_code": 12,
+        "accumulated_power_on": {
+          "minutes": 3050067
+        },
+        "lba": 83491,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_13": {
+        "parameter_code": 13,
+        "accumulated_power_on": {
+          "minutes": 3050064
+        },
+        "lba": 83311,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_14": {
+        "parameter_code": 14,
+        "accumulated_power_on": {
+          "minutes": 3050064
+        },
+        "lba": 83303,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_15": {
+        "parameter_code": 15,
+        "accumulated_power_on": {
+          "minutes": 3050064
+        },
+        "lba": 83302,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_16": {
+        "parameter_code": 16,
+        "accumulated_power_on": {
+          "minutes": 3050064
+        },
+        "lba": 83301,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_17": {
+        "parameter_code": 17,
+        "accumulated_power_on": {
+          "minutes": 3045912
+        },
+        "lba": 83281,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_18": {
+        "parameter_code": 18,
+        "accumulated_power_on": {
+          "minutes": 3045912
+        },
+        "lba": 83279,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_19": {
+        "parameter_code": 19,
+        "accumulated_power_on": {
+          "minutes": 3045912
+        },
+        "lba": 83278,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_20": {
+        "parameter_code": 20,
+        "accumulated_power_on": {
+          "minutes": 3045912
+        },
+        "lba": 83277,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_21": {
+        "parameter_code": 21,
+        "accumulated_power_on": {
+          "minutes": 3045905
+        },
+        "lba": 83187,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_22": {
+        "parameter_code": 22,
+        "accumulated_power_on": {
+          "minutes": 3045905
+        },
+        "lba": 83186,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_23": {
+        "parameter_code": 23,
+        "accumulated_power_on": {
+          "minutes": 3045905
+        },
+        "lba": 83185,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_24": {
+        "parameter_code": 24,
+        "accumulated_power_on": {
+          "minutes": 3045905
+        },
+        "lba": 83184,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_25": {
+        "parameter_code": 25,
+        "accumulated_power_on": {
+          "minutes": 3045900
+        },
+        "lba": 83041,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_26": {
+        "parameter_code": 26,
+        "accumulated_power_on": {
+          "minutes": 3045900
+        },
+        "lba": 83040,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_27": {
+        "parameter_code": 27,
+        "accumulated_power_on": {
+          "minutes": 3045900
+        },
+        "lba": 83039,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_28": {
+        "parameter_code": 28,
+        "accumulated_power_on": {
+          "minutes": 3045900
+        },
+        "lba": 83038,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_29": {
+        "parameter_code": 29,
+        "accumulated_power_on": {
+          "minutes": 3045896
+        },
+        "lba": 82880,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_30": {
+        "parameter_code": 30,
+        "accumulated_power_on": {
+          "minutes": 3045896
+        },
+        "lba": 82879,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_31": {
+        "parameter_code": 31,
+        "accumulated_power_on": {
+          "minutes": 3045896
+        },
+        "lba": 82878,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_32": {
+        "parameter_code": 32,
+        "accumulated_power_on": {
+          "minutes": 3045896
+        },
+        "lba": 82877,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_33": {
+        "parameter_code": 33,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82876,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_34": {
+        "parameter_code": 34,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82868,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_35": {
+        "parameter_code": 35,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82861,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_36": {
+        "parameter_code": 36,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82860,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_37": {
+        "parameter_code": 37,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82828,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_38": {
+        "parameter_code": 38,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82827,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_39": {
+        "parameter_code": 39,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82826,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_40": {
+        "parameter_code": 40,
+        "accumulated_power_on": {
+          "minutes": 3040156
+        },
+        "lba": 82825,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_41": {
+        "parameter_code": 41,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82816,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_42": {
+        "parameter_code": 42,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82811,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_43": {
+        "parameter_code": 43,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82810,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_44": {
+        "parameter_code": 44,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82809,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_45": {
+        "parameter_code": 45,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82799,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_46": {
+        "parameter_code": 46,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82794,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_47": {
+        "parameter_code": 47,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82792,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_48": {
+        "parameter_code": 48,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82791,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_49": {
+        "parameter_code": 49,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82786,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_50": {
+        "parameter_code": 50,
+        "accumulated_power_on": {
+          "minutes": 3040155
+        },
+        "lba": 82784,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_51": {
+        "parameter_code": 51,
+        "accumulated_power_on": {
+          "minutes": 3040151
+        },
+        "lba": 82775,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_52": {
+        "parameter_code": 52,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82774,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_53": {
+        "parameter_code": 53,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82768,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_54": {
+        "parameter_code": 54,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82767,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_55": {
+        "parameter_code": 55,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82742,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_56": {
+        "parameter_code": 56,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82741,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_57": {
+        "parameter_code": 57,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82733,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_58": {
+        "parameter_code": 58,
+        "accumulated_power_on": {
+          "minutes": 3040150
+        },
+        "lba": 82732,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_59": {
+        "parameter_code": 59,
+        "accumulated_power_on": {
+          "minutes": 3040149
+        },
+        "lba": 82709,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_60": {
+        "parameter_code": 60,
+        "accumulated_power_on": {
+          "minutes": 3040149
+        },
+        "lba": 82708,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_61": {
+        "parameter_code": 61,
+        "accumulated_power_on": {
+          "minutes": 3040149
+        },
+        "lba": 82707,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_62": {
+        "parameter_code": 62,
+        "accumulated_power_on": {
+          "minutes": 3040149
+        },
+        "lba": 82706,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_63": {
+        "parameter_code": 63,
+        "accumulated_power_on": {
+          "minutes": 3040148
+        },
+        "lba": 82630,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_64": {
+        "parameter_code": 64,
+        "accumulated_power_on": {
+          "minutes": 3040148
+        },
+        "lba": 82624,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_65": {
+        "parameter_code": 65,
+        "accumulated_power_on": {
+          "minutes": 3040148
+        },
+        "lba": 82623,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_66": {
+        "parameter_code": 66,
+        "accumulated_power_on": {
+          "minutes": 3040148
+        },
+        "lba": 82622,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_67": {
+        "parameter_code": 67,
+        "accumulated_power_on": {
+          "minutes": 3040147
+        },
+        "lba": 82557,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_68": {
+        "parameter_code": 68,
+        "accumulated_power_on": {
+          "minutes": 3040147
+        },
+        "lba": 82556,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_69": {
+        "parameter_code": 69,
+        "accumulated_power_on": {
+          "minutes": 3040147
+        },
+        "lba": 82555,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_70": {
+        "parameter_code": 70,
+        "accumulated_power_on": {
+          "minutes": 3040147
+        },
+        "lba": 82554,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_71": {
+        "parameter_code": 71,
+        "accumulated_power_on": {
+          "minutes": 3040146
+        },
+        "lba": 82504,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_72": {
+        "parameter_code": 72,
+        "accumulated_power_on": {
+          "minutes": 3040146
+        },
+        "lba": 82496,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_73": {
+        "parameter_code": 73,
+        "accumulated_power_on": {
+          "minutes": 3040146
+        },
+        "lba": 82495,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_74": {
+        "parameter_code": 74,
+        "accumulated_power_on": {
+          "minutes": 3040146
+        },
+        "lba": 82494,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_75": {
+        "parameter_code": 75,
+        "accumulated_power_on": {
+          "minutes": 3040145
+        },
+        "lba": 82444,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_76": {
+        "parameter_code": 76,
+        "accumulated_power_on": {
+          "minutes": 3040145
+        },
+        "lba": 82436,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_77": {
+        "parameter_code": 77,
+        "accumulated_power_on": {
+          "minutes": 3040145
+        },
+        "lba": 82435,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_78": {
+        "parameter_code": 78,
+        "accumulated_power_on": {
+          "minutes": 3040145
+        },
+        "lba": 82428,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_79": {
+        "parameter_code": 79,
+        "accumulated_power_on": {
+          "minutes": 3040144
+        },
+        "lba": 82359,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_80": {
+        "parameter_code": 80,
+        "accumulated_power_on": {
+          "minutes": 3040144
+        },
+        "lba": 82358,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_81": {
+        "parameter_code": 81,
+        "accumulated_power_on": {
+          "minutes": 3040144
+        },
+        "lba": 82353,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_82": {
+        "parameter_code": 82,
+        "accumulated_power_on": {
+          "minutes": 3040144
+        },
+        "lba": 82352,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_83": {
+        "parameter_code": 83,
+        "accumulated_power_on": {
+          "minutes": 3040143
+        },
+        "lba": 82315,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_84": {
+        "parameter_code": 84,
+        "accumulated_power_on": {
+          "minutes": 3040143
+        },
+        "lba": 82310,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_85": {
+        "parameter_code": 85,
+        "accumulated_power_on": {
+          "minutes": 3040143
+        },
+        "lba": 82309,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_86": {
+        "parameter_code": 86,
+        "accumulated_power_on": {
+          "minutes": 3040143
+        },
+        "lba": 82308,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_87": {
+        "parameter_code": 87,
+        "accumulated_power_on": {
+          "minutes": 3040142
+        },
+        "lba": 82234,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_88": {
+        "parameter_code": 88,
+        "accumulated_power_on": {
+          "minutes": 3040142
+        },
+        "lba": 82233,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_89": {
+        "parameter_code": 89,
+        "accumulated_power_on": {
+          "minutes": 3040142
+        },
+        "lba": 82232,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_90": {
+        "parameter_code": 90,
+        "accumulated_power_on": {
+          "minutes": 3040141
+        },
+        "lba": 82231,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_91": {
+        "parameter_code": 91,
+        "accumulated_power_on": {
+          "minutes": 3040141
+        },
+        "lba": 82200,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_92": {
+        "parameter_code": 92,
+        "accumulated_power_on": {
+          "minutes": 3040141
+        },
+        "lba": 82199,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_93": {
+        "parameter_code": 93,
+        "accumulated_power_on": {
+          "minutes": 3040141
+        },
+        "lba": 82198,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_94": {
+        "parameter_code": 94,
+        "accumulated_power_on": {
+          "minutes": 3040141
+        },
+        "lba": 82197,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_95": {
+        "parameter_code": 95,
+        "accumulated_power_on": {
+          "minutes": 3040140
+        },
+        "lba": 82183,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_96": {
+        "parameter_code": 96,
+        "accumulated_power_on": {
+          "minutes": 3040140
+        },
+        "lba": 82181,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_97": {
+        "parameter_code": 97,
+        "accumulated_power_on": {
+          "minutes": 3040140
+        },
+        "lba": 82180,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_98": {
+        "parameter_code": 98,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 82114,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_99": {
+        "parameter_code": 99,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 82113,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_100": {
+        "parameter_code": 100,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 81107,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_101": {
+        "parameter_code": 101,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 77447,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_102": {
+        "parameter_code": 102,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 77446,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_103": {
+        "parameter_code": 103,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 77396,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_104": {
+        "parameter_code": 104,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 77379,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_105": {
+        "parameter_code": 105,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 62188,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_106": {
+        "parameter_code": 106,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 61228,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_107": {
+        "parameter_code": 107,
+        "accumulated_power_on": {
+          "minutes": 3040139
+        },
+        "lba": 61227,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      },
+      "result_108": {
+        "parameter_code": 108,
+        "accumulated_power_on": {
+          "minutes": 3040138
+        },
+        "lba": 43699,
+        "sense_key": {
+          "value": 3,
+          "string": "Medium Error"
+        },
+        "asc": 17,
+        "ascq": 0,
+        "reassign_status": {
+          "value": 1,
+          "string": "Require Write or Reassign Blocks command"
+        }
+      }
+    },
+    "power_on_time": {
+      "hours": 53646,
+      "minutes": 56
+    },
+    "scsi_general_statistics_and_performance_log": {
+      "general_access": {
+        "number_of_read_commands": 2615788900,
+        "number_of_write_commands": 978317116,
+        "number_of_logical_blocks_received": 145800629340,
+        "number_of_logical_blocks_transmitted": 651356568908,
+        "read_command_processing_intervals": 0,
+        "write_command_processing_intervals": 0,
+        "weighted_number_of_read_commands_plus_write_commands": 0,
+        "weighted_read_command_processing_plus_write_command_processing": 0
+      },
+      "idle_time": {
+        "idle_time_intervals": 2590018535
+      },
+      "time_interval": {
+        "exponent": 2,
+        "integer": 5
+      }
+    },
+    "scsi_sas_port_0": {
+      "relative_target_port_id": 1,
+      "generation_code": 1,
+      "number_of_phys": 1,
+      "phy_0": {
+        "identifier": 0,
+        "attached_device_type": "SAS or SATA device",
+        "attached_reason": "power on",
+        "reason": "unknown",
+        "negotiated_logical_link_rate": "phy enabled; 6 Gbps",
+        "attached_initiator_port": {
+          "ssp_stp_smp": "111"
+        },
+        "attached_target_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_phy_identifier": 3,
+        "invalid_dword_count": 25,
+        "running_disparity_error_count": 24,
+        "loss_of_dword_synchronization_count": 8,
+        "phy_reset_problem_count": 0
+      }
+    },
+    "scsi_sas_port_1": {
+      "relative_target_port_id": 2,
+      "generation_code": 1,
+      "number_of_phys": 1,
+      "phy_0": {
+        "identifier": 1,
+        "attached_device_type": "no device attached",
+        "attached_reason": "unknown",
+        "reason": "power on",
+        "negotiated_logical_link_rate": "phy enabled; unknown",
+        "attached_initiator_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_target_port": {
+          "ssp_stp_smp": "000"
+        },
+        "attached_phy_identifier": 0,
+        "invalid_dword_count": 0,
+        "running_disparity_error_count": 0,
+        "loss_of_dword_synchronization_count": 0,
+        "phy_reset_problem_count": 0
+      }
+    }
+  }
+}
