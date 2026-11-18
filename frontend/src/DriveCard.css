@@ -302,9 +302,25 @@
 .dc-badge {
   font-size: 10px;
   font-weight: 700;
-  padding: 2px 8px;
+  /* 1px more above than below: the line box keeps room for descenders, so
+     capitals and digits sat high (measured ~1.75px above centre). */
+  padding: 3px 8px 1px;
   border-radius: 99px;
   white-space: nowrap;
+  display: inline-flex;
+  gap: 5px;
+}
+/* The score beside the status, in a small inner pill tinted with the badge's
+   own text colour; the badge's right padding shrinks so the pill sits snug. */
+.dc-badge:has(.dc-badge-score) { padding-right: 2px; }
+.dc-badge-score {
+  font-variant-numeric: tabular-nums;
+  /* Centred in the badge (1px clear top and bottom) while its text stays on
+     the label's line: reaches 2px above the text, none below. */
+  padding: 2px 5px 0;
+  margin: -2px 0 0;
+  border-radius: 99px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
 }
 .dc-badge-green { background: var(--gbg); color: var(--gnb); }
 .dc-badge-warn  { background: var(--wbg); color: var(--wa); }

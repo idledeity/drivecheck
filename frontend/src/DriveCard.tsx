@@ -170,7 +170,10 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
           {drive.label && <span className="dc-label">({drive.label})</span>}
         </div>
-        <span className={`dc-badge dc-badge-${health.bar}`} {...pop.trigger("health")}>{health.label}</span>
+        <span className={`dc-badge dc-badge-${health.bar}`} {...pop.trigger("health")}>
+          <span>{health.label}</span>
+          {drive.health_pct !== null && <span className="dc-badge-score">{drive.health_pct}</span>}
+        </span>
       </div>
 
       {/* Row 2: traits (left) + serial (right) */}
