@@ -12,11 +12,12 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from system_utils import paths
 from drives.drive_models import DriveIOActivity
-from jobs.job_models import Job
+from jobs.job_models import Batch, Job
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +153,24 @@ CREATE TABLE IF NOT EXISTS jobs (
     smart_before_json TEXT,
     smart_after_json  TEXT,
     queue_position    INTEGER, -- Job.queue_position: run order while queued, else NULL
-    summary_log       TEXT     -- Job.summary_log: the run's important output lines, or NULL
+    summary_log       TEXT,    -- Job.summary_log: the run's important output lines, or NULL
+    batch_id          TEXT,    -- Job.batch_id: the batches row of a recipe's step, else NULL
+    batch_step        INTEGER, -- Job.batch_step: the step's index in its drive's plan
+    step_check_json   TEXT     -- Job.step_check: the step's Check as stored data, or NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
+
+-- One row per drive's run of a recipe (jobs.job_models.Batch); its steps are
+-- jobs rows carrying its id. Facts only: the outcome is derived from those jobs.
+CREATE TABLE IF NOT EXISTS batches (
+    id              TEXT PRIMARY KEY,
+    drive_guid      TEXT NOT NULL,
+    recipe          TEXT NOT NULL,
+    params_json     TEXT NOT NULL,
+    stop_on_failure INTEGER NOT NULL,
+    created_at      TEXT NOT NULL
+);
 
 -- Every finished self-test entry seen in a drive's own log (see
 -- record_self_tests), kept after the drive's log rolls it out — ATA's
@@ -226,6 +241,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN queue_position INTEGER")
     if "summary_log" not in job_cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN summary_log TEXT")
+    for col, col_type in (("batch_id", "TEXT"), ("batch_step", "INTEGER"), ("step_check_json", "TEXT")):
+        if col not in job_cols:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {col_type}")
+    # After the batch_id migration: on an older DB the CREATE INDEX in _SCHEMA
+    # can't be there yet (that runs before the column exists).
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_batch_id ON jobs (batch_id) WHERE batch_id IS NOT NULL")
 
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     if version < 1:
@@ -845,8 +866,8 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 id, drive_guid, operation, category, params_json, status,
                 result_json, error, created_at, started_at, finished_at,
                 reattach_json, smart_before_json, smart_after_json, queue_position,
-                summary_log
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                summary_log, batch_id, batch_step, step_check_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.id, job.drive_guid, job.operation, job.category,
@@ -861,8 +882,43 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 json.dumps(job.smart_after) if job.smart_after is not None else None,
                 job.queue_position,
                 job.summary_log,
+                job.batch_id,
+                job.batch_step,
+                json.dumps(job.step_check) if job.step_check is not None else None,
             ),
         )
+
+
+def record_batch(batch: Batch) -> None:
+    """Persist a batch row. Written once, when the recipe is started."""
+    logger.debug("recording batch %s: %s", batch.id[:8], batch.recipe)
+    with _connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO batches (id, drive_guid, recipe, params_json, stop_on_failure, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (batch.id, batch.drive_guid, batch.recipe, json.dumps(batch.params), int(batch.stop_on_failure),
+             batch.created_at.isoformat()),
+        )
+
+
+def get_batches(batch_ids: list[str]) -> dict[str, Batch]:
+    """The batches with these ids, by id; unknown ids are left out."""
+    if not batch_ids:
+        return {}
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(f"SELECT * FROM batches WHERE id IN ({_in(batch_ids)})", batch_ids).fetchall()
+    return {
+        row["id"]: Batch(
+            id=row["id"],
+            drive_guid=row["drive_guid"],
+            recipe=row["recipe"],
+            params=json.loads(row["params_json"]),
+            stop_on_failure=bool(row["stop_on_failure"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+        for row in rows
+    }
 
 
 def set_queue_positions(positions: dict[str, int | None]) -> None:

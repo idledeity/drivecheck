@@ -22,6 +22,7 @@ from drives.collector import probe_registry
 from operations import job_logs
 from operations.operation import ParamError
 from operations.operation_registry import OPERATIONS, discover as discover_operations
+from recipes.recipe_registry import discover as discover_recipes
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
 from analysis.health import score_signals
@@ -64,6 +65,7 @@ _server = None  # set in __main__ before serve_forever(); used by _restart_proce
 cfg.load(_CONFIG_PATH)
 cfg.apply_live()
 discover_operations()
+discover_recipes()  # after operations: recipes name them
 probe_registry.discover()
 
 collector = Collector.from_config()

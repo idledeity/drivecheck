@@ -7,6 +7,14 @@ from operations.operation_registry.OPERATIONS. Dispatch enforces two constraints
     max_parallel is None, this constraint is a no-op -- see _dispatch)
   - at most one running job per drive
 
+Recipes (recipes.recipe) run as batches: create_batches() gives each selected
+drive its own Batch and queues all of its steps at once as ordinary jobs
+tagged with it, so the per-drive FIFO runs them in order. A batch's queued
+steps stay together: they can't be reordered among themselves, and the batch
+moves (move_batch) and cancels (cancel_batch) as one unit. When a step ends
+other than COMPLETED and its batch stops on failure, its remaining steps are
+marked SKIPPED before anything else is dispatched.
+
 Dispatch is event-driven — triggered on job creation and again when a job
 finishes (freeing its drive and/or a worker slot) — so no separate scheduler
 thread is needed.
@@ -30,10 +38,14 @@ from database import db
 
 logger = logging.getLogger(__name__)
 from operations import job_logs
-from operations.operation import OperationBase, OperationCancelled, OperationProgress, ReattachFailed, validate_params
+from operations.operation import (
+    OperationBase, OperationCancelled, OperationProgress, ReattachFailed, validate_params,
+)
 from operations.operation_registry import OPERATIONS
 from drives.drive_models import DriveContext
-from jobs.job_models import Job, JobStatus
+from jobs.job_models import Batch, Job, JobStatus
+from recipes.recipe import Check, PlannedStep, plan_for_drive
+from recipes.recipe_registry import RECIPES
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +101,7 @@ class JobRegistry:
         # and just after each run; None disables snapshots.
         self._capture_smart = capture_smart
         self._jobs: dict[str, Job] = {}
+        self._batches: dict[str, Batch] = {}  # this session's batches, and those of recovered jobs
         self._instances: dict[str, OperationBase] = {}
         self._pending: list[str] = []     # job ids in run order (FIFO unless moved)
         self._running: set[str] = set()   # drive guids with a job currently executing
@@ -164,6 +177,84 @@ class JobRegistry:
             logger.debug("create_jobs: no eligible drive(s) for operation '%s' among %s", operation_key, guids)
         return created
 
+    def create_batches(
+        self, guids: list[str], recipe_key: str, params: dict, stop_on_failure: bool | None = None,
+    ) -> list[tuple[Batch, list[Job]]] | None:
+        """Start a recipe: one Batch per drive, with every step's job queued up front.
+
+        Returns None if recipe_key is unknown; raises ParamError if params don't
+        fit the recipe's ParamSpecs, and RecipeError if the recipe's plan is
+        invalid (a bug in the recipe — nothing is queued). stop_on_failure None
+        takes the recipe's default. Drives that are unknown, that the recipe
+        doesn't support, or that can't run a step marked if_unsupported="fail"
+        get no batch, so the list may be shorter than `guids` (or empty). Steps
+        the drive can't run that are marked "skip" are recorded as SKIPPED
+        jobs, so each batch shows its plan in full.
+        """
+        recipe_cls = RECIPES.get(recipe_key)
+        if recipe_cls is None:
+            logger.debug("create_batches: unknown recipe '%s'", recipe_key)
+            return None
+        merged_params = validate_params(recipe_cls.params, params)
+        recipe = recipe_cls()
+        stop = recipe_cls.stop_on_failure if stop_on_failure is None else bool(stop_on_failure)
+
+        # Plan every drive before queueing anything, so a bad plan leaves no
+        # half-created batches behind.
+        plans: list[tuple[str, list[PlannedStep]]] = []
+        for guid in guids:
+            context = self._get_context(guid)
+            if context is None or not recipe_cls.supports(context):
+                continue
+            planned = plan_for_drive(recipe_key, recipe, context, merged_params, OPERATIONS)
+            if planned is not None:
+                plans.append((guid, planned))
+
+        created: list[tuple[Batch, list[Job]]] = []
+        with self._lock:
+            for guid, planned in plans:
+                batch = Batch(id=str(uuid.uuid4()), drive_guid=guid, recipe=recipe_key,
+                              params=dict(merged_params), stop_on_failure=stop)
+                db.record_batch(batch)
+                self._batches[batch.id] = batch
+                created.append((batch, [self._add_step(batch, index, planned_step)
+                                        for index, planned_step in enumerate(planned)]))
+            self._dispatch()
+        if created:
+            logger.info("recipe '%s' queued %d batch(es): %s", recipe_key, len(created),
+                        ", ".join(f"{b.id[:8]} on {b.drive_guid} ({len(jobs)} steps)" for b, jobs in created))
+        else:
+            logger.debug("create_batches: no eligible drive(s) for recipe '%s' among %s", recipe_key, guids)
+        return created
+
+    def _add_step(self, batch: Batch, index: int, planned_step: PlannedStep) -> Job:
+        """Create one step's job: queued, or SKIPPED if the drive can't run it.
+        Caller holds self._lock."""
+        step = planned_step.step
+        job = Job(
+            id=str(uuid.uuid4()),
+            drive_guid=batch.drive_guid,
+            operation=step.operation,
+            category=planned_step.operation.category,
+            params=planned_step.params,
+            batch_id=batch.id,
+            batch_step=index,
+            step_check=step.check.to_dict() if step.check is not None else None,
+        )
+        self._jobs[job.id] = job
+        if planned_step.supported:
+            instance = planned_step.operation()
+            self._prepare_instance(instance, job)
+            self._instances[job.id] = instance
+            self._pending.append(job.id)
+            job.queue_position = len(self._pending) - 1
+        else:
+            job.status = JobStatus.SKIPPED
+            job.finished_at = job.created_at
+            job.error = "Not supported on this drive"
+        db.record_job(job)
+        return job
+
     def recover(self) -> None:
         """Restore QUEUED and RUNNING jobs from the previous process run.
 
@@ -179,33 +270,35 @@ class JobRegistry:
 
         recovered_queued = 0
         recovered_running = 0
-        interrupted_immediately = 0
+        interrupted: list[Job] = []
+
+        batch_ids = sorted({row["batch_id"] for row in rows if row["batch_id"]})
+        self._batches.update(db.get_batches(batch_ids))
 
         for row in rows:
             try:
-                self._recover_one(row)
-                if row["status"] == JobStatus.QUEUED.value:
+                job = self._recover_one(row)
+                if job.status == JobStatus.INTERRUPTED:
+                    interrupted.append(job)
+                elif job.status == JobStatus.QUEUED:
                     recovered_queued += 1
                 else:
                     recovered_running += 1
             except Exception:
                 logger.exception("unexpected error recovering job %s — marking interrupted", row["id"][:8])
-                self._mark_interrupted_by_id(
-                    row["id"], row["drive_guid"], row["operation"],
-                    row["category"], row["params_json"],
-                    row["created_at"], row["started_at"],
-                    "Unexpected error during recovery",
-                    smart_before_json=row["smart_before_json"],
-                )
-                interrupted_immediately += 1
+                interrupted.append(self._mark_interrupted(row, "Unexpected error during recovery"))
 
         with self._lock:
+            # Only now that every row is loaded: a batch's later steps may come
+            # after its interrupted one.
+            for job in interrupted:
+                self._stop_chain_if_failed(job)
             self._renumber_queue()
             self._dispatch()
 
         logger.info(
             "job recovery: %d queued re-enqueued, %d running resumed, %d interrupted immediately",
-            recovered_queued, recovered_running, interrupted_immediately,
+            recovered_queued, recovered_running, len(interrupted),
         )
 
     def list_jobs(self) -> list[Job]:
@@ -250,6 +343,7 @@ class JobRegistry:
                 job.status = JobStatus.CANCELLED
                 job.finished_at = datetime.now()
                 logger.info("job %s cancelled while queued: %s", job.id[:8], job.operation)
+                self._stop_chain_if_failed(job)
             elif job.status == JobStatus.RUNNING:
                 self._instances[job_id].cancel()
                 logger.info("job %s cancel requested: %s", job.id[:8], job.operation)
@@ -261,13 +355,13 @@ class JobRegistry:
         return True
 
     def move_job(self, job_id: str, direction: int) -> bool | None:
-        """Swap a queued job with the next queued job for the same drive, earlier
-        (direction -1) or later (+1) in the run order.
+        """Move a queued job one place earlier (direction -1) or later (+1)
+        among its drive's queued jobs, passing a whole batch as one place.
 
-        Returns None if job_id isn't a queued job, False if it is already first
-        or last among its drive's queued jobs, True once moved. Order across
-        drives stays first-in, first-out: a job for an idle drive still starts
-        ahead of jobs waiting on a busy one.
+        Returns None if job_id isn't a queued job, False if it is a batch step
+        (move its batch instead) or already first or last, True once moved.
+        Order across drives stays first-in, first-out: a job for an idle drive
+        still starts ahead of jobs waiting on a busy one.
         """
         if direction not in (-1, 1):
             raise ValueError("direction must be -1 or 1")
@@ -275,17 +369,57 @@ class JobRegistry:
             job = self._jobs.get(job_id)
             if job is None or job.status != JobStatus.QUEUED:
                 return None
-            i = self._pending.index(job_id)
-            same_drive = [k for k, jid in enumerate(self._pending) if self._jobs[jid].drive_guid == job.drive_guid]
-            pos = same_drive.index(i) + direction
-            if not 0 <= pos < len(same_drive):
+            if job.batch_id is not None:
                 return False
-            j = same_drive[pos]
-            self._pending[i], self._pending[j] = self._pending[j], self._pending[i]
-            self._renumber_queue()
-            self._dispatch()
-        logger.info("job %s moved %s: %s", job_id[:8], "up" if direction < 0 else "down", job.operation)
-        return True
+            moved = self._move_unit(job.drive_guid, lambda unit: unit == [job_id], direction)
+        if moved:
+            logger.info("job %s moved %s: %s", job_id[:8], "up" if direction < 0 else "down", job.operation)
+        return moved
+
+    def move_batch(self, batch_id: str, direction: int) -> bool | None:
+        """Move a batch's queued steps, together, one place earlier (-1) or
+        later (+1) among its drive's queued jobs, passing a whole batch as one
+        place. A step already running stays put.
+
+        Returns None if batch_id isn't a batch with queued steps, False if it
+        is already first or last, True once moved.
+        """
+        if direction not in (-1, 1):
+            raise ValueError("direction must be -1 or 1")
+        with self._lock:
+            batch = self._batches.get(batch_id)
+            if batch is None:
+                return None
+            moved = self._move_unit(batch.drive_guid,
+                                    lambda unit: self._jobs[unit[0]].batch_id == batch_id, direction)
+        if moved:
+            logger.info("batch %s moved %s", batch_id[:8], "up" if direction < 0 else "down")
+        return moved
+
+    def cancel_batch(self, batch_id: str) -> int | None:
+        """Cancel a batch: its queued steps at once, its running one as it stops.
+        Returns how many steps that cancels, or None if batch_id isn't a batch
+        this session knows."""
+        with self._lock:
+            if batch_id not in self._batches:
+                logger.debug("cancel_batch: unknown batch %s", batch_id)
+                return None
+            steps = [j for j in self._jobs.values() if j.batch_id == batch_id]
+            queued = [j for j in steps if j.status == JobStatus.QUEUED]
+            running = [j for j in steps if j.status == JobStatus.RUNNING]
+            now = datetime.now()
+            for job in queued:
+                self._pending.remove(job.id)
+                job.queue_position = None
+                job.status = JobStatus.CANCELLED
+                job.finished_at = now
+                db.record_job(job)
+            if queued:
+                self._renumber_queue()
+            for job in running:
+                self._instances[job.id].cancel()
+        logger.info("batch %s cancelled: %d queued, %d running", batch_id[:8], len(queued), len(running))
+        return len(queued) + len(running)
 
     def shutdown(self) -> None:
         """Allow any in-flight jobs to finish on their own, without blocking shutdown.
@@ -318,6 +452,81 @@ class JobRegistry:
         logger.debug("job %s: SMART snapshot %s the run: %s", job.id[:8], when,
                      "reused" if (snapshot or {}).get("reused") else "taken")
         return snapshot
+
+    def _queue_units(self, guid: str) -> list[list[str]]:
+        """A drive's queued job ids in run order, grouped into the units they
+        move as: a standalone job alone, a batch's queued steps together.
+        Caller holds self._lock."""
+        units: list[list[str]] = []
+        for jid in self._pending:
+            job = self._jobs[jid]
+            if job.drive_guid != guid:
+                continue
+            if job.batch_id is not None and units and self._jobs[units[-1][0]].batch_id == job.batch_id:
+                units[-1].append(jid)
+            else:
+                units.append([jid])
+        return units
+
+    def _move_unit(self, guid: str, is_unit: Callable[[list[str]], bool], direction: int) -> bool | None:
+        """Swap the drive's queue unit matching is_unit with its neighbour in
+        `direction`. The drive's jobs keep the places in the run order they
+        held, just refilled in the new order, so other drives' jobs don't move.
+        Returns None if no unit matches, False if there is no neighbour, True
+        once moved. Caller holds self._lock."""
+        units = self._queue_units(guid)
+        index = next((k for k, unit in enumerate(units) if is_unit(unit)), None)
+        if index is None:
+            return None
+        other = index + direction
+        if not 0 <= other < len(units):
+            return False
+        units[index], units[other] = units[other], units[index]
+        reordered = iter([jid for unit in units for jid in unit])
+        self._pending = [next(reordered) if self._jobs[jid].drive_guid == guid else jid for jid in self._pending]
+        self._renumber_queue()
+        self._dispatch()
+        return True
+
+    def _stop_chain_if_failed(self, job: Job) -> None:
+        """If a batch step ended other than COMPLETED and its batch stops on
+        failure, mark the batch's remaining queued steps SKIPPED. Caller holds
+        self._lock, so none of them can be dispatched first. A batch whose row
+        is missing counts as stopping on failure."""
+        assert self._lock.locked(), "_stop_chain_if_failed called without holding self._lock"
+        if job.batch_id is None or job.status in (JobStatus.COMPLETED, JobStatus.SKIPPED,
+                                                  JobStatus.QUEUED, JobStatus.RUNNING):
+            return
+        batch = self._batches.get(job.batch_id)
+        if batch is not None and not batch.stop_on_failure:
+            return
+        rest = [self._jobs[jid] for jid in self._pending if self._jobs[jid].batch_id == job.batch_id]
+        if not rest:
+            return
+        op_cls = OPERATIONS.get(job.operation)
+        step_name = op_cls.name if op_cls is not None else job.operation
+        reason = f"Not run: step {job.batch_step + 1} ({step_name}) {job.status.value}"
+        now = datetime.now()
+        for later in rest:
+            self._pending.remove(later.id)
+            later.queue_position = None
+            later.status = JobStatus.SKIPPED
+            later.finished_at = now
+            later.error = reason
+            db.record_job(later)
+        self._renumber_queue()
+        logger.info("batch %s: %d later step(s) skipped — %s", job.batch_id[:8], len(rest), reason)
+
+    @staticmethod
+    def _run_check(job: Job) -> str | None:
+        """Evaluate a finished step's Check: None if it passes, else why not.
+        A check that can't be rebuilt or raises fails the step — it was asked
+        to vouch for the drive and couldn't."""
+        try:
+            return Check.from_dict(job.step_check).evaluate(job)
+        except Exception as e:
+            logger.warning("job %s: step check %r could not run: %s", job.id[:8], job.step_check, e)
+            return f"Step check could not run: {e or type(e).__name__}"
 
     def _prepare_instance(self, instance: OperationBase, job: Job) -> None:
         """Wire job-id and the reattach-persist callback onto a fresh operation instance."""
@@ -375,6 +584,7 @@ class JobRegistry:
         instance = self._instances[job.id]
         context = self._get_context(job.drive_guid)
         started = False
+        completed = False
         try:
             if context is None:
                 raise RuntimeError("drive no longer present")
@@ -391,8 +601,11 @@ class JobRegistry:
                 job.result = instance.reattach(context, job.params, reattach_data)
             else:
                 job.result = instance.run(context, job.params)
-            job.status = JobStatus.COMPLETED
-            logger.info("job %s completed: %s", job.id[:8], job.operation)
+            completed = True
+            if job.step_check is None:
+                job.status = JobStatus.COMPLETED
+                logger.info("job %s completed: %s", job.id[:8], job.operation)
+            # else: stays RUNNING until its check (below) decides the outcome
         except OperationCancelled:
             job.status = JobStatus.CANCELLED
             logger.info("job %s cancelled: %s", job.id[:8], job.operation)
@@ -409,54 +622,42 @@ class JobRegistry:
             job.summary_log = job_logs.limit_summary(summary, job.id)
         if started and not self._shutting_down:
             job.smart_after = self._snapshot(job, "after")
+        # While shutting down there's no "after" snapshot to judge and nothing
+        # is saved: the row stays RUNNING, so the next start resumes the step
+        # (or interrupts it) and its check runs then.
+        if completed and job.step_check is not None and not self._shutting_down:
+            if (reason := self._run_check(job)) is not None:
+                job.status = JobStatus.FAILED
+                job.error = reason
+                logger.warning("job %s failed its step check: %s — %s", job.id[:8], job.operation, reason)
+            else:
+                job.status = JobStatus.COMPLETED
+                logger.info("job %s completed and passed its step check: %s", job.id[:8], job.operation)
 
         with self._lock:
             self._running.discard(job.drive_guid)
             if not self._shutting_down:
+                self._stop_chain_if_failed(job)
                 self._dispatch()
         if not self._shutting_down:
             db.record_job(job)
 
-    def _recover_one(self, row) -> None:
-        """Attempt to recover a single active job row from the previous run."""
+    def _recover_one(self, row) -> Job:
+        """Recover a single active job row from the previous run. Returns the
+        job: re-enqueued, submitted for reattach, or marked INTERRUPTED."""
         job_id = row["id"]
 
         op_cls = OPERATIONS.get(row["operation"])
         if op_cls is None:
             logger.warning("job %s: operation '%s' no longer available — marking interrupted", job_id[:8], row["operation"])
-            self._mark_interrupted_by_id(
-                job_id, row["drive_guid"], row["operation"],
-                row["category"], row["params_json"],
-                row["created_at"], row["started_at"],
-                f"Operation '{row['operation']}' is no longer available",
-                smart_before_json=row["smart_before_json"],
-            )
-            return
+            return self._mark_interrupted(row, f"Operation '{row['operation']}' is no longer available")
 
         context = self._get_context(row["drive_guid"])
         if context is None:
             logger.warning("job %s: drive %s not present after restart — marking interrupted", job_id[:8], row["drive_guid"])
-            self._mark_interrupted_by_id(
-                job_id, row["drive_guid"], row["operation"],
-                row["category"], row["params_json"],
-                row["created_at"], row["started_at"],
-                "Drive not present after restart",
-                smart_before_json=row["smart_before_json"],
-            )
-            return
+            return self._mark_interrupted(row, "Drive not present after restart")
 
-        job = Job(
-            id=job_id,
-            drive_guid=row["drive_guid"],
-            operation=row["operation"],
-            category=row["category"],
-            params=json.loads(row["params_json"]),
-            status=JobStatus(row["status"]),
-            created_at=datetime.fromisoformat(row["created_at"]),
-            started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
-            smart_before=_json_or_none(row["smart_before_json"]),
-        )
-
+        job = _job_from_row(row)
         instance = op_cls()
         self._prepare_instance(instance, job)
 
@@ -476,31 +677,33 @@ class JobRegistry:
                 self._running.add(job.drive_guid)
                 self._executor.submit(self._execute, job, reattach_data)
                 logger.info("job %s submitted for reattach: %s", job.id[:8], job.operation)
+        return job
 
-    def _mark_interrupted_by_id(
-        self,
-        job_id: str,
-        drive_guid: str,
-        operation: str,
-        category: str,
-        params_json: str,
-        created_at_iso: str,
-        started_at_iso: str | None,
-        error_message: str,
-        smart_before_json: str | None = None,
-    ) -> None:
-        """Write an INTERRUPTED terminal record for a job that can't be reconstructed."""
-        job = Job(
-            id=job_id,
-            drive_guid=drive_guid,
-            operation=operation,
-            category=category,
-            params=json.loads(params_json),
-            status=JobStatus.INTERRUPTED,
-            error=error_message,
-            created_at=datetime.fromisoformat(created_at_iso),
-            started_at=datetime.fromisoformat(started_at_iso) if started_at_iso else None,
-            finished_at=datetime.now(),
-            smart_before=_json_or_none(smart_before_json),
-        )
+    @staticmethod
+    def _mark_interrupted(row, error_message: str) -> Job:
+        """Write an INTERRUPTED terminal record for a job that can't be resumed."""
+        job = _job_from_row(row)
+        job.status = JobStatus.INTERRUPTED
+        job.error = error_message
+        job.finished_at = datetime.now()
+        job.queue_position = None
         db.record_job(job)
+        return job
+
+
+def _job_from_row(row) -> Job:
+    """The Job an active jobs row describes (as restart recovery needs it)."""
+    return Job(
+        id=row["id"],
+        drive_guid=row["drive_guid"],
+        operation=row["operation"],
+        category=row["category"],
+        params=json.loads(row["params_json"]),
+        status=JobStatus(row["status"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+        smart_before=_json_or_none(row["smart_before_json"]),
+        batch_id=row["batch_id"],
+        batch_step=row["batch_step"],
+        step_check=_json_or_none(row["step_check_json"]),
+    )

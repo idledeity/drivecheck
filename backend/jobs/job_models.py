@@ -19,6 +19,21 @@ class JobStatus(Enum):
     FAILED      = "failed"
     CANCELLED   = "cancelled"
     INTERRUPTED = "interrupted"  # was RUNNING at last shutdown; could not be confirmed or resumed
+    SKIPPED     = "skipped"      # a batch step that never ran: an earlier step failed, or the drive can't run it
+
+
+@dataclass
+class Batch:
+    """One drive's run of a recipe: a block of steps (ordinary Jobs carrying
+    its id) that queue together, keep their order, and move and cancel as one.
+    Starting a recipe on several drives makes one batch per drive. Facts only —
+    the batch's outcome is derived from its jobs when served."""
+    id: str
+    drive_guid: str
+    recipe: str           # RECIPES registry key, e.g. "initial_scan"
+    params: dict          # the recipe's own params, validated
+    stop_on_failure: bool # a step that doesn't complete skips the batch's remaining steps
+    created_at: datetime = field(default_factory=datetime.now)
 
 
 @dataclass
@@ -51,3 +66,9 @@ class Job:
     # set when the job ends; None for operations that keep no summary. Stored in
     # the row so it outlives the raw log file.
     summary_log: str | None = None
+    # Set on a recipe's steps: the Batch they belong to, the step's index in
+    # its drive's plan (0-based), and the step's Check as stored data
+    # (recipes.recipe.Check.to_dict), if it has one.
+    batch_id: str | None = None
+    batch_step: int | None = None
+    step_check: dict | None = None
