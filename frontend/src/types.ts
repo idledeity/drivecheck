@@ -142,7 +142,12 @@ export type SmartDetailResponse = {
   /** The read's own signals, flags and health score; null for a read stored without signals. */
   signals: SmartSignals | null
   signal_flags: Record<string, "ok" | "warn" | "crit"> | null
-  health: { health_pct: number | null; health_status: Drive["health_status"] } | null
+  health: {
+    health_pct: number | null
+    health_status: Drive["health_status"]
+    factors?: HealthFactor[]
+    floor?: number | null
+  } | null
   detail: SmartDetail | null
   self_test_log: SmartAttributeRow[]
 }

@@ -8,6 +8,7 @@ import SmartPanel, { SmartReadLine, SmartSummary } from "./SmartPage"
 import { useSmartDetail } from "./smartDetail"
 import ReadSmartButton from "./ReadSmartButton"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
+import HealthFactors, { formatPoints } from "./HealthFactors"
 import TrendsPanel from "./TrendsPanel"
 import "./HealthTab.css"
 
@@ -147,6 +148,8 @@ function DriveReport({ drive, onOpenSmart, onShown }: {
 
           <h4 className="rep-section-title">Health</h4>
           <HealthScoreBar score={data.health?.health_pct ?? null} status={data.health?.health_status ?? null} />
+          <HealthFactors factors={data.health?.factors ?? []} floor={data.health?.floor ?? null}
+                         scored={data.health?.health_pct != null} />
 
           <h4 className="rep-section-title">Signals</h4>
           <div className="rep-signals">
@@ -207,6 +210,8 @@ function buildReportText(drive: Drive, data: SmartDetailResponse | null): string
     `Full SMART read: ${formatTimestamp(data.captured_at)}`,
     ``,
     `Health: ${health?.health_pct != null ? `${health.health_pct}/100` : "Unrated"} (${health?.health_status ?? "Unrated"})`,
+    ...(health?.factors ?? []).map(f => `  ${f.label}: ${f.value} (${f.role === "start" ? "starts at " : ""}${formatPoints(f)})`),
+    ...(health?.floor != null ? [`  Held at ${health.floor}: age, wear and heat alone don't lower it further`] : []),
     `SMART:  ${passed === true ? "Passed" : passed === false ? "Failed" : "—"}`,
     ``,
     `Signals:`,

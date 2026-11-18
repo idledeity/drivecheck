@@ -335,7 +335,7 @@ describe('popovers (click-only / no-hover device)', () => {
     await userEvent.click(screen.getByText('Degraded'))
     const popover = document.querySelector('.dc-popover')!
     expect(popover).toHaveTextContent('87')
-    expect(popover).toHaveTextContent('No flagged signals')
+    expect(popover).toHaveTextContent('Nothing lowers the score')
     expect(popover).toHaveTextContent('Health score')       // and its history under the overview
     expect(onSelectToggle).not.toHaveBeenCalled()
   })

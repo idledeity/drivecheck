@@ -20,24 +20,41 @@ describe('HealthTab', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('shows health score and flagged signals for a selected drive', () => {
+  it('shows the health score and what made it for a selected drive', () => {
     const drive = makeDrive({
       guid: 'd1',
-      health_pct: 85,
+      health_pct: 69,
       health_status: 'Degraded',
-      signal_flags: { reallocated: 'warn', temp: 'ok' },
-      reallocated: 3,
+      health_factors: [
+        { key: 'reallocated', kind: 'media', label: 'Reallocated sectors', signal: 'reallocated', value: '10',
+          standalone: 69, weight: 0.3, role: 'start', points: 69 },
+        { key: 'power_on_hours', kind: 'wear', label: 'Power-on hours', signal: 'power_on_hours', value: '60,000 h',
+          standalone: 93, weight: 0.2, role: 'adds', points: -0.03 },
+      ],
     })
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('85')).toBeInTheDocument()
+    expect(screen.getByText('69', { selector: '.hov-score-num' })).toBeInTheDocument()
     expect(screen.getByText('Degraded')).toBeInTheDocument()
-    expect(screen.getByText(/Realloc/)).toBeInTheDocument()
+    expect(screen.getByText('Reallocated sectors').closest('.hf')).toHaveTextContent(
+      'Reallocated sectors1069Power-on hours60,000 h−<0.1')
   })
 
-  it('shows "No flagged signals" when all signals are ok', () => {
+  it('says nothing lowers the score of a clean drive, and what Healthy means', async () => {
     const drive = makeDrive({ guid: 'd1', health_pct: 100, health_status: 'Healthy' })
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('No flagged signals')).toBeInTheDocument()
+    expect(screen.getByText('Nothing lowers the score')).toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText('About this health status'))
+    expect(screen.getByText(/^Healthy: No sign of trouble/)).toBeInTheDocument()
+  })
+
+  it('says when age or wear alone held the score up', () => {
+    const drive = makeDrive({
+      guid: 'd1', health_pct: 80, health_status: 'Aging', health_floor: 80,
+      health_factors: [{ key: 'power_on_hours', kind: 'wear', label: 'Power-on hours', signal: 'power_on_hours',
+                         value: '200,000 h', standalone: 82, weight: 0.2, role: 'start', points: 82 }],
+    })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    expect(screen.getByText(/^Held at 80/)).toBeInTheDocument()
   })
 
   it('fetches SMART data for selected drives when report tab is opened', async () => {

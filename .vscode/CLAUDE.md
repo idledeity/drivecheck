@@ -526,6 +526,11 @@ scorer today, no settings UI yet):
   (`analysis/stored_facts.py`, cached by snapshot id + captured_at).
 - API: `/api/drives` `health_factors` / `health_floor`; snapshot `health`
   carries `factors` / `floor`.
+- UI: `HealthFactors` (Overview, card health popover, Report + its copied
+  text) lists them worst first — start score, then each one's points. The
+  score bar's (i) gives the status's meaning and a rough failure-rate range
+  (`healthBands.ts`, sourced: Backblaze 2025 / 2016, Google FAST 2007; ranges,
+  not a calibrated prediction).
 
 ### DriveVitals
 Cheap, high-rate readings (temperature + disk IO activity) collected on the
