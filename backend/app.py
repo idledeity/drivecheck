@@ -30,7 +30,7 @@ from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
 from analysis.smart_detail import build_smart_detail
 from analysis.smart_delta import compare_signals
-from analysis.self_tests import build_self_tests
+from analysis.self_tests import build_self_tests, recent_hours
 from database import db
 from settings import user_settings
 
@@ -197,9 +197,9 @@ def _stale_after() -> dict:
     }
 
 
-def _self_test_coverage(rows: list[dict], power_on_hours, latest_read_at) -> dict:
-    view = build_self_tests(rows, power_on_hours, latest_read_at)
-    return {"last_extended": view["last_extended"], "hours_reset": view["hours_reset"]}
+def _self_test_coverage(rows: list[dict], power_on_hours, recent: dict, latest_read_at: str | None) -> dict:
+    view = build_self_tests(rows, power_on_hours, recent, latest_read_at)
+    return {k: view[k] for k in ("latest", "hours_reset", "log_seen_at", "log_missing")}
 
 
 @app.route("/api/drives")
@@ -208,6 +208,7 @@ def drives():
     stale_after = _stale_after()
     states = collector.get_drive_states()
     self_tests = db.get_self_tests([s.context.guid for s in states])
+    recent = recent_hours()
     result = []
     for state in states:
         ctx = state.context
@@ -250,10 +251,10 @@ def drives():
             "health_floor": health.floor,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
             "last_full_read_at": collector.last_full_read_at(ctx.guid),
-            # Coverage, not health: the latest extended self-test seen in the
-            # drive's log, kept past the log's rollover (analysis.self_tests).
+            # Coverage, not health: the latest finished self-test of each kind
+            # seen in the drive's log, kept past its rollover (analysis.self_tests).
             "self_test_coverage": _self_test_coverage(
-                self_tests[ctx.guid], signals.power_on_hours, collector.last_full_read_at(ctx.guid)),
+                self_tests[ctx.guid], signals.power_on_hours, recent, collector.last_full_read_at(ctx.guid)),
             "stale_after_s": stale_after,
             "is_mounted": state.attachment.is_mounted,
             "label": state.label,
@@ -363,7 +364,8 @@ def drive_smart_detail(guid):
         "detail": build_smart_detail(smartctl) if smartctl else None,
         "self_test_log": raw.get("self_test_log", []),
         "self_tests": build_self_tests(
-            db.get_self_tests([guid])[guid], (raw.get("signals") or {}).get("power_on_hours"), row["captured_at"]),
+            db.get_self_tests([guid])[guid], (raw.get("signals") or {}).get("power_on_hours"),
+            latest_read_at=row["captured_at"]),
     })
 
 

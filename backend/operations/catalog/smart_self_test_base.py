@@ -181,6 +181,7 @@ class SmartSelfTestOperation(OperationBase):
         reader = self._reader
         first_poll = True
         unconfirmed_polls = 0
+        log_seen = bool(self._log_before_start)
         while True:
             if self._cancel_event.wait(_POLL_INTERVAL_SECONDS):
                 with ProbeTimeout(_SMARTCTL_CALL_TIMEOUT_SECONDS):
@@ -205,13 +206,20 @@ class SmartSelfTestOperation(OperationBase):
 
             # A finished-looking status may still be the previous test's result
             # if the drive hasn't registered ours yet — only accept it with proof.
-            if not self._seen_running and not _log_has_new_entry(self._log_before_start, reader.log(data)):
+            log = reader.log(data)
+            log_seen = log_seen or bool(log)
+            if not self._seen_running and not _log_has_new_entry(self._log_before_start, log):
                 unconfirmed_polls += 1
                 if unconfirmed_polls >= _UNCONFIRMED_POLL_LIMIT:
                     self._message = "Failed"
+                    # An empty log throughout is worth saying: the drive may not
+                    # be returning its log at all (a failing SAS drive whose log
+                    # page fails smartctl's sanity check), not just missing ours.
+                    log_text = ("no new self-test log entry appeared" if log_seen else
+                                "the drive's self-test log listed no tests at all, old or new")
                     raise RuntimeError(
                         f"could not confirm the self-test ran on {device}: it was never reported "
-                        f"in progress and no new self-test log entry appeared (status: {status.result})"
+                        f"in progress and {log_text} (status: {status.result})"
                     )
                 self._message = "Waiting for the drive to report the test"
                 continue

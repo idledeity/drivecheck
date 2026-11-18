@@ -6,6 +6,7 @@ import DriveCard from './DriveCard'
 import { JobsContext } from './jobsContext'
 import ConfirmProvider from './ConfirmProvider'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
+import type { SelfTestCoverage, SelfTestEntry } from './types'
 
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -560,15 +561,18 @@ describe('reading ages', () => {
   const ago = (s: number) => new Date(Date.now() - s * 1000).toISOString()
   const vitals = (s: number) => ({ ...makeDrive().vitals, temp: 34, captured_at: ago(s) })
 
-  it('dates the footer stats with their SMART read', () => {
+  it('dates the footer stats with their SMART read in the self-test popover', async () => {
     renderCard({ drive: makeDrive({ last_polled_at: ago(12 * 60) }) })
-    const age = screen.getByText('12m ago')
-    expect(age.closest('.dc-asof')).toHaveTextContent('SMART12m ago')
+    expect(document.querySelector('.dc-ft .asof')).toBeNull()      // not on the card itself
+    await userEvent.click(screen.getByText('Self-tests'))
+    const age = within(document.querySelector('.dc-popover') as HTMLElement).getByText('12m ago')
+    expect(age.closest('.stl-pop-read')).toHaveTextContent('SMART read12m ago')
     expect(age).not.toHaveClass('asof-stale')
   })
 
-  it('marks the SMART age overdue past the smart threshold', () => {
+  it('marks the SMART age overdue past the smart threshold', async () => {
     renderCard({ drive: makeDrive({ last_polled_at: ago(3 * 3600), stale_after_s: { vitals: 60, smart: 3600 } }) })
+    await userEvent.click(screen.getByText('Self-tests'))
     expect(screen.getByText('3h ago')).toHaveClass('asof-stale')
   })
 
@@ -584,5 +588,61 @@ describe('reading ages', () => {
       onSelect={vi.fn()} onSelectToggle={vi.fn()} queuedJobs={[]} />)
     expect(container.querySelector('.dc-state .asof-stale')).toHaveTextContent('5m ago')
     expect(container.querySelector('.dc-io')).toHaveClass('stale')
+  })
+})
+
+describe('self-test lights', () => {
+  const entry = (over: Partial<SelfTestEntry & { recent: boolean | null }> = {}) => ({
+    protocol: 'ata' as const, type_code: 2, type: 'Extended offline', kind: 'long' as const,
+    result: 'Completed without error', drive_report: 'ok' as const, hours: 900, age_hours: 100,
+    in_drive_log: true, lba_first_failure: null, first_seen_at: '2026-01-01T00:00:00',
+    last_seen_at: '2026-01-01T00:00:00', recent: true, ...over,
+  })
+  const coverage = (latest: Partial<SelfTestCoverage['latest']>, hours_reset = false, log_missing = false): SelfTestCoverage =>
+    ({ latest: { short: null, conveyance: null, long: null, ...latest }, hours_reset,
+       log_seen_at: log_missing ? '2026-11-15T07:00:00' : null, log_missing })
+  const lights = () => [...document.querySelectorAll('.dc-tests .stl-led')].map(l => l.className.replace('stl-led ', ''))
+
+  it('shows an empty ring for a kind never run', () => {
+    renderCard()
+    expect(lights()).toEqual(['stl-none', 'stl-none'])
+  })
+
+  it('is green when recent, dim when not, red when the latest failed', () => {
+    renderCard({ drive: makeDrive({ self_test_coverage: coverage({
+      short: entry({ kind: 'short', recent: false }),
+      long: entry({ drive_report: 'failed', recent: true }),
+    }) }) })
+    expect(lights()).toEqual(['stl-idle', 'stl-fail'])
+    cleanup()
+    renderCard({ drive: makeDrive({ self_test_coverage: coverage({ short: entry({ kind: 'short' }) }) }) })
+    expect(lights()).toEqual(['stl-pass', 'stl-none'])
+  })
+
+  it('turns amber, except a known failure, when the drive stopped returning its log', async () => {
+    renderCard({ drive: makeDrive({ self_test_coverage: coverage({
+      short: entry({ kind: 'short', recent: true }),
+      long: entry({ drive_report: 'failed' }),
+    }, false, true) }) })
+    expect(lights()).toEqual(['stl-unknown', 'stl-fail'])
+    await userEvent.click(screen.getByText('Self-tests'))
+    const pop = document.querySelector('.dc-popover') as HTMLElement
+    expect(pop).toHaveTextContent("The drive hasn't returned its self-test log since")
+    expect(pop).not.toHaveTextContent("no longer in the drive's log")
+  })
+
+  it('lists every kind in the popover, with ages and tests the drive no longer holds', async () => {
+    renderCard({ drive: makeDrive({ self_test_coverage: coverage({
+      long: entry({ age_hours: 3350, in_drive_log: false }),
+      short: entry({ kind: 'short', age_hours: null, recent: null }),
+    }, true) }) })
+    await userEvent.click(screen.getByText('Self-tests'))
+    const pop = document.querySelector('.dc-popover') as HTMLElement
+    const row = (label: string) => within(pop).getByText(label).closest('.stl-row')!
+    expect(row('Long (Extended)')).toHaveTextContent('Completed without error3,350 h ago')
+    expect(row('Long (Extended)')).toHaveTextContent("no longer in the drive's log")
+    expect(row('Short')).toHaveTextContent('age unknown')
+    expect(row('Conveyance')).toHaveTextContent('none recorded')
+    expect(pop).toHaveTextContent('power-on hours were reset')
   })
 })

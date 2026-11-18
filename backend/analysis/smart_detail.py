@@ -326,9 +326,9 @@ def _ata(data: dict) -> tuple[list[dict], dict, set[str]]:
                                     detail=f"{attr['raw_value']:,} LBAs × {block} bytes"))
 
     polling = smart_data.get("self_test", {}).get("polling_minutes", {})
-    for kind in ("short", "extended", "conveyance"):
+    for kind, label in (("short", "Short"), ("extended", "Long (Extended)"), ("conveyance", "Conveyance")):
         if polling.get(kind) is not None:
-            fields.append(_field("capabilities", f"self_test_{kind}_minutes", f"{kind.capitalize()} self-test",
+            fields.append(_field("capabilities", f"self_test_{kind}_minutes", f"{label} self-test",
                                  polling[kind], "minutes", source="ata_smart_data.self_test.polling_minutes"))
     offline_secs = smart_data.get("offline_data_collection", {}).get("completion_seconds")
     if offline_secs is not None:
@@ -578,7 +578,7 @@ def _scsi(data: dict) -> tuple[list[dict], dict, set[str]]:
                              source="temperature_warning"))
     ext_secs = data.get("scsi_extended_self_test_seconds")
     if ext_secs is not None:
-        fields.append(_field("capabilities", "self_test_extended_minutes", "Extended self-test",
+        fields.append(_field("capabilities", "self_test_extended_minutes", "Long (Extended) self-test",
                              round(ext_secs / 60), "minutes", source="scsi_extended_self_test_seconds"))
 
     fmt = data.get("scsi_format_status", {})

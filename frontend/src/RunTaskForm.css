@@ -158,7 +158,7 @@
    the two columns side by side, the op names just needed room to wrap
    instead of forcing the sidebar wide enough to fit them on one line.
    .rt-op already has no white-space:nowrap, so shrinking the column is
-   enough to let long names like "SMART Self-Test (Extended)" wrap on
+   enough to let long names like "SMART Self-Test (Conveyance)" wrap on
    their own — no markup change needed. */
 @media (max-width: 640px) {
   .run-task-form {

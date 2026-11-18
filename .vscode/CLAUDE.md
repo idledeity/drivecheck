@@ -197,8 +197,8 @@ activity or job execution.
   which tracks which drives are mid-read: the Probe button, the drive menu's
   "Read SMART now", and `ReadSmartButton` ("Read now") on the SMART page /
   Report read line, their empty states and `DriveOverview` (Health > Overview
-  and the card's health popover). The card footer's SMART age says
-  "reading…" meanwhile.
+  and the card's health popover). The card's self-test popover says
+  "reading…" in place of the SMART read's age meanwhile.
 - `POST /api/drives/scan` forces an immediate drive scan — sets `_scan_due` to
   the epoch and ticks, so `_run_scan()` runs this tick regardless of
   `scan_interval`. Newly discovered drives get all channels due immediately
@@ -622,7 +622,7 @@ implement a health read), both appear as options. The UI prompts the user to cho
 with notes surfacing constraints.
 
 ### Categories
-- **Test** — drive-internal self-tests (SMART short, SMART extended, SMART conveyance)
+- **Test** — drive-internal self-tests (SMART Short, SMART Long (Extended), SMART Conveyance)
 - **Scan** — host-side scans (badblocks read-only, badblocks destructive)
 - **Maintenance** — secure erase, etc. (v1 stretch)
 
@@ -737,7 +737,7 @@ from raw rows while they last — a cache of facts, not judgements.
 **Observed self-tests** — `drive_self_tests`, every finished entry seen in a
 drive's own self-test log, whoever started the test (DriveCheck, smartd, a
 vendor tool, a previous owner). ATA's standard log holds 21 entries of every
-type, so short/conveyance tests can push an extended one out within weeks;
+type, so short/conveyance tests can push a long one out within weeks;
 this keeps it. Key: drive + protocol + type code + power-on hours + result
 code (two identical tests in the same hour collapse into one); a later read
 of the same entry only moves `last_seen_at`. Running tests and entries without
@@ -745,13 +745,25 @@ power-on hours are skipped. `power_on_hours` is stored as logged (ATA: 16-bit,
 wraps at 65,536). Written by `db.record_self_tests()` from each full read
 (`_save_snapshot`); never pruned. `scripts/backfill_self_tests.py` replays the
 kept raw snapshots into it (safe to rerun).
-Served by `analysis/self_tests.py` (`build_self_tests`): `extended` (ATA type
-2/130, SCSI 2/6), `hours` (ATA wrap undone against current POH), `age_hours`
-(current POH − hours; None if the entry is above the current POH — counter
-reset, `hours_reset`), `in_drive_log`, and `last_extended` (newest extended
-test not aborted/interrupted; a failed one counts). Not part of the health
-score — coverage only. API: `/api/drives` `self_test_coverage`
-(`last_extended`, `hours_reset`); `/smart/detail` `self_tests` (full view).
+Served by `analysis/self_tests.py` (`build_self_tests`): `kind` (short /
+conveyance / long / selective from protocol + type code; ATA 129-132 are
+the captive forms, SCSI 5/6 foreground), `hours` (ATA wrap undone against
+current POH), `age_hours` (current POH − hours; None if the entry is above
+the current POH — counter reset, `hours_reset`), `in_drive_log` (listed by
+the newest read that listed any entries — not the latest full read: a SAS
+drive reporting itself failing, smartctl exit bit 3, gets reads with no
+self-test log at all), and `latest` per kind (short / conveyance / long;
+aborted/interrupted skipped, a failed one counts) with `recent` against
+`self_tests.recent_hours.{short,long}` (config, default 168 / 1000,
+Settings › Self-tests; conveyance has none). Not part of the health score —
+coverage only. `log_seen_at` / `log_missing`: the newest read that listed any
+entries, and whether the latest full read came after it (the drive listed
+tests before and now lists none — it stopped returning its log; seen on a
+failing NETAPP SAS drive, `scsiPrintSelfTest: Failed [scsi response fails
+sanity test]`). API: `/api/drives` `self_test_coverage` (`latest`,
+`hours_reset`, `log_seen_at`, `log_missing`); `/smart/detail` `self_tests`
+(full view). The self-test operation's "could not confirm" failure says when
+the log listed no tests at all, old or new, rather than just no new entry.
 NVMe self-test logs aren't parsed yet (no real output to test against).
 
 ### History retention
@@ -1049,9 +1061,8 @@ serving the UI and proxying/aggregating spoke responses. GUIDs namespaced by nod
     640px): Select all / Unselect all / Probe selected (or all, if none
     selected) / Scan for drives. Probe → `POST /api/drives/refresh` (optional
     `{"guids": [...]}`); Scan → `POST /api/drives/scan`. No per-card refresh
-    button or "last polled" display — each `DriveCard`'s footer stats carry a
-    `title` tooltip showing when telemetry was last updated
-    (`formatRelativeTime(drive.last_polled_at)`).
+    button or "last polled" display on the card — the SMART read's age is in
+    the card's self-test popover (see Reading ages).
 
 ### Remaining — Operations / Jobs
 [ ] drive_tools/base.py (OperationBase)
@@ -1102,7 +1113,8 @@ overdue), `last_polled_at` (latest SMART read of either kind: health,
 signals) and `last_full_read_at` (attributes table, self-test log). Overdue
 thresholds come from `stale_after_s` (app `_stale_after`: vitals
 max(60s, 3× vitals interval); SMART 2× the full-read interval). The age is
-"last read", not "last changed".
+"last read", not "last changed". Exception: the drive card shows the SMART
+read's age only in its self-test popover, not on the card.
 
 ---
 
@@ -1116,7 +1128,19 @@ identify a drive before targeting it with a destructive task.
 2. Identity row — drive type · capacity · bus · speed
 3. Status row — temperature · `/dev/sdX` · mount status
 4. Task zone — active task · progress bar · counters · ETA · queued count
-5. Footer — key dc_signals (POH, reallocated, errors) · live IO (read/write MB/s)
+5. Footer — key dc_signals (POH, reallocated, errors) · self-test lights ("Self-tests") · live IO (read/write MB/s)
+
+**Self-test lights** (`SelfTestLights.tsx`, footer "Self-tests"): two status LEDs,
+S = Short, L = Long (Extended), from `self_test_coverage.latest` — red when that
+kind's latest finished test failed, green when it passed within its "recent"
+window (Settings › Self-tests, power-on hours), dim when older or of unknown
+age, an empty ring when never run, an amber ring when `log_missing` (a newer
+test may have run unseen; a known failure stays red). No running state: a running DriveCheck
+test is on the task zone, and it would hide the last result. Hover/tap opens
+`SelfTestPopover`: an amber "hasn't returned its self-test log since …" line
+when `log_missing`, Short / Conveyance / Long (Extended) rows (result, power-on hours
+ago, "no longer in the drive's log"), then the SMART read's age — the card's
+only one (user, 2026-11-18: no SMART age on the card itself).
 
 **Card states:** Healthy · Aging · Degraded · Failing · Critical · Unrated/NEW · Idle · Active · Selected
 

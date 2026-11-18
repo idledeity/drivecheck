@@ -300,6 +300,8 @@ export type Drive = {
   last_full_read_at: string | null
   /** Seconds a reading may age before it shows as overdue (see AsOf). */
   stale_after_s: { vitals: number; smart: number }
+  /** The latest finished self-test of each kind seen in the drive's log. */
+  self_test_coverage: SelfTestCoverage
   is_mounted: boolean
   vitals: DriveVitals
   label: string | null
@@ -315,4 +317,40 @@ export type SortKey =
 export interface SortState {
   key: SortKey
   dir: "asc" | "desc"
+}
+
+/** One self-test from the drive's own log, kept by DriveCheck past the log's
+ *  rollover (backend analysis/self_tests.py). Ages are power-on hours. */
+export interface SelfTestEntry {
+  protocol: "ata" | "scsi"
+  type_code: number
+  /** The drive's own name for the test, e.g. "Extended offline". */
+  type: string
+  kind: SelfTestKind | null
+  result: string
+  drive_report: "ok" | "marginal" | "failed"
+  /** Power-on hours it ran at. */
+  hours: number
+  /** Power-on hours since; null when unknown (no hours, or the counter was reset). */
+  age_hours: number | null
+  /** Still listed in the drive's log at the latest full read. */
+  in_drive_log: boolean
+  lba_first_failure: number | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+export type SelfTestKind = "short" | "conveyance" | "long" | "selective"
+
+export interface SelfTestCoverage {
+  /** Aborted/interrupted tests are skipped. recent: within the kind's
+   *  configured window (null for a kind without one, or an unknown age). */
+  latest: Record<"short" | "conveyance" | "long", (SelfTestEntry & { recent: boolean | null }) | null>
+  /** The drive's power-on hours went backwards (counter reset). */
+  hours_reset: boolean
+  /** The newest full read that listed any self-tests. */
+  log_seen_at: string | null
+  /** The latest full read listed none, after earlier ones did: the drive
+   *  stopped returning its log, so what's shown may be out of date. */
+  log_missing: boolean
 }

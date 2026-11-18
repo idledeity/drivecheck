@@ -159,8 +159,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
 
 -- Every finished self-test entry seen in a drive's own log (see
 -- record_self_tests), kept after the drive's log rolls it out — ATA's
--- standard log holds 21 entries of every type, so short tests can push an
--- extended one out within weeks. One row per entry: the same test in later
+-- standard log holds 21 entries of every type, so short tests can push a
+-- long (extended) one out within weeks. One row per entry: the same test in later
 -- reads only moves last_seen_at. Facts only; never pruned (a few rows a drive).
 -- power_on_hours is as the log has it (ATA: 16 bits, wraps at 65536).
 CREATE TABLE IF NOT EXISTS drive_self_tests (

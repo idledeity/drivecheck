@@ -41,6 +41,7 @@ export function makeDrive(overrides: Partial<Drive> = {}): Drive {
     last_polled_at: null,
     last_full_read_at: null,
     stale_after_s: { vitals: 60, smart: 43200 },
+    self_test_coverage: { latest: { short: null, conveyance: null, long: null }, hours_reset: false, log_seen_at: null, log_missing: false },
     is_mounted: false,
     vitals: {
       temp: null,

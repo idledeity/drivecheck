@@ -6,6 +6,7 @@ import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
 import { formatCapacity, formatThroughput } from "./format"
 import AsOf from "./AsOf"
+import SelfTestLights, { SelfTestPopover } from "./SelfTestLights"
 import { useSmartRead } from "./smartReadContext"
 import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
@@ -89,7 +90,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // whenever there isn't much card below the task zone.
   const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS, disabled: menuOpen })
   const { cancelJob } = useJobs()
-  // A full read asked for by hand is under way: the footer's age says so.
+  // A full read asked for by hand is under way: the self-test popover says so.
   const smartReading = useSmartRead().reading.has(drive.guid)
 
   // The menu opens at the pointer, where this card's popover would open
@@ -126,6 +127,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       <DriveOverview drive={drive} header={false} />
       <div className="dc-pop-trend"><DriveTrendPopover drive={drive} style={trendStyle} metric="health" /></div>
     </>,
+    tests: <SelfTestPopover drive={drive} reading={smartReading} />,
   }[pop.open && !isTrendKey(pop.open) ? pop.open : "task"]
   const trendMetric = pop.open && isTrendKey(pop.open) ? pop.open.slice(TREND.length) as TrendMetric : null
   const popoverClass = trendMetric || pop.open === "health" ? " dc-popover-chart" : pop.open === "task" ? "" : " dc-popover-wide"
@@ -311,16 +313,12 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
             )
           })}
         </div>
-        {/* The age of every value to its left: one SMART read. Pinned outside
-            .dc-fs so a narrow card fades a stat, never the age. */}
-        {(drive.last_polled_at || smartReading) && (
-          <div className="dc-stat dc-asof">
-            <div className="dc-stat-label">SMART</div>
-            {smartReading
-              ? <div className="dc-stat-value dc-reading">reading…</div>
-              : <AsOf className="dc-stat-value" at={drive.last_polled_at!} staleAfterS={drive.stale_after_s.smart} />}
-          </div>
-        )}
+        {/* Self-test lights. Pinned outside .dc-fs so a narrow card fades a
+            stat, never these. The popover also dates the SMART read. */}
+        <div className="dc-stat dc-tests" {...pop.trigger("tests")}>
+          <div className="dc-stat-label">Self-tests</div>
+          <div className="dc-stat-value"><SelfTestLights coverage={drive.self_test_coverage} /></div>
+        </div>
         <div {...trendTrigger("io")} className={`dc-io dc-trend${vitalsStale ? " stale" : ""}`}>
           <div className="dc-io-row rd">{formatThroughput(io.read_bytes_per_sec)}<IconArrowUp size={9} /></div>
           <div className="dc-io-row wr">{formatThroughput(io.write_bytes_per_sec)}<IconArrowDown size={9} /></div>
@@ -332,7 +330,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
 // Trend popovers are keyed "trend:<metric>".
 const TREND = "trend:"
-type PopoverKey = "task" | "queued" | "complete" | "health" | `${typeof TREND}${TrendMetric}`
+type PopoverKey = "task" | "queued" | "complete" | "health" | "tests" | `${typeof TREND}${TrendMetric}`
 const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => key.startsWith(TREND)
 // Without a color from the grid (e.g. in tests): the first series color.
 const DEFAULT_TREND_STYLE = seriesStyle(0)

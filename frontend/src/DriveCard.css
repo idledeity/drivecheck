@@ -565,10 +565,9 @@
 .dc-stat-label { font-size: 7.5px; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; }
 .dc-stat-value { font-size: 10px; font-weight: 600; color: var(--t2); line-height: 1.3; }
 
-/* The footer stats' age: quieter than the values it dates. */
-.dc-asof .dc-stat-value { font-weight: 400; color: var(--t4); }
-.dc-asof .dc-stat-value.asof-stale { color: var(--wa); }
-.dc-asof .dc-stat-value.dc-reading { color: var(--cy); }
+/* The self-test lights: a hover/tap target for their popover. */
+.dc-tests { cursor: default; }
+.dc-tests .dc-stat-value { display: flex; align-items: center; min-height: 13px; }
 
 /* ── Footer: stacked IO (read/write throughput) ── */
 .dc-io     { display: flex; flex-direction: column; align-items: flex-end; gap: 0; flex-shrink: 0; }

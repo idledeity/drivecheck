@@ -52,6 +52,14 @@ jobs:
   # 0 always takes a new one. The "after" snapshot is always new.
   smart_snapshot_reuse_seconds: 300
 
+self_tests:
+  # Power-on hours a passed self-test counts as recent (the drive card's S and
+  # L lights). The drive's log only has power-on hours, so unpowered time
+  # doesn't count.
+  recent_hours:
+    short: 168       # a week of running
+    long: 1000       # about six weeks of running
+
 logging:
   level: info                    # debug | info | warning | error
   file: data/drivecheck.log      # path to log file, or null to disable

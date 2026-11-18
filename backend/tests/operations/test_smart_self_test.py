@@ -145,7 +145,15 @@ def test_sas_stale_completed_result_never_passes(smartctl_script):
     # The drive never registers the new test: the log keeps showing the old,
     # identical "Completed" rows. Old code passed this on the first poll.
     smartctl_script.append(_scsi(STALE_SCSI))
-    with pytest.raises(RuntimeError, match="could not confirm"):
+    with pytest.raises(RuntimeError, match="could not confirm.*no new self-test log entry appeared"):
+        _run(DriveType.SAS)
+
+
+def test_sas_log_never_listing_any_test_says_so(smartctl_script):
+    # A failing SAS drive whose self-test log page fails smartctl's sanity
+    # check: every read comes back with no log at all.
+    smartctl_script.append(_scsi([]))
+    with pytest.raises(RuntimeError, match="self-test log listed no tests at all, old or new"):
         _run(DriveType.SAS)
 
 
