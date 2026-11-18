@@ -20,6 +20,13 @@
   --wbg: rgba(255, 178, 46, 0.12);
   --re:  #ff7070;
   --rbg: rgba(255,112,112,0.12);
+  /* Health statuses beyond the three tones: Aging is yellow-green (fine, but
+     worth watching; as bright as --gnb/--wa, clear of the chart series hues);
+     Critical is a solid crimson pill with black text and a black ring, and
+     crimson/black stripes on the card's accent bar. */
+  --ag:  #c2e04a;
+  --agb: rgba(194,224,74,0.12);
+  --cr:  #cc4f63;
   --ior: #48ccff;
   --iow: #b878ff;
 

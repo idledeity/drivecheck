@@ -65,6 +65,16 @@
 .health-bands-key .tone-ok   { color: var(--gn); }
 .health-bands-key .tone-warn { color: var(--wa); }
 .health-bands-key .tone-crit { color: var(--re); }
+.health-bands-key > span { white-space: nowrap; }
+.health-bands-key .tone-aging { color: var(--ag); }
+.health-bands-key .tone-critical {
+  color: #000;
+  font-weight: 600;
+  background: var(--cr);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--cr);
+  border-radius: 99px;
+  padding: 0 6px;
+}
 
 @media (max-width: 640px) {
   .trends-jobs { margin-left: 0; }

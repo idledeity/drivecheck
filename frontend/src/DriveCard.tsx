@@ -334,11 +334,11 @@ const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => 
 // Without a color from the grid (e.g. in tests): the first series color.
 const DEFAULT_TREND_STYLE = seriesStyle(0)
 
-const HEALTH_DISPLAY: Record<string, { bar: "green" | "warn" | "red" | "grey"; label: string }> = {
-  Healthy:  { bar: "green", label: "SMART OK" },
-  Aging:    { bar: "green", label: "Aging"    },
-  Degraded: { bar: "warn",  label: "Degraded" },
-  Failing:  { bar: "red",   label: "Failing"  },
-  Critical: { bar: "red",   label: "Critical" },
+const HEALTH_DISPLAY: Record<string, { bar: "green" | "aging" | "warn" | "red" | "critical" | "grey"; label: string }> = {
+  Healthy:  { bar: "green",    label: "Healthy"  },
+  Aging:    { bar: "aging",    label: "Aging"    },
+  Degraded: { bar: "warn",     label: "Degraded" },
+  Failing:  { bar: "red",      label: "Failing"  },
+  Critical: { bar: "critical", label: "Critical" },
   Unrated:  { bar: "grey",  label: "Unrated"  },
 }

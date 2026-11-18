@@ -19,7 +19,7 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
   highlight?: string | null
   height?: number
 }) {
-  const { healthy_gte: healthy, degraded_gte: degraded } = data.thresholds.health
+  const { healthy_gte: healthy, aging_gte: aging, degraded_gte: degraded, failing_gte: failing } = data.thresholds.health
   const series: ChartSeries[] = drives.map(d => ({
     id: d.guid,
     label: d.label,
@@ -32,8 +32,10 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
   const top = 104
   const bands: ChartBand[] = [
     { from: healthy, to: top, tone: "ok" },
-    { from: degraded, to: healthy, tone: "warn" },
-    { from: 0, to: degraded, tone: "crit" },
+    { from: aging, to: healthy, tone: "aging" },
+    { from: degraded, to: aging, tone: "warn" },
+    { from: failing, to: degraded, tone: "crit" },
+    { from: 0, to: failing, tone: "critical" },
   ]
 
   return (
@@ -48,8 +50,8 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
       yMin={0}
       yMax={top}
       // The band edges as ticks: where a score changes status. (100 would
-      // crowd 90's label; the bands say where the top is.)
-      yTicks={[0, degraded, healthy]}
+      // crowd 95's label; the bands say where the top is.)
+      yTicks={[0, failing, degraded, aging, healthy]}
       bands={bands}
       spans={showJobs ? jobSpans(data, drives) : undefined}
       formatValue={(v, s, t) => {
@@ -68,14 +70,18 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
 /** The bands' names and edges, in their status colors: for the chart's
  *  subtitle, in place of labels inside the plot. */
 export function HealthBandsKey({ data }: { data: DriveHistoryData }) {
-  const { healthy_gte: healthy, degraded_gte: degraded } = data.thresholds.health
+  const { healthy_gte: healthy, aging_gte: aging, degraded_gte: degraded, failing_gte: failing } = data.thresholds.health
   return (
     <span className="health-bands-key">
       <span className="tone-ok">Healthy ≥ {healthy}</span>
       {" · "}
-      <span className="tone-warn">Degraded {degraded}–{healthy - 1}</span>
+      <span className="tone-aging">Aging {aging}–{healthy - 1}</span>
       {" · "}
-      <span className="tone-crit">Failing &lt; {degraded}</span>
+      <span className="tone-warn">Degraded {degraded}–{aging - 1}</span>
+      {" · "}
+      <span className="tone-crit">Failing {failing}–{degraded - 1}</span>
+      {" · "}
+      <span className="tone-critical">Critical &lt; {failing}</span>
     </span>
   )
 }

@@ -12,7 +12,7 @@ const raw = (range = '24h', guids = ['d1']) => ({
   start: '2026-11-12T13:00:00',
   end: '2026-11-13T13:02:11.5',
   bucket_seconds: 300,
-  thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null } }, health: { healthy_gte: 90, degraded_gte: 60 } },
+  thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null } }, health: { healthy_gte: 95, aging_gte: 80, degraded_gte: 40, failing_gte: 15 } },
   drives: Object.fromEntries(guids.map(g => [g, {
     vitals: { t: ['2026-11-12T13:00:00'], temp_avg: [31.5], temp_min: [31], temp_max: [32], read_bps: [0], write_bps: [0], busy_pct: [0] },
     signals: { pending: [{ t: '2026-11-12T13:00:00', value: 0 }] },

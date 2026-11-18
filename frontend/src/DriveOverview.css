@@ -21,6 +21,8 @@
 .hov-score-fill.score-warn    { background: var(--wa); }
 .hov-score-fill.score-fail    { background: var(--re); }
 .hov-score-fill.score-unrated { background: var(--bd2); }
+.hov-score-fill.score-aging   { background: var(--ag); }
+.hov-score-fill.score-critical { background: var(--cr); }
 
 .hov-score-num {
   font-size: 13px;
@@ -37,6 +39,17 @@
 .hov-score-num.score-warn, .hov-score-label.score-warn { color: var(--wa); }
 .hov-score-num.score-fail, .hov-score-label.score-fail { color: var(--re); }
 .hov-score-num.score-unrated, .hov-score-label.score-unrated { color: var(--t4); }
+.hov-score-num.score-aging, .hov-score-label.score-aging { color: var(--ag); }
+.hov-score-num.score-critical { color: var(--cr); }
+.hov-score-label.score-critical {
+  color: #000;
+  font-weight: 700;
+  background: var(--cr);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--cr);
+  border-radius: 99px;
+  padding: 0 7px;
+  min-width: 0;
+}
 
 /* ── Overview ── */
 .hov-section {

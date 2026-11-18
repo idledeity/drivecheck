@@ -23,7 +23,7 @@ interface Props {
   thin?: boolean
 }
 
-const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Aging: "ok", Degraded: "warn", Failing: "crit", Critical: "crit" }
+const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Aging: "aging", Degraded: "warn", Failing: "crit", Critical: "critical" }
 
 // Compact identity pill for a drive: a dot in its health color, manufacturer,
 // name, capacity and serial. Inside a .drive-chip-list, a container query

@@ -59,6 +59,11 @@ describe('DriveChip', () => {
     expect(screen.getByRole('img', { name: 'Failing 40' })).toHaveClass('crit')
   })
 
+  it.each([['Aging', 'aging'], ['Critical', 'critical']] as const)('gives %s its own dot', (status, cls) => {
+    render(<DriveChip drive={makeDrive({ health_status: status, health_pct: 50 })} />)
+    expect(screen.getByRole('img', { name: `${status} 50` })).toHaveClass(cls)
+  })
+
   it('marks a locked drive', () => {
     render(<DriveChip drive={makeDrive({ locked: true })} />)
     expect(screen.getByLabelText('locked')).toBeInTheDocument()

@@ -17,9 +17,9 @@ export type { ChartPoint, ChartSeries } from "./chartGeometry"
 // the hovered time. It knows nothing about drives; the charts built on it
 // decide what the series are.
 
-export type Tone = "ok" | "warn" | "crit"
+export type Tone = "ok" | "aging" | "warn" | "crit" | "critical"
 
-export interface ChartThreshold { value: number; label: string; tone: Exclude<Tone, "ok"> }
+export interface ChartThreshold { value: number; label: string; tone: "warn" | "crit" }
 export interface ChartBand { from: number; to: number; tone: Tone; label?: string }
 /** A shaded stretch of time, e.g. a job; end null runs to the chart's end.
  *  Spans are deliberately colorless: with several drives charted, a drive's

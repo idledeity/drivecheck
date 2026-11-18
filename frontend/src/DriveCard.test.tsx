@@ -48,12 +48,15 @@ function renderCard(props: Partial<Parameters<typeof DriveCard>[0]> = {}) {
 
 describe('health badge', () => {
   it.each([
-    ['Healthy', 'SMART OK'],
-    ['Degraded', 'Degraded'],
-    ['Failing', 'Failing'],
-  ] as const)('shows "%s" as "%s"', (status, label) => {
+    ['Healthy', 'Healthy', 'green'],
+    ['Aging', 'Aging', 'aging'],
+    ['Degraded', 'Degraded', 'warn'],
+    ['Failing', 'Failing', 'red'],
+    ['Critical', 'Critical', 'critical'],
+  ] as const)('shows "%s" as "%s" in its own color', (status, label, color) => {
     renderCard({ drive: makeDrive({ health_status: status }) })
-    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.getByText(label)).toHaveClass(`dc-badge-${color}`)
+    expect(screen.getByText(label).closest('.drive-card')).toHaveClass(`bar-${color}`)
   })
 
   it('shows Unrated when health_status is null', () => {
@@ -285,7 +288,7 @@ describe('popovers (click-only / no-hover device)', () => {
   const history = (guid: string) => ({
     range: '24h', start: '2026-11-13T12:00:00', end: '2026-11-13T12:10:00', bucket_seconds: 60,
     thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null }, load_unload_cycles: { warn_gte: 500000, crit_gte: 700000 } },
-                  health: { healthy_gte: 90, degraded_gte: 60 } },
+                  health: { healthy_gte: 95, aging_gte: 80, degraded_gte: 40, failing_gte: 15 } },
     drives: { [guid]: {
       vitals: { t: ['2026-11-13T12:00:00', '2026-11-13T12:01:00'], temp_avg: [31, 33], temp_min: [31, 33], temp_max: [31, 34],
                 read_bps: [0, 0], write_bps: [0, 0], busy_pct: [0, 0] },
@@ -498,7 +501,7 @@ describe('popovers (hover-capable device)', () => {
   it('closes its popover, and cancels a pending one, when the drive menu opens', async () => {
     const onContextMenu = vi.fn()
     renderCard({ onContextMenu })
-    const badge = screen.getByText('SMART OK')
+    const badge = screen.getByText('Healthy')
     fireEvent.mouseEnter(badge, { clientX: 10, clientY: 10 })
     await act(async () => { await vi.advanceTimersByTimeAsync(400) })
     expect(document.querySelector('.dc-popover')).toBeInTheDocument()
@@ -510,7 +513,7 @@ describe('popovers (hover-capable device)', () => {
 
   it('opens no popovers while a drive menu is open', async () => {
     renderCard({ menuOpen: true })
-    fireEvent.mouseEnter(screen.getByText('SMART OK'), { clientX: 10, clientY: 10 })
+    fireEvent.mouseEnter(screen.getByText('Healthy'), { clientX: 10, clientY: 10 })
     await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
     expect(document.querySelector('.dc-popover')).not.toBeInTheDocument()
   })

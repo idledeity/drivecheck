@@ -33,6 +33,8 @@
 .drive-chip-health.ok   { background: var(--gn); }
 .drive-chip-health.warn { background: var(--wa); }
 .drive-chip-health.crit { background: var(--re); }
+.drive-chip-health.aging { background: var(--ag); }
+.drive-chip-health.critical { background: var(--cr); box-shadow: 0 0 0 1px #000; }
 
 .drive-chip-maker {
   color: var(--t3);

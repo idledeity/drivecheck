@@ -1097,6 +1097,11 @@ identify a drive before targeting it with a destructive task.
 
 **Card states:** Healthy · Aging · Degraded · Failing · Critical · Unrated/NEW · Idle · Active · Selected
 
+**Health colours** (accent bar · badge · chip dot · score bar · chart band):
+Healthy green · Aging yellow-green (`--ag` #c2e04a, tint `--agb`) · Degraded amber ·
+Failing red · Critical muted crimson (`--cr` #cc4f63; solid pill with black text and
+a black ring, accent bar crimson/black stripes, chart band dark) · Unrated grey.
+
 **NEW badge:** Drive has no existing Drive Record in SQLite — first time seen by this
 drivecheck instance. Not necessarily a new drive physically.
 

@@ -56,6 +56,8 @@
 .tsc-band.tone-ok   { fill: rgba(20, 192, 80, 0.07); }
 .tsc-band.tone-warn { fill: rgba(255, 178, 46, 0.06); }
 .tsc-band.tone-crit { fill: rgba(255, 112, 112, 0.06); }
+.tsc-band.tone-aging { fill: rgba(194, 224, 74, 0.05); }
+.tsc-band.tone-critical { fill: rgba(0, 0, 0, 0.35); }
 .tsc-band-label { font-size: 10px; fill: var(--t5); }
 
 .tsc-threshold line { stroke-width: 1; opacity: 0.7; shape-rendering: crispEdges; }

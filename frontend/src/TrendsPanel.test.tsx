@@ -16,7 +16,7 @@ const history = (range = '24h') => ({
   start: '2026-11-13T12:00:00',
   end: '2026-11-13T12:10:00',
   bucket_seconds: 60,
-  thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null } }, health: { healthy_gte: 90, degraded_gte: 60 } },
+  thresholds: { signals: { temp: { warn_gte: 45, crit_gte: null } }, health: { healthy_gte: 95, aging_gte: 80, degraded_gte: 40, failing_gte: 15 } },
   drives: {
     d1: { vitals: vitals([30, 31, 32], 200e6), signals: {}, health: [] },
     d2: { vitals: vitals([40, 41, 47]), signals: {}, health: [] },
@@ -137,10 +137,10 @@ describe('TrendsPanel', () => {
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
     await waitFor(() => expect(lines('Health score over time')).toHaveLength(3))
     const health = card('Health score')
-    expect(health).toHaveTextContent('Healthy ≥ 90 · Degraded 60–89 · Failing < 60')
+    expect(health).toHaveTextContent('Healthy ≥ 95 · Aging 80–94 · Degraded 40–79 · Failing 15–39 · Critical < 15')
     expect(health).toHaveTextContent(/Fell 95 → 80.*Exos X16/)
     expect(health.querySelector('.chart-card-foot')).toHaveTextContent(/^Not scored.*QEMU HARDDISK/)
-    expect(health.querySelectorAll('.tsc-band')).toHaveLength(3)
+    expect(health.querySelectorAll('.tsc-band')).toHaveLength(5)
   })
 
   it('charts a counter that moved, and names its change', async () => {
