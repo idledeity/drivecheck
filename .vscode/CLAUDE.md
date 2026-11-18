@@ -485,6 +485,9 @@ Point-in-time capture of one collector poll. Persisted to SQLite; one row per po
   are required; optional `signal` / `metric` / `drive_report` are the inputs
   `analysis/smart_attributes.py` judges each row by when it is served.
   Persisted to drive_raw_snapshots together with the snapshot's `signals`.
+  A full read also adds `extras["self_tests"]` (`observed_self_tests()`: the
+  log's finished entries as plain codes + power-on hours), which the collector
+  records into `drive_self_tests` (see **Observed self-tests**).
 - `probe_log` — list of ProbeRecord (one per probe that ran)
 
 **Store facts, not judgements:** the DB holds raw values and tool output only.
@@ -731,6 +734,26 @@ the first pass after start-up re-rolls the newest rolled-up minute, and on a
 database with no rollup yet backfills from all raw rows still kept. Rebuildable
 from raw rows while they last — a cache of facts, not judgements.
 
+**Observed self-tests** — `drive_self_tests`, every finished entry seen in a
+drive's own self-test log, whoever started the test (DriveCheck, smartd, a
+vendor tool, a previous owner). ATA's standard log holds 21 entries of every
+type, so short/conveyance tests can push an extended one out within weeks;
+this keeps it. Key: drive + protocol + type code + power-on hours + result
+code (two identical tests in the same hour collapse into one); a later read
+of the same entry only moves `last_seen_at`. Running tests and entries without
+power-on hours are skipped. `power_on_hours` is stored as logged (ATA: 16-bit,
+wraps at 65,536). Written by `db.record_self_tests()` from each full read
+(`_save_snapshot`); never pruned. `scripts/backfill_self_tests.py` replays the
+kept raw snapshots into it (safe to rerun).
+Served by `analysis/self_tests.py` (`build_self_tests`): `extended` (ATA type
+2/130, SCSI 2/6), `hours` (ATA wrap undone against current POH), `age_hours`
+(current POH − hours; None if the entry is above the current POH — counter
+reset, `hours_reset`), `in_drive_log`, and `last_extended` (newest extended
+test not aborted/interrupted; a failed one counts). Not part of the health
+score — coverage only. API: `/api/drives` `self_test_coverage`
+(`last_extended`, `hours_reset`); `/smart/detail` `self_tests` (full view).
+NVMe self-test logs aren't parsed yet (no real output to test against).
+
 ### History retention
 Configurable window (`collector.keep_history_days`, default 90). Once per day
 (`_PRUNE_INTERVAL` in `collector.py`), the collector deletes rows older than the
@@ -738,7 +761,7 @@ cutoff from `drive_signals`, `drive_heartbeats`, `drive_vitals_rollup`,
 `drive_vitals_rollup_30m` and `drive_raw_snapshots` via `db.prune_history()`. Raw 10s `drive_vitals` rows have
 their own, shorter window (`collector.keep_raw_vitals_days`, default 2 — never
 longer than `keep_history_days`); they only back the live view and the rollup. `drive_records` is never pruned —
-it's one row per drive, not a time series.
+it's one row per drive, not a time series. Neither is `drive_self_tests` (a few rows a drive).
 
 The last prune time is persisted to the single-row `collector_state` table
 (`db.get_last_pruned_at()` / `db.set_last_pruned_at()`), so the schedule survives

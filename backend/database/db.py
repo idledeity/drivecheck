@@ -156,6 +156,27 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_drive_guid ON jobs (drive_guid, created_at);
+
+-- Every finished self-test entry seen in a drive's own log (see
+-- record_self_tests), kept after the drive's log rolls it out — ATA's
+-- standard log holds 21 entries of every type, so short tests can push an
+-- extended one out within weeks. One row per entry: the same test in later
+-- reads only moves last_seen_at. Facts only; never pruned (a few rows a drive).
+-- power_on_hours is as the log has it (ATA: 16 bits, wraps at 65536).
+CREATE TABLE IF NOT EXISTS drive_self_tests (
+    drive_guid        TEXT NOT NULL,
+    protocol          TEXT NOT NULL,     -- "ata" | "scsi": how to read the codes
+    type_code         INTEGER NOT NULL,
+    type              TEXT NOT NULL,
+    result_code       INTEGER NOT NULL,
+    result            TEXT NOT NULL,
+    drive_report      TEXT NOT NULL,     -- "ok" | "marginal" | "failed"
+    power_on_hours    INTEGER NOT NULL,
+    lba_first_failure INTEGER,
+    first_seen_at     TEXT NOT NULL,
+    last_seen_at      TEXT NOT NULL,     -- the latest full read whose log listed it
+    PRIMARY KEY (drive_guid, protocol, type_code, power_on_hours, result_code)
+) WITHOUT ROWID;
 """
 
 
@@ -393,6 +414,67 @@ def get_latest_raw_snapshot(guid: str) -> sqlite3.Row | None:
             "SELECT * FROM drive_raw_snapshots WHERE drive_guid = ? ORDER BY captured_at DESC LIMIT 1",
             (guid,),
         ).fetchone()
+
+
+def record_self_tests(guid: str, captured_at: str, entries: list[dict]) -> int:
+    """Add a full read's self-test log entries (as observed_self_tests gives
+    them) to drive_self_tests; ones already there just get last_seen_at moved
+    forward. Returns how many were new. Safe to replay with older reads (the
+    backfill): first_seen_at only moves back, last_seen_at only forward."""
+    if not entries:
+        return 0
+    with _connection() as conn:
+        new = 0
+        for e in entries:
+            cur = conn.execute(
+                """INSERT INTO drive_self_tests (drive_guid, protocol, type_code, type, result_code, result,
+                                                 drive_report, power_on_hours, lba_first_failure,
+                                                 first_seen_at, last_seen_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT DO NOTHING""",
+                (guid, e["protocol"], e["type_code"], e["type"], e["result_code"], e["result"],
+                 e["drive_report"], e["power_on_hours"], e.get("lba_first_failure"), captured_at, captured_at),
+            )
+            if cur.rowcount:
+                new += 1
+                continue
+            conn.execute(
+                """UPDATE drive_self_tests
+                      SET first_seen_at = MIN(first_seen_at, ?), last_seen_at = MAX(last_seen_at, ?)
+                    WHERE drive_guid = ? AND protocol = ? AND type_code = ? AND power_on_hours = ?
+                      AND result_code = ?""",
+                (captured_at, captured_at, guid, e["protocol"], e["type_code"], e["power_on_hours"],
+                 e["result_code"]),
+            )
+        logger.debug("recorded %d self-test log entr(ies) for drive %s, %d new", len(entries), guid, new)
+        return new
+
+
+def get_self_tests(guids: list[str]) -> dict[str, list[dict]]:
+    """Each drive's drive_self_tests rows, newest (by power-on hours) first."""
+    out: dict[str, list[dict]] = {g: [] for g in guids}
+    if not guids:
+        return out
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """SELECT * FROM drive_self_tests WHERE drive_guid IN (SELECT value FROM json_each(?))
+                ORDER BY drive_guid, power_on_hours DESC, first_seen_at DESC""",
+            (json.dumps(guids),),
+        ).fetchall()
+    for row in rows:
+        out[row["drive_guid"]].append({k: row[k] for k in row.keys() if k != "drive_guid"})
+    return out
+
+
+def iter_raw_snapshot_reports():
+    """(drive_guid, captured_at, smartctl output JSON) of every kept raw
+    snapshot, oldest first, one at a time (for backfills)."""
+    with _connection() as conn:
+        cursor = conn.execute(
+            """SELECT drive_guid, captured_at, json_extract(raw_json, '$.smartctl')
+                 FROM drive_raw_snapshots ORDER BY captured_at""")
+        yield from cursor
 
 
 def get_raw_snapshot_facts(snapshot_ids: list[int]) -> list[tuple[int, str, str | None, str | None]]:

@@ -109,6 +109,14 @@ def test_capture_smart_forces_a_poll_and_saves_its_full_report(monkeypatch):
     assert collector.capture_smart("unknown") is None
 
 
+def test_a_full_read_records_its_self_test_log_entries(monkeypatch):
+    collector = _collector_with_drive(monkeypatch)
+    summary = collector.capture_smart("g1")
+    rows = db.get_self_tests(["g1"])["g1"]
+    assert rows and {r["last_seen_at"] for r in rows} == {summary["captured_at"]}
+    assert rows[0]["type"] == "Background short" and rows[0]["power_on_hours"] == 51327
+
+
 def test_capture_smart_reuses_a_recent_snapshot_within_max_age(monkeypatch):
     collector = _collector_with_drive(monkeypatch)
     first = collector.capture_smart("g1")

@@ -12,7 +12,7 @@ from dataclasses import asdict
 from datetime import datetime
 
 from drives.collector.probes.telemetry.smartctl_attributes import parse_attributes
-from drives.collector.probes.telemetry.smartctl_self_test_log import parse_self_test_log
+from drives.collector.probes.telemetry.smartctl_self_test_log import observed_self_tests, parse_self_test_log
 from drives.tools import smartctl
 from drives.drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
 
@@ -68,6 +68,7 @@ def _fill(snapshot: DriveSnapshot, context: DriveContext, data: dict, full: bool
     snapshot.extras["smart_attributes"] = [asdict(r) for r in parse_attributes(data, drive_type)]
     if full:
         snapshot.extras["self_test_log"] = [asdict(r) for r in parse_self_test_log(data, drive_type)]
+        snapshot.extras["self_tests"] = observed_self_tests(data)
         snapshot.extras["smartctl"] = data
 
     errors = [m.get("string", "") for m in data.get("smartctl", {}).get("messages", [])]

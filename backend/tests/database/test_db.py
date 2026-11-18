@@ -459,3 +459,42 @@ def test_active_jobs_come_back_in_queue_order_then_creation_order():
     queued("second", 4, 1)
     db.set_queue_positions({"second": 1})
     assert [r["id"] for r in db.get_active_jobs()] == ["moved-to-front", "second", "first-created", "from-older-version"]
+
+
+# ── drive_self_tests ──────────────────────────────────────────────────────
+
+def _self_test(hours, type_code=2, result_code=0, report="ok"):
+    return {"protocol": "ata", "type_code": type_code, "type": "Extended offline", "result_code": result_code,
+            "result": "Completed without error", "drive_report": report, "power_on_hours": hours,
+            "lba_first_failure": None}
+
+
+def test_record_self_tests_keeps_entries_the_log_rolls_out():
+    assert db.record_self_tests("g1", "2026-01-01T00:00:00", [_self_test(100), _self_test(50)]) == 2
+    # A later read: the 50h test rolled out, a new one arrived.
+    assert db.record_self_tests("g1", "2026-02-01T00:00:00", [_self_test(200), _self_test(100)]) == 1
+    rows = db.get_self_tests(["g1", "g2"])
+    assert rows["g2"] == []
+    assert [(r["power_on_hours"], r["first_seen_at"], r["last_seen_at"]) for r in rows["g1"]] == [
+        (200, "2026-02-01T00:00:00", "2026-02-01T00:00:00"),
+        (100, "2026-01-01T00:00:00", "2026-02-01T00:00:00"),
+        (50, "2026-01-01T00:00:00", "2026-01-01T00:00:00"),
+    ]
+
+
+def test_record_self_tests_replaying_an_older_read_widens_seen_times():
+    db.record_self_tests("g1", "2026-02-01T00:00:00", [_self_test(100)])
+    assert db.record_self_tests("g1", "2026-01-01T00:00:00", [_self_test(100)]) == 0
+    [row] = db.get_self_tests(["g1"])["g1"]
+    assert (row["first_seen_at"], row["last_seen_at"]) == ("2026-01-01T00:00:00", "2026-02-01T00:00:00")
+
+
+def test_record_self_tests_same_hour_different_result_are_separate():
+    db.record_self_tests("g1", "2026-01-01T00:00:00", [_self_test(100), _self_test(100, result_code=121, report="failed")])
+    assert len(db.get_self_tests(["g1"])["g1"]) == 2
+
+
+def test_self_tests_survive_history_pruning():
+    db.record_self_tests("g1", "2020-01-01T00:00:00", [_self_test(100)])
+    db.prune_history("2026-01-01T00:00:00")
+    assert len(db.get_self_tests(["g1"])["g1"]) == 1

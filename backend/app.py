@@ -30,6 +30,7 @@ from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
 from analysis.smart_detail import build_smart_detail
 from analysis.smart_delta import compare_signals
+from analysis.self_tests import build_self_tests
 from database import db
 from settings import user_settings
 
@@ -196,12 +197,19 @@ def _stale_after() -> dict:
     }
 
 
+def _self_test_coverage(rows: list[dict], power_on_hours, latest_read_at) -> dict:
+    view = build_self_tests(rows, power_on_hours, latest_read_at)
+    return {"last_extended": view["last_extended"], "hours_reset": view["hours_reset"]}
+
+
 @app.route("/api/drives")
 def drives():
     collector.wait_for_scan()
     stale_after = _stale_after()
+    states = collector.get_drive_states()
+    self_tests = db.get_self_tests([s.context.guid for s in states])
     result = []
-    for state in collector.get_drive_states():
+    for state in states:
         ctx = state.context
         traits = state.traits
         signals = state.snapshot.telemetry.signals
@@ -242,6 +250,10 @@ def drives():
             "health_floor": health.floor,
             "last_polled_at": polled_at.isoformat() if polled_at else None,
             "last_full_read_at": collector.last_full_read_at(ctx.guid),
+            # Coverage, not health: the latest extended self-test seen in the
+            # drive's log, kept past the log's rollover (analysis.self_tests).
+            "self_test_coverage": _self_test_coverage(
+                self_tests[ctx.guid], signals.power_on_hours, collector.last_full_read_at(ctx.guid)),
             "stale_after_s": stale_after,
             "is_mounted": state.attachment.is_mounted,
             "label": state.label,
@@ -331,7 +343,8 @@ def drive_smart_detail(guid):
     """The Health Report and SMART page for a drive's latest stored full
     smartctl read, as one point in time: the read's signals with their flags
     and health score, its named fields, the full attribute table / counter
-    logs, and the drive's self-test log. detail is null when the read holds no
+    logs, the drive's self-test log, and every self-test DriveCheck has seen
+    in it (self_tests, analysis.self_tests). detail is null when the read holds no
     smartctl output; signals (and flags, health) when it was stored without
     them (an older version)."""
     row = db.get_latest_raw_snapshot(guid)
@@ -349,6 +362,8 @@ def drive_smart_detail(guid):
         "health": judged.get("health"),
         "detail": build_smart_detail(smartctl) if smartctl else None,
         "self_test_log": raw.get("self_test_log", []),
+        "self_tests": build_self_tests(
+            db.get_self_tests([guid])[guid], (raw.get("signals") or {}).get("power_on_hours"), row["captured_at"]),
     })
 
 

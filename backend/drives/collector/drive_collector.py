@@ -650,6 +650,8 @@ class Collector:
         snapshot_id = db.record_raw_snapshot(
             state.context.guid, captured_at, "smartctl_telemetry", json.dumps(report)
         )
+        # Kept past the drive's own log (and past raw snapshot pruning).
+        db.record_self_tests(state.context.guid, captured_at, snapshot.extras.get("self_tests") or [])
         summary = {
             "snapshot_id": snapshot_id,
             "captured_at": captured_at,
