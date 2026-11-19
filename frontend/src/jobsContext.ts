@@ -11,6 +11,8 @@ export type JobsContextValue = {
   moveJob: (jobId: string, direction: "up" | "down") => void
   /** Queue the operation on each drive; resolves to the server's reason if it refused, else null. */
   runOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<string | null>
+  /** Start a recipe: one batch per drive. Resolves to the server's reason if it refused, else null. */
+  runRecipe: (guids: string[], recipe: string, params: Record<string, unknown>, stopOnFailure: boolean) => Promise<string | null>
   /** Count every job finished so far as seen. */
   markJobsSeen: () => void
 }
@@ -22,6 +24,7 @@ export const JobsContext = createContext<JobsContextValue>({
   cancelJob: () => {},
   moveJob: () => {},
   runOperation: () => Promise.resolve(null),
+  runRecipe: () => Promise.resolve(null),
   markJobsSeen: () => {},
 })
 

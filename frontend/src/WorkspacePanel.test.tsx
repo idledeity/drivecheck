@@ -15,7 +15,7 @@ afterEach(() => {
 
 function renderPanel(jobs: Partial<JobsContextValue> = {}) {
   const value: JobsContextValue = {
-    jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), runOperation: vi.fn(), markJobsSeen: vi.fn(), ...jobs,
+    jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn(), ...jobs,
   }
   return render(
     <JobsContext.Provider value={value}>

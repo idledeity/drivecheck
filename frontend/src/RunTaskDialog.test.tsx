@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RunTaskDialog from './RunTaskDialog'
 import { JobsContext } from './jobsContext'
-import { fetchJsonResponse, makeDrive } from './test/fixtures'
+import { makeDrive, routeFetch } from './test/fixtures'
 import type { OperationInfo } from './types'
 
 const READ_TEST: OperationInfo = {
@@ -16,11 +16,11 @@ beforeEach(() => { vi.stubGlobal('fetch', vi.fn()) })
 afterEach(() => { vi.unstubAllGlobals() })
 
 async function setup(ops: OperationInfo[], runResult: string | null = null, guids = ['d1']) {
-  vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(ops))
+  vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': ops, '/api/recipes': [] }))
   const runOperation = vi.fn().mockResolvedValue(runResult)
   const onClose = vi.fn()
   render(
-    <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), runOperation, markJobsSeen: vi.fn() }}>
+    <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), runOperation, runRecipe: vi.fn(), markJobsSeen: vi.fn() }}>
       <RunTaskDialog drives={guids.map(guid => makeDrive({ guid }))} guids={guids} onClose={onClose} />
     </JobsContext.Provider>,
   )

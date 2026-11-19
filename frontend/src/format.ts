@@ -96,6 +96,7 @@ export function jobResultText(job: Job): string {
     case "cancelled":   return "Cancelled before it finished"
     case "running":     return job.progress.message ?? "In progress"
     case "queued":      return "Waiting to start"
+    case "skipped":     return job.error ?? "Skipped"
   }
 }
 
@@ -106,4 +107,14 @@ export function formatBytes(bytes: number): string {
     if (bytes >= size) return `${(bytes / size).toFixed(bytes >= size * 100 ? 0 : 1)} ${unit}`
   }
   return `${bytes} B`
+}
+
+// A job or plan step's setting value, as the UI shows it.
+export function formatSettingValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  // Significant digits, not the default 3 fraction digits: 0.0004 must not show as 0.
+  if (typeof value === "number") return value.toLocaleString(undefined, { maximumSignificantDigits: 15 })
+  if (value === null || value === undefined) return "—"
+  if (typeof value === "object") return JSON.stringify(value)
+  return String(value)
 }

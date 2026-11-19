@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RunTaskTab from './RunTaskTab'
-import { fetchJsonResponse, makeDrive } from './test/fixtures'
+import { makeDrive, routeFetch } from './test/fixtures'
 import type { OperationInfo } from './types'
 
 beforeEach(() => {
@@ -42,47 +42,47 @@ const SECURE_ERASE: OperationInfo = {
 
 describe('RunTaskTab', () => {
   it('prompts for a selection when no drive is selected', () => {
-    render(<RunTaskTab drives={[]} selected={[]} onRun={vi.fn()} />)
+    render(<RunTaskTab drives={[]} selected={[]} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     expect(screen.getByText(/Select one or more drives/)).toBeInTheDocument()
   })
 
   it('does not fetch operations when nothing is selected', () => {
-    render(<RunTaskTab drives={[]} selected={[]} onRun={vi.fn()} />)
+    render(<RunTaskTab drives={[]} selected={[]} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     expect(fetch).not.toHaveBeenCalled()
   })
 
   it('fetches operations for the selected drives and shows a stub when none are available', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     expect(fetch).toHaveBeenCalledWith('/api/operations?guids=d1')
     await waitFor(() => expect(screen.getByText(/No operations available/)).toBeInTheDocument())
   })
 
   it('renders categories and operations, defaulting to the first operation', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Scan')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Full Read Test' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument()
   })
 
   it('renders a number param input seeded with its default', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Block size')).toBeInTheDocument())
     expect(screen.getByRole('spinbutton')).toHaveValue(4096)
   })
 
   it('renders a boolean param input seeded with its default', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([SLEEP_DEBUG]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [SLEEP_DEBUG], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Fail partway through')).toBeInTheDocument())
     expect(screen.getByRole('checkbox')).not.toBeChecked()
   })
 
   it('shows the target drive as a chip with its name and serial tail', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1', model: 'ModelX', serial: 'ZTM0FF02' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1', model: 'ModelX', serial: 'ZTM0FF02' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     const list = await screen.findByLabelText('Target drives')
     expect(within(list).getByText('Acme')).toBeInTheDocument()
     expect(within(list).getByText('ModelX')).toBeInTheDocument()
@@ -94,22 +94,22 @@ describe('RunTaskTab', () => {
   })
 
   it('shows one chip per selected drive, preferring the label over the model', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
     render(<RunTaskTab
       drives={[makeDrive({ guid: 'd1', label: 'booop' }), makeDrive({ guid: 'd2', model: 'Exos X16' }), makeDrive({ guid: 'd3' })]}
       selected={['d1', 'd2']}
-      onRun={vi.fn()}
+      onRun={vi.fn()} onRunRecipe={vi.fn()}
     />)
     const list = await screen.findByLabelText('Target drives')
     expect(within(list).getAllByText(/booop|Exos X16|ModelX/).map(e => e.textContent)).toEqual(['booop', 'Exos X16'])
   })
 
   it('marks a locked target as blocking a destructive operation', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([{ ...READ_TEST, key: 'shred', name: 'Secure Erase', destructive: true }]))
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [{ ...READ_TEST, key: 'shred', name: 'Secure Erase', destructive: true }], '/api/recipes': [] }))
     render(<RunTaskTab
       drives={[makeDrive({ guid: 'd1', model: 'Locked One', locked: true }), makeDrive({ guid: 'd2', model: 'Free One' })]}
       selected={['d1', 'd2']}
-      onRun={vi.fn()}
+      onRun={vi.fn()} onRunRecipe={vi.fn()}
     />)
     const list = await screen.findByLabelText('Target drives')
     expect(within(list).getByText('Locked One').closest('.drive-chip')).toHaveClass('blocked')
@@ -118,8 +118,8 @@ describe('RunTaskTab', () => {
   })
 
   it('switches the active operation when another sidebar entry is clicked', async () => {
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST, SLEEP_DEBUG]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST, SLEEP_DEBUG], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Sleep (debug)')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('Sleep (debug)'))
@@ -128,8 +128,8 @@ describe('RunTaskTab', () => {
 
   it('calls onRun with the selected drives, operation key, and current params', async () => {
     const onRun = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /Run/ }))
@@ -138,8 +138,8 @@ describe('RunTaskTab', () => {
 
   describe('number param limits', () => {
     async function renderReadTest(onRun = vi.fn().mockResolvedValue(null)) {
-      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} />)
+      vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} onRunRecipe={vi.fn()} />)
       await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
       return { onRun, input: screen.getByRole('spinbutton') }
     }
@@ -170,8 +170,8 @@ describe('RunTaskTab', () => {
 
   it('shows the reason a run was refused, and clears it on the next run', async () => {
     const onRun = vi.fn().mockResolvedValueOnce('one or more drives are locked').mockResolvedValueOnce(null)
-    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} />)
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={onRun} onRunRecipe={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /Run/ }))
@@ -187,8 +187,8 @@ describe('RunTaskTab', () => {
     ]
 
     async function renderErase(selected: string[], onRun = vi.fn().mockResolvedValue(undefined)) {
-      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([SECURE_ERASE]))
-      render(<RunTaskTab drives={DRIVES} selected={selected} onRun={onRun} />)
+      vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [SECURE_ERASE], '/api/recipes': [] }))
+      render(<RunTaskTab drives={DRIVES} selected={selected} onRun={onRun} onRunRecipe={vi.fn()} />)
       await waitFor(() => expect(screen.getByRole('heading', { name: 'Secure Erase (shred)' })).toBeInTheDocument())
       await userEvent.click(screen.getByRole('button', { name: /^Run$/ }))
       return onRun
@@ -242,8 +242,8 @@ describe('RunTaskTab', () => {
 
     it('runs non-destructive operations without a dialog', async () => {
       const onRun = vi.fn().mockResolvedValue(undefined)
-      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-      render(<RunTaskTab drives={DRIVES} selected={['d1']} onRun={onRun} />)
+      vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+      render(<RunTaskTab drives={DRIVES} selected={['d1']} onRun={onRun} onRunRecipe={vi.fn()} />)
       await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
       await userEvent.click(screen.getByRole('button', { name: /^Run$/ }))
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -261,8 +261,8 @@ describe('RunTaskTab', () => {
     }
 
     async function renderTips() {
-      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([WITH_TIPS]))
-      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+      vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [WITH_TIPS], '/api/recipes': [] }))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
       await waitFor(() => expect(screen.getByText('Duration (seconds)')).toBeInTheDocument())
     }
 
@@ -283,8 +283,8 @@ describe('RunTaskTab', () => {
     })
 
     it('shows no icon for a param without a tooltip', async () => {
-      vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([READ_TEST]))
-      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} />)
+      vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST], '/api/recipes': [] }))
+      render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
       await waitFor(() => expect(screen.getByText('Block size')).toBeInTheDocument())
       expect(screen.queryByLabelText(/^About /)).not.toBeInTheDocument()
     })

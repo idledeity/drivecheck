@@ -1,5 +1,5 @@
 import type { Job, JobLogFile, JobSmartSnapshot, JobStatus, SmartChange } from "./types"
-import { formatDuration, formatFileSize, formatTimestamp, humanizeKey, jobResultText } from "./format"
+import { formatDuration, formatFileSize, formatTimestamp, formatSettingValue, humanizeKey, jobResultText } from "./format"
 import { healthSeverity, severityClass, signalName } from "./signals"
 import SignalValue from "./SignalValue"
 import "./JobDetails.css"
@@ -17,6 +17,7 @@ const STATUS_LABEL: Record<JobStatus, string> = {
   failed:      "Failed",
   cancelled:   "Cancelled",
   interrupted: "Interrupted",
+  skipped:     "Skipped",
 }
 
 function seconds(fromIso: string, toIso: string): number {
@@ -25,15 +26,6 @@ function seconds(fromIso: string, toIso: string): number {
 
 // A queue wait shorter than this isn't worth a row of its own.
 const QUEUE_WAIT_SHOWN_SECONDS = 5
-
-function formatSettingValue(value: unknown): string {
-  if (typeof value === "boolean") return value ? "Yes" : "No"
-  // Significant digits, not the default 3 fraction digits: 0.0004 must not show as 0.
-  if (typeof value === "number") return value.toLocaleString(undefined, { maximumSignificantDigits: 15 })
-  if (value === null || value === undefined) return "—"
-  if (typeof value === "object") return JSON.stringify(value)
-  return String(value)
-}
 
 function formatResultValue(key: string, value: unknown): string {
   if (typeof value === "number" && key.includes("bytes")) return `${value.toLocaleString()} bytes`

@@ -56,6 +56,7 @@ describe('HistoryTab', () => {
     expect(ops()).toEqual(['Bad Run'])
     fireEvent.click(screen.getByRole('button', { name: /Cancelled/ }))
     fireEvent.click(screen.getByRole('button', { name: /Interrupted/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Skipped/ }))
     fireEvent.click(screen.getByRole('button', { name: /Failed/ }))   // the only one left: stays on
     expect(screen.getByRole('button', { name: /Failed/ })).toHaveAttribute('aria-pressed', 'true')
   })

@@ -20,15 +20,19 @@ interface Props {
  * dialog (a portal of its own) is up: that dialog answers those itself.
  */
 export default function RunTaskDialog({ drives, guids, onClose }: Props) {
-  const { runOperation } = useJobs()
+  const { runOperation, runRecipe } = useJobs()
   const cardRef = useRef<HTMLDivElement>(null)
   useEffect(() => { cardRef.current?.focus() }, [])
 
-  const run = async (g: string[], operation: string, params: Record<string, unknown>) => {
-    const err = await runOperation(g, operation, params)
+  // Close once it is queued; a refusal stays open with the form's error.
+  const closeIfQueued = (err: string | null) => {
     if (err === null) onClose()
     return err
   }
+  const run = (g: string[], operation: string, params: Record<string, unknown>) =>
+    runOperation(g, operation, params).then(closeIfQueued)
+  const runBatch = (g: string[], recipe: string, params: Record<string, unknown>, stop: boolean) =>
+    runRecipe(g, recipe, params, stop).then(closeIfQueued)
 
   const count = guids.length
   return createPortal(
@@ -51,7 +55,7 @@ export default function RunTaskDialog({ drives, guids, onClose }: Props) {
             <IconX size={14} />
           </button>
         </div>
-        <RunTaskForm drives={drives} guids={guids} onRun={run} />
+        <RunTaskForm drives={drives} guids={guids} onRun={run} onRunRecipe={runBatch} />
       </div>
     </div>,
     document.body,

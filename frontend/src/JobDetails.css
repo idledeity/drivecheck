@@ -60,6 +60,7 @@
 .job-status-failed      { color: var(--re); }
 .job-status-interrupted { color: var(--wa); }
 .job-status-cancelled   { color: var(--t4); }
+.job-status-skipped     { color: var(--t4); }
 .job-status-running     { color: var(--cy); }
 .job-status-queued      { color: var(--t3); }
 

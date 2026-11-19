@@ -6,6 +6,19 @@ export function fetchJsonResponse(data: unknown, status = 200) {
   return { status, ok: status >= 200 && status < 300, json: () => Promise.resolve(data) } as Response
 }
 
+/** A fetch mock answering by URL: the first route whose key the URL starts
+ *  with, else 404. Body is a value, or a function of the request's init. */
+export function routeFetch(routes: Record<string, unknown>) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const key = Object.keys(routes).find(k => url.startsWith(k))
+    if (key === undefined) return Promise.resolve(fetchJsonResponse({ error: 'not found' }, 404))
+    const route = routes[key]
+    const body = typeof route === 'function' ? route(init) : route
+    return Promise.resolve(body instanceof Object && 'ok' in body ? body as Response : fetchJsonResponse(body))
+  }
+}
+
 export function makeDrive(overrides: Partial<Drive> = {}): Drive {
   return {
     guid: 'guid-1',
@@ -76,6 +89,8 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
     smart: { before: null, after: null, comparison: null },
     logs: { raw: null, summary: null },
     queue_position: null,
+    batch: null,
+    step_check: null,
     ...overrides,
   }
 }

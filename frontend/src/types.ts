@@ -167,7 +167,9 @@ export type DriveVitals = {
   io: DriveIOActivity
 }
 
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted"
+// "skipped": a batch step that never ran — its drive can't run it, or an
+// earlier step failed and its batch stops on failure (see error for which).
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted" | "skipped"
 
 export type OperationProgress = {
   percent: number | null
@@ -230,7 +232,23 @@ export type Job = {
   smart: JobSmart
   logs: JobLogs
   queue_position: number | null  // run order while queued (0 starts first), else null
+  batch: JobBatch | null         // the batch this job is a step of, else null (a standalone job)
+  step_check: StepCheck | null   // a batch step's pass/fail check on its SMART readings, if any
 }
+
+// The batch a job is a step of: one drive's run of a recipe. Its steps share
+// the id and run in `step` order (0 first).
+export type JobBatch = {
+  id: string
+  step: number
+  recipe: string | null           // null if the batch's row is gone
+  recipe_name: string | null
+  params: Record<string, unknown> | null
+  stop_on_failure: boolean | null
+}
+
+// A check run on a batch step once it completes; description says what it fails on.
+export type StepCheck = { kind: string; description: string | null; [arg: string]: unknown }
 
 // The job's output (GET /api/jobs/<id>/logs/<kind>), null when it has none:
 // "raw" is the program's own output (a running job's is still growing),
@@ -257,6 +275,41 @@ export type OperationInfo = {
   tool: string
   destructive: boolean
   params: ParamSpec[]
+}
+
+// A recipe (GET /api/recipes): a sequence of operations started on each
+// selected drive as one batch, with its own params.
+export type RecipeInfo = {
+  key: string
+  name: string
+  description: string
+  destructive: boolean
+  stop_on_failure: boolean   // default for the form's "stop on failure" option
+  params: ParamSpec[]
+}
+
+// What starting a recipe would queue (POST /api/batches/preview).
+export type BatchPreview = {
+  recipe: RecipeInfo
+  params: Record<string, unknown>
+  stop_on_failure: boolean
+  drives: BatchPreviewDrive[]
+}
+
+export type BatchPreviewDrive = {
+  guid: string
+  excluded: string | null          // why the drive is left out, else null
+  locked: boolean                  // a destructive recipe can't start while any drive is locked
+  steps: BatchPreviewStep[] | null // null when excluded
+}
+
+export type BatchPreviewStep = {
+  operation: string
+  operation_name: string
+  destructive: boolean
+  supported: boolean               // false: recorded as skipped, the drive can't run it
+  settings: JobSetting[]
+  check: StepCheck | null
 }
 
 export type Drive = {

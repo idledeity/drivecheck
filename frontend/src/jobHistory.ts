@@ -13,7 +13,7 @@ export function mergeHistory(stored: Job[], live: Job[]): Job[] {
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
-export const FINISHED_STATUSES = new Set<Job["status"]>(["completed", "failed", "cancelled", "interrupted"])
+export const FINISHED_STATUSES = new Set<Job["status"]>(["completed", "failed", "cancelled", "interrupted", "skipped"])
 
 const finishedTime = (j: Job) => (j.finished_at ? new Date(j.finished_at).getTime() : NaN)
 

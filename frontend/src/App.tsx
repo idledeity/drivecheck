@@ -170,10 +170,18 @@ export default function App() {
   const unseen = useUnseenResults(jobsSeenAt, jobs)
 
   const runOperation = (guids: string[], operation: string, params: Record<string, unknown>) =>
-    fetch("/api/jobs", {
+    postRun("/api/jobs", { guids, operation, params }, "None of the selected drives can run this operation")
+
+  const runRecipe = (guids: string[], recipe: string, params: Record<string, unknown>, stopOnFailure: boolean) =>
+    postRun("/api/batches", { guids, recipe, params, stop_on_failure: stopOnFailure },
+      "None of the selected drives can run this recipe")
+
+  // Starts jobs (or batches); resolves to the reason the server refused, else null.
+  const postRun = (url: string, body: object, noneCreated: string) =>
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guids, operation, params }),
+      body: JSON.stringify(body),
     })
       .then(async r => {
         // A refusal (bad param, locked drive) is the server answering: report
@@ -184,9 +192,7 @@ export default function App() {
         }
         const created: unknown = await r.json().catch(() => null)
         loadJobs()
-        return Array.isArray(created) && created.length === 0
-          ? "None of the selected drives can run this operation"
-          : null
+        return Array.isArray(created) && created.length === 0 ? noneCreated : null
       })
       .catch(() => {
         setError("Backend unavailable — retrying…")
@@ -329,7 +335,7 @@ export default function App() {
   const colorKey = driveColorOrder(drives).join(",")
   const trendStyles = useMemo(() => driveStyles(colorKey ? colorKey.split(",") : []), [colorKey])
 
-  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, runOperation, markJobsSeen }
+  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, runOperation, runRecipe, markJobsSeen }
 
   return (
     <JobsContext.Provider value={jobsContext}>

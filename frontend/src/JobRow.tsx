@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2 } from "@tabler/icons-react"
+import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconPlayerSkipForward } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { formatDuration, formatRelativeTime, jobResultText } from "./format"
 import { JobDetails } from "./JobDetails"
@@ -16,6 +16,7 @@ const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
   failed:      <IconAlertTriangle size={13} />,
   cancelled:   <IconBan size={13} />,
   interrupted: <IconHelpCircle size={13} />,
+  skipped:     <IconPlayerSkipForward size={13} />,
 }
 
 // One job: status icon, drive chip, operation, then progress while running,

@@ -27,6 +27,7 @@ const FINISHED_STATUSES: { value: FinishedStatus; label: string }[] = [
   { value: "failed", label: "Failed" },
   { value: "cancelled", label: "Cancelled" },
   { value: "interrupted", label: "Interrupted" },
+  { value: "skipped", label: "Skipped" },
 ]
 const IS_FINISHED = new Set<string>(FINISHED_STATUSES.map(s => s.value))
 // The history route caps a request at 500 jobs.
