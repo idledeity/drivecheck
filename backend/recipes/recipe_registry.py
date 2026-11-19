@@ -22,6 +22,7 @@ RECIPES: dict[str, type[Recipe]] = {}
 
 def discover() -> None:
     """Populate RECIPES by scanning recipes.catalog."""
+    importlib.import_module("recipes.checks")  # registers the built-in check kinds
     found: dict[str, type[Recipe]] = {}
     package = importlib.import_module("recipes.catalog")
     for module_info in sorted(pkgutil.iter_modules(package.__path__), key=lambda m: m.name):
