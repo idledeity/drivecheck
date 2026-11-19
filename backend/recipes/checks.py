@@ -37,6 +37,11 @@ class NoIncrease(Check):
     def args(self) -> dict:
         return {"signals": self.signals}
 
+    def describe(self) -> str:
+        names = [n.replace("_", " ") for n in self.signals]
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+        return f"Fails if {listed} rise"
+
     def evaluate(self, job) -> str | None:
         before = _signals(job.smart_before)
         after = _signals(job.smart_after)

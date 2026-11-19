@@ -56,6 +56,10 @@ class Check(ABC):
     def args(self) -> dict:
         """JSON-serialisable constructor kwargs, so the check can be rebuilt by from_dict."""
 
+    def describe(self) -> str:
+        """What the check fails on, for showing next to its step. Default: its kind."""
+        return self.kind
+
     def to_dict(self) -> dict:
         return {"kind": self.kind, **self.args()}
 
@@ -108,6 +112,10 @@ class Recipe(ABC):
         validated params (merged onto its ParamSpecs' defaults)."""
 
 
+class DriveExcluded(Exception):
+    """The drive can't take part in the recipe; the message says why."""
+
+
 class RecipeError(Exception):
     """A recipe produced an invalid plan (unknown operation, params that don't
     fit it, an undeclared destructive step) — a bug in the recipe, not the request."""
@@ -128,16 +136,19 @@ def plan_for_drive(
     context: DriveContext,
     params: dict,
     operations: Mapping[str, type[OperationBase]],
-) -> list[PlannedStep] | None:
+) -> list[PlannedStep]:
     """A recipe's plan for one drive, each step checked against its operation.
 
     params are the recipe's validated params; operations is the operation
-    registry to resolve steps against. Returns None if the drive can't take
-    part: a step it can't run is marked if_unsupported="fail", or no step is
-    left that it can run. Raises RecipeError for a plan the recipe should
-    never produce (unknown operation, params that don't fit it, a destructive
-    step in a recipe not marked destructive).
+    registry to resolve steps against. Raises DriveExcluded if the drive can't
+    take part: the recipe doesn't support it, a step it can't run is marked
+    if_unsupported="fail", or no step is left that it can run. Raises
+    RecipeError for a plan the recipe should never produce (unknown operation,
+    params that don't fit it, a destructive step in a recipe not marked
+    destructive).
     """
+    if not recipe.supports(context):
+        raise DriveExcluded(f"{recipe.name} doesn't support this drive")
     planned = []
     for index, step in enumerate(recipe.plan(context, params)):
         where = f"recipe '{recipe_key}' step {index + 1} ({step.operation})"
@@ -153,8 +164,8 @@ def plan_for_drive(
         supported = op_cls.supports(context)
         if not supported and step.if_unsupported == "fail":
             logger.debug("%s: drive %s can't run it — left out", where, context.guid)
-            return None
+            raise DriveExcluded(f"Can't run step {index + 1} ({op_cls.name}), which the recipe requires")
         planned.append(PlannedStep(step, op_cls, dict(step_params), supported))
     if not any(p.supported for p in planned):
-        return None
+        raise DriveExcluded("Can't run any of the recipe's steps")
     return planned

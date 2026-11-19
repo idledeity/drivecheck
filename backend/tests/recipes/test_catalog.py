@@ -7,10 +7,12 @@ import pytest
 from drives.drive_models import DriveContext, DriveDescriptor, DriveTraits, DriveType
 from operations import operation_registry
 from recipes import recipe_registry
+from recipes.catalog.debug.debug_batch import DebugBatchRecipe
+from recipes.catalog.debug.debug_destructive_batch import DebugDestructiveBatchRecipe
 from recipes.catalog.destructive_stress_test import DestructiveStressTestRecipe, badblocks_block_size
 from recipes.catalog.initial_scan import InitialScanRecipe
 from recipes.checks import NoIncrease
-from recipes.recipe import Check, plan_for_drive
+from recipes.recipe import Check, DriveExcluded, Step, plan_for_drive
 from settings import cfg
 
 TB = 10**12
@@ -158,9 +160,71 @@ def test_no_increase_survives_a_round_trip():
 # --- discovery ---
 
 def test_discover_finds_the_built_in_recipes(monkeypatch):
+    monkeypatch.setattr(cfg, "_values", dict(cfg._values))
+    cfg.set("jobs.enable_debug_operations", False)
     monkeypatch.setattr(recipe_registry, "RECIPES", {})
     recipe_registry.discover()
     assert recipe_registry.RECIPES == {
         "destructive_stress_test": DestructiveStressTestRecipe,
         "initial_scan": InitialScanRecipe,
     }
+
+
+def test_discover_adds_the_debug_recipes_with_debug_operations_on(monkeypatch):
+    monkeypatch.setattr(cfg, "_values", dict(cfg._values))
+    cfg.set("jobs.enable_debug_operations", True)
+    monkeypatch.setattr(recipe_registry, "RECIPES", {})
+    recipe_registry.discover()
+    assert sorted(recipe_registry.RECIPES) == [
+        "debug_batch", "debug_destructive_batch", "destructive_stress_test", "initial_scan",
+    ]
+
+
+# --- debug recipes ---
+
+def test_debug_batch_is_three_sleeps_with_the_chosen_one_failing(monkeypatch):
+    monkeypatch.setattr(cfg, "_values", dict(cfg._values))
+    cfg.set("jobs.enable_debug_operations", True)
+    table = operation_registry._OperationTable()
+    monkeypatch.setattr(operation_registry, "OPERATIONS", table)
+    operation_registry.discover()
+    planned = _plan(DebugBatchRecipe, _drive(), table, step_seconds=5, fail_step=2)
+    assert [(p.step.operation, p.params) for p in planned] == [
+        ("debug_sleep", {"duration": 5, "fail": False}),
+        ("debug_sleep", {"duration": 5, "fail": True}),
+        ("debug_sleep", {"duration": 5, "fail": False}),
+    ]
+    assert DebugDestructiveBatchRecipe.destructive and not DebugBatchRecipe.destructive
+
+
+# --- drives left out ---
+
+def test_a_drive_that_cant_run_a_required_step_is_left_out_with_why(operations):
+    class NeedsConveyance(InitialScanRecipe):
+        def plan(self, context, params):
+            return [Step("smart_self_test_conveyance")]
+    with pytest.raises(DriveExcluded, match=r"step 1 \(SMART Self-Test \(Conveyance\)\)"):
+        _plan(NeedsConveyance, _drive(DriveType.NVME), operations)
+
+
+def test_a_drive_that_cant_run_any_step_is_left_out(operations):
+    class OnlyConveyance(InitialScanRecipe):
+        def plan(self, context, params):
+            return [Step("smart_self_test_conveyance", if_unsupported="skip")]
+    with pytest.raises(DriveExcluded, match="any of the recipe's steps"):
+        _plan(OnlyConveyance, _drive(DriveType.SAS), operations)
+
+
+def test_a_drive_the_recipe_doesnt_support_is_left_out(operations):
+    class NoSas(InitialScanRecipe):
+        @classmethod
+        def supports(cls, context):
+            return context.traits.drive_type != DriveType.SAS
+    with pytest.raises(DriveExcluded, match="doesn't support this drive"):
+        _plan(NoSas, _drive(DriveType.SAS), operations)
+
+
+def test_no_increase_describes_what_it_fails_on():
+    assert NoIncrease(["reallocated", "pending"]).describe() == "Fails if reallocated or pending rise"
+    assert NoIncrease(["reallocated_events", "pending", "uncorrected"]).describe() == \
+        "Fails if reallocated events, pending or uncorrected rise"

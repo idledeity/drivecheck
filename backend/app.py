@@ -22,7 +22,8 @@ from drives.collector import probe_registry
 from operations import job_logs
 from operations.operation import ParamError
 from operations.operation_registry import OPERATIONS, discover as discover_operations
-from recipes.recipe_registry import discover as discover_recipes
+from recipes.recipe import Check, RecipeError
+from recipes.recipe_registry import RECIPES, discover as discover_recipes
 from jobs.job_registry import JobRegistry
 from jobs.job_models import JobStatus
 from analysis.health import score_signals
@@ -163,7 +164,42 @@ def _job_logs(job_id: str, summary_log: str | None) -> dict:
     }
 
 
-def _job_to_dict(job):
+def _step_check(check: dict | None) -> dict | None:
+    """A step's stored check with a readable description, or None."""
+    if check is None:
+        return None
+    try:
+        description = Check.from_dict(check).describe()
+    except Exception:
+        # A kind no longer registered (e.g. a debug recipe's, debug now off).
+        description = check.get("kind")
+    return {**check, "description": description}
+
+
+def _batch_info(batch_id: str | None, step: int | None, batches: dict) -> dict | None:
+    """The batch a job is a step of, for grouping it in the UI, or None for a
+    standalone job. batches: db.get_batches() for the jobs being served."""
+    if batch_id is None:
+        return None
+    batch = batches.get(batch_id)
+    recipe_cls = RECIPES.get(batch.recipe) if batch else None
+    return {
+        "id": batch_id,
+        "step": step,
+        "recipe": batch.recipe if batch else None,
+        "recipe_name": recipe_cls.name if recipe_cls else (batch.recipe if batch else None),
+        "params": batch.params if batch else None,
+        "stop_on_failure": batch.stop_on_failure if batch else None,
+    }
+
+
+def _batches_for(batch_ids) -> dict:
+    return db.get_batches(sorted({b for b in batch_ids if b is not None}))
+
+
+def _job_to_dict(job, batches: dict | None = None):
+    if batches is None:
+        batches = _batches_for([job.batch_id])
     progress = job_registry.get_progress(job.id) if job.status == JobStatus.RUNNING else None
     return {
         "id": job.id,
@@ -184,6 +220,8 @@ def _job_to_dict(job):
         "smart": _smart_summary(job.smart_before, job.smart_after),
         "logs": _job_logs(job.id, job.summary_log),
         "queue_position": job.queue_position,
+        "batch": _batch_info(job.batch_id, job.batch_step, batches),
+        "step_check": _step_check(job.step_check),
     }
 
 
@@ -426,10 +464,12 @@ def list_operations():
 
 @app.route("/api/jobs", methods=["GET"])
 def list_jobs():
-    return jsonify([_job_to_dict(j) for j in job_registry.list_jobs()])
+    jobs = job_registry.list_jobs()
+    batches = _batches_for(j.batch_id for j in jobs)
+    return jsonify([_job_to_dict(j, batches) for j in jobs])
 
 
-def _history_row_to_dict(row):
+def _history_row_to_dict(row, batches: dict):
     op_cls = OPERATIONS.get(row["operation"])
     params = json.loads(row["params_json"])
     result = _json_or_none(row["result_json"])
@@ -453,6 +493,8 @@ def _history_row_to_dict(row):
         "finished_at": row["finished_at"],
         "smart": _smart_summary(_json_or_none(row["smart_before_json"]), _json_or_none(row["smart_after_json"])),
         "logs": _job_logs(row["id"], row["summary_log"]),
+        "batch": _batch_info(row["batch_id"], row["batch_step"], batches),
+        "step_check": _step_check(_json_or_none(row["step_check_json"])),
     }
 
 
@@ -490,7 +532,8 @@ def job_history():
         _csv_arg("guid"), max(1, min(limit, 500)), since=since, statuses=statuses,
         operations=_csv_arg("operation"), exclude_categories=_csv_arg("exclude_category"),
     )
-    return jsonify([_history_row_to_dict(r) for r in rows])
+    batches = _batches_for(r["batch_id"] for r in rows)
+    return jsonify([_history_row_to_dict(r, batches) for r in rows])
 
 
 @app.route("/api/jobs", methods=["POST"])
@@ -580,11 +623,160 @@ def move_job(job_id):
     direction = {"up": -1, "down": 1}.get((request.get_json() or {}).get("direction"))
     if direction is None:
         return jsonify({"error": "'direction' must be \"up\" or \"down\""}), 400
+    job = job_registry.get_job(job_id)
+    if job is not None and job.batch_id is not None:
+        return jsonify({"error": "this job is a step of a batch — move the batch instead",
+                        "batch_id": job.batch_id}), 409
     moved = job_registry.move_job(job_id, direction)
     if moved is None:
         return jsonify({"error": "unknown job, or it is no longer queued"}), 404
     if not moved:
-        return jsonify({"error": "already first or last among this drive's queued jobs"}), 409
+        return jsonify({"error": "already first or last among this drive's queued jobs "
+                                 "(a batch that has started stays first)"}), 409
+    return jsonify({"status": "ok"})
+
+
+def _recipe_to_dict(key: str, recipe_cls) -> dict:
+    return {
+        "key": key,
+        "name": recipe_cls.name,
+        "description": recipe_cls.description,
+        "destructive": recipe_cls.destructive,
+        "stop_on_failure": recipe_cls.stop_on_failure,
+        "params": [asdict(p) for p in recipe_cls.params],
+    }
+
+
+@app.route("/api/recipes")
+def list_recipes():
+    """Every recipe, with its params. Which drives it suits, and what each
+    would run, comes from POST /api/batches/preview."""
+    return jsonify([_recipe_to_dict(key, recipe_cls) for key, recipe_cls in RECIPES.items()])
+
+
+def _batch_request():
+    """(guids, recipe key, params, stop_on_failure) from a batch request body,
+    or a 400 response."""
+    body = request.get_json() or {}
+    guids, recipe, params = body.get("guids"), body.get("recipe"), body.get("params", {})
+    stop_on_failure = body.get("stop_on_failure")
+    if not guids or not recipe:
+        return None, (jsonify({"error": "missing 'guids' or 'recipe'"}), 400)
+    if not isinstance(params, dict):
+        return None, (jsonify({"error": "'params' must be an object"}), 400)
+    if stop_on_failure is not None and not isinstance(stop_on_failure, bool):
+        return None, (jsonify({"error": "'stop_on_failure' must be true or false"}), 400)
+    return (guids, recipe, params, stop_on_failure), None
+
+
+def _recipe_failure(e: Exception):
+    """The response for a recipe that couldn't be planned."""
+    if isinstance(e, ParamError):
+        return jsonify({"error": f"invalid parameter '{e.field}': {e.message}", "field": e.field}), 400
+    logger.error("recipe plan is invalid: %s", e)
+    return jsonify({"error": f"the recipe's plan is invalid: {e}"}), 500
+
+
+@app.route("/api/batches/preview", methods=["POST"])
+def preview_batches():
+    """What POST /api/batches would queue, without queueing it: for each drive,
+    the steps with the settings each would use, or why the drive is left out.
+    Same body as POST /api/batches."""
+    parsed, error = _batch_request()
+    if error:
+        return error
+    guids, recipe_key, params, stop_on_failure = parsed
+    try:
+        planned = job_registry.plan_batches(guids, recipe_key, params)
+    except (ParamError, RecipeError) as e:
+        return _recipe_failure(e)
+    if planned is None:
+        return jsonify({"error": "unknown recipe"}), 404
+    merged_params, drive_plans = planned
+    recipe_cls = RECIPES[recipe_key]
+    return jsonify({
+        "recipe": _recipe_to_dict(recipe_key, recipe_cls),
+        "params": merged_params,
+        "stop_on_failure": recipe_cls.stop_on_failure if stop_on_failure is None else stop_on_failure,
+        "drives": [
+            {
+                "guid": plan.guid,
+                "excluded": plan.excluded,
+                # Starting a destructive recipe is refused (423) while any of its drives is locked.
+                "locked": recipe_cls.destructive and collector.is_drive_locked(plan.guid),
+                "steps": None if plan.steps is None else [
+                    {
+                        "operation": p.step.operation,
+                        "operation_name": p.operation.name,
+                        "destructive": p.operation.destructive,
+                        "supported": p.supported,
+                        "settings": _job_settings(p.step.operation, p.params),
+                        "check": _step_check(p.step.check.to_dict() if p.step.check else None),
+                    }
+                    for p in plan.steps
+                ],
+            }
+            for plan in drive_plans
+        ],
+    })
+
+
+@app.route("/api/batches", methods=["POST"])
+def create_batches():
+    """Start a recipe: one batch per drive, every step queued up front. Body:
+    guids, recipe, params (the recipe's), stop_on_failure (optional; the
+    recipe's default if left out). Drives the recipe can't run on are left out
+    (see the preview); 422 if that leaves none."""
+    parsed, error = _batch_request()
+    if error:
+        return error
+    guids, recipe_key, params, stop_on_failure = parsed
+    recipe_cls = RECIPES.get(recipe_key)
+    if recipe_cls is None:
+        return jsonify({"error": "unknown recipe"}), 404
+    if recipe_cls.destructive:
+        locked_guids = [g for g in guids if collector.is_drive_locked(g)]
+        if locked_guids:
+            return jsonify({"error": "one or more drives are locked", "locked_guids": locked_guids}), 423
+    try:
+        created = job_registry.create_batches(guids, recipe_key, params, stop_on_failure)
+    except (ParamError, RecipeError) as e:
+        return _recipe_failure(e)
+    if created is None:
+        return jsonify({"error": "unknown recipe"}), 404
+    if not created:
+        return jsonify({"error": f"none of the selected drives can run {recipe_cls.name}"}), 422
+    batches = {batch.id: batch for batch, _ in created}
+    return jsonify([
+        {"id": batch.id, "drive_guid": batch.drive_guid, "jobs": [_job_to_dict(j, batches) for j in jobs]}
+        for batch, jobs in created
+    ]), 201
+
+
+@app.route("/api/batches/<batch_id>/cancel", methods=["POST"])
+def cancel_batch(batch_id):
+    """Cancel a batch's queued steps and stop its running one."""
+    cancelled = job_registry.cancel_batch(batch_id)
+    if cancelled is None:
+        return jsonify({"error": "unknown batch"}), 404
+    return jsonify({"status": "ok", "cancelled": cancelled})
+
+
+@app.route("/api/batches/<batch_id>/move", methods=["POST"])
+def move_batch(batch_id):
+    """Move a batch's queued steps, together, one place earlier ("up") or
+    later ("down") among its drive's queued jobs."""
+    direction = {"up": -1, "down": 1}.get((request.get_json() or {}).get("direction"))
+    if direction is None:
+        return jsonify({"error": "'direction' must be \"up\" or \"down\""}), 400
+    moved = job_registry.move_batch(batch_id, direction)
+    if moved is None:
+        return jsonify({"error": "unknown batch, or none of its steps are still queued"}), 404
+    if not moved and job_registry.batch_started(batch_id):
+        return jsonify({"error": "this batch has started — its remaining steps stay next on the drive"}), 409
+    if not moved:
+        return jsonify({"error": "already first or last among this drive's queued jobs "
+                                 "(a batch that has started stays first)"}), 409
     return jsonify({"status": "ok"})
 
 

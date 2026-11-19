@@ -191,6 +191,22 @@ def test_unsupported_step_marked_fail_leaves_the_drive_out():
         assert conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0] == 0
 
 
+def test_plan_batches_says_what_each_drive_would_run_without_queueing():
+    registry = make_registry(guids=("d1", "d2"))
+    merged, plans = registry.plan_batches(["d1", "gone", "d2"], "with_unsupported", {})
+    assert merged == {"if_unsupported": "skip"}
+    assert [(p.guid, p.excluded) for p in plans] == [("d1", None), ("gone", "Drive not found"), ("d2", None)]
+    assert [(s.step.operation, s.supported) for s in plans[0].steps] == [
+        ("controllable", True), ("unsupported", False), ("controllable", True),
+    ]
+    assert registry.list_jobs() == [] and db.get_job_history() == []
+
+
+def test_plan_batches_gives_why_a_drive_is_left_out():
+    _, plans = make_registry().plan_batches(["d1"], "with_unsupported", {"if_unsupported": "fail"})
+    assert plans[0].steps is None and "which the recipe requires" in plans[0].excluded
+
+
 def test_an_undeclared_destructive_step_is_refused_with_nothing_queued():
     registry = make_registry()
     with pytest.raises(RecipeError, match="destructive"):
@@ -291,17 +307,31 @@ def test_move_batch_moves_its_steps_together_past_the_next_unit():
     assert registry.move_batch("unknown", 1) is None
 
 
-def test_move_batch_leaves_its_running_step_and_other_drives_in_place():
+def test_move_batch_leaves_other_drives_jobs_in_place():
     registry = make_registry()
-    b1, first = _start(registry)                      # step 0 running on d1
+    registry.create_jobs(["d1"], "controllable", {})  # holds d1
+    b1, first = _start(registry)
     [other] = registry.create_jobs(["d2"], "controllable", {})  # runs on d2
     [other_queued] = registry.create_jobs(["d2"], "controllable", {})
     [solo] = registry.create_jobs(["d1"], "controllable", {})
     before = other_queued.queue_position
     assert registry.move_batch(b1.id, 1) is True
-    assert first[0].status == R and first[0].queue_position is None
-    assert solo.queue_position == 0 and _positions(first[1:]) == [1, 3]  # d2's job keeps its place
-    assert other_queued.queue_position == before == 2
+    assert solo.queue_position == 0 and _positions(first) == [1, 2, 4]  # d2's job keeps its place
+    assert other_queued.queue_position == before == 3
+
+
+def test_a_started_batch_keeps_its_remaining_steps_next():
+    registry = make_registry()
+    b1, first = _start(registry)                      # step 0 running on d1
+    b2, second = _start(registry)
+    [solo] = registry.create_jobs(["d1"], "controllable", {})
+    assert first[0].status == R and registry.batch_started(b1.id)
+    assert registry.move_batch(b1.id, 1) is False     # can't be moved...
+    assert registry.move_batch(b2.id, -1) is False    # ...or passed by a batch
+    assert registry.move_job(solo.id, -1) is True     # (passes b2)
+    assert registry.move_job(solo.id, -1) is False    # ...or by a job
+    assert _positions(first[1:]) == [0, 1]
+    assert not registry.batch_started(b2.id)
 
 
 def test_move_batch_returns_none_once_nothing_is_queued():
@@ -354,14 +384,16 @@ def test_recovery_keeps_a_batch_movable_and_cancellable():
     registry = make_registry()
     registry.create_jobs(["d1"], "controllable", {})  # holds the drive
     batch, jobs = _start(registry)
+    waiting, _ = _start(registry)
     [solo] = registry.create_jobs(["d1"], "controllable", {})
     registry.shutdown()
 
     restarted = make_registry()
     restarted.recover()  # the blocker can't reattach: interrupted, so the batch starts
     wait_until(lambda: restarted._jobs[jobs[0].id].status == R)
-    assert restarted.move_batch(batch.id, 1) is True
-    assert restarted._jobs[solo.id].queue_position == 0
+    assert restarted.move_batch(batch.id, 1) is False   # started: stays next
+    assert restarted.move_batch(waiting.id, 1) is True
+    assert restarted._jobs[solo.id].queue_position == 2
     assert restarted.cancel_batch(batch.id) == 3
 
 

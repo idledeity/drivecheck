@@ -30,7 +30,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from settings import cfg
@@ -44,7 +44,7 @@ from operations.operation import (
 from operations.operation_registry import OPERATIONS
 from drives.drive_models import DriveContext
 from jobs.job_models import Batch, Job, JobStatus
-from recipes.recipe import Check, PlannedStep, plan_for_drive
+from recipes.recipe import Check, DriveExcluded, PlannedStep, plan_for_drive
 from recipes.recipe_registry import RECIPES
 
 
@@ -80,6 +80,15 @@ cfg.register("jobs.smart_snapshot_reuse_seconds",
                 "\"after\". 0 always takes a new one. The \"after\" snapshot is always new.",
     min=0, max=86400, restart_required=False,
 )
+
+
+@dataclass
+class DrivePlan:
+    """One drive's part in a recipe (JobRegistry.plan_batches): its steps, or
+    why it is left out."""
+    guid: str
+    steps: list[PlannedStep] | None
+    excluded: str | None
 
 
 class JobRegistry:
@@ -177,6 +186,30 @@ class JobRegistry:
             logger.debug("create_jobs: no eligible drive(s) for operation '%s' among %s", operation_key, guids)
         return created
 
+    def plan_batches(self, guids: list[str], recipe_key: str, params: dict) -> tuple[dict, list["DrivePlan"]] | None:
+        """What starting a recipe on these drives would queue, without queueing
+        anything: (the recipe's params merged onto its defaults, one DrivePlan
+        per guid in order). Returns None if recipe_key is unknown; raises
+        ParamError if params don't fit the recipe, RecipeError if its plan is
+        invalid."""
+        recipe_cls = RECIPES.get(recipe_key)
+        if recipe_cls is None:
+            logger.debug("plan_batches: unknown recipe '%s'", recipe_key)
+            return None
+        merged_params = validate_params(recipe_cls.params, params)
+        recipe = recipe_cls()
+        plans = []
+        for guid in guids:
+            context = self._get_context(guid)
+            if context is None:
+                plans.append(DrivePlan(guid, None, "Drive not found"))
+                continue
+            try:
+                plans.append(DrivePlan(guid, plan_for_drive(recipe_key, recipe, context, merged_params, OPERATIONS), None))
+            except DriveExcluded as e:
+                plans.append(DrivePlan(guid, None, str(e)))
+        return merged_params, plans
+
     def create_batches(
         self, guids: list[str], recipe_key: str, params: dict, stop_on_failure: bool | None = None,
     ) -> list[tuple[Batch, list[Job]]] | None:
@@ -185,30 +218,20 @@ class JobRegistry:
         Returns None if recipe_key is unknown; raises ParamError if params don't
         fit the recipe's ParamSpecs, and RecipeError if the recipe's plan is
         invalid (a bug in the recipe — nothing is queued). stop_on_failure None
-        takes the recipe's default. Drives that are unknown, that the recipe
-        doesn't support, or that can't run a step marked if_unsupported="fail"
-        get no batch, so the list may be shorter than `guids` (or empty). Steps
-        the drive can't run that are marked "skip" are recorded as SKIPPED
-        jobs, so each batch shows its plan in full.
+        takes the recipe's default. Drives plan_batches excludes get no batch,
+        so the list may be shorter than `guids` (or empty). Steps the drive
+        can't run that are marked "skip" are recorded as SKIPPED jobs, so each
+        batch shows its plan in full.
         """
-        recipe_cls = RECIPES.get(recipe_key)
-        if recipe_cls is None:
-            logger.debug("create_batches: unknown recipe '%s'", recipe_key)
-            return None
-        merged_params = validate_params(recipe_cls.params, params)
-        recipe = recipe_cls()
-        stop = recipe_cls.stop_on_failure if stop_on_failure is None else bool(stop_on_failure)
-
         # Plan every drive before queueing anything, so a bad plan leaves no
         # half-created batches behind.
-        plans: list[tuple[str, list[PlannedStep]]] = []
-        for guid in guids:
-            context = self._get_context(guid)
-            if context is None or not recipe_cls.supports(context):
-                continue
-            planned = plan_for_drive(recipe_key, recipe, context, merged_params, OPERATIONS)
-            if planned is not None:
-                plans.append((guid, planned))
+        planned_batches = self.plan_batches(guids, recipe_key, params)
+        if planned_batches is None:
+            return None
+        merged_params, drive_plans = planned_batches
+        recipe_cls = RECIPES[recipe_key]
+        stop = recipe_cls.stop_on_failure if stop_on_failure is None else bool(stop_on_failure)
+        plans = [(p.guid, p.steps) for p in drive_plans if p.steps is not None]
 
         created: list[tuple[Batch, list[Job]]] = []
         with self._lock:
@@ -301,6 +324,11 @@ class JobRegistry:
             recovered_queued, recovered_running, len(interrupted),
         )
 
+    def get_job(self, job_id: str) -> Job | None:
+        """A job created this session, or None."""
+        with self._lock:
+            return self._jobs.get(job_id)
+
     def list_jobs(self) -> list[Job]:
         """Return a snapshot of all jobs created this session (queued, running, or finished)."""
         with self._lock:
@@ -379,10 +407,10 @@ class JobRegistry:
     def move_batch(self, batch_id: str, direction: int) -> bool | None:
         """Move a batch's queued steps, together, one place earlier (-1) or
         later (+1) among its drive's queued jobs, passing a whole batch as one
-        place. A step already running stays put.
+        place. Only a batch that hasn't started moves (see _move_unit).
 
         Returns None if batch_id isn't a batch with queued steps, False if it
-        is already first or last, True once moved.
+        has started or is already first or last, True once moved.
         """
         if direction not in (-1, 1):
             raise ValueError("direction must be -1 or 1")
@@ -472,14 +500,20 @@ class JobRegistry:
         """Swap the drive's queue unit matching is_unit with its neighbour in
         `direction`. The drive's jobs keep the places in the run order they
         held, just refilled in the new order, so other drives' jobs don't move.
-        Returns None if no unit matches, False if there is no neighbour, True
-        once moved. Caller holds self._lock."""
+        A batch that has started keeps its remaining steps next on its drive, so
+        nothing runs between them: that unit (always the drive's first, as
+        units only move whole and new ones join at the end) can't be moved or
+        passed.
+
+        Returns None if no unit matches, False if there is no neighbour (or the
+        unit is that started batch), True once moved. Caller holds self._lock."""
         units = self._queue_units(guid)
         index = next((k for k, unit in enumerate(units) if is_unit(unit)), None)
         if index is None:
             return None
+        pinned = 1 if units and self._batch_started(self._jobs[units[0][0]].batch_id) else 0
         other = index + direction
-        if not 0 <= other < len(units):
+        if index < pinned or not pinned <= other < len(units):
             return False
         units[index], units[other] = units[other], units[index]
         reordered = iter([jid for unit in units for jid in unit])
@@ -487,6 +521,18 @@ class JobRegistry:
         self._renumber_queue()
         self._dispatch()
         return True
+
+    def _batch_started(self, batch_id: str | None) -> bool:
+        """Whether any step of the batch has started. Caller holds self._lock."""
+        return batch_id is not None and any(
+            j.batch_id == batch_id and j.started_at is not None for j in self._jobs.values()
+        )
+
+    def batch_started(self, batch_id: str) -> bool:
+        """Whether any step of the batch has started (its remaining steps then
+        stay next on the drive, and it can't be moved)."""
+        with self._lock:
+            return self._batch_started(batch_id)
 
     def _stop_chain_if_failed(self, job: Job) -> None:
         """If a batch step ended other than COMPLETED and its batch stops on
