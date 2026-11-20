@@ -536,6 +536,20 @@ def job_history():
     return jsonify([_history_row_to_dict(r, batches) for r in rows])
 
 
+@app.route("/api/jobs/latest")
+def latest_tasks():
+    """Each drive's last finished task, keyed by drive guid: a list holding
+    its last finished job, or every step of its batch when that job was a
+    batch step (as GET /api/jobs/history rows). Drives that never finished
+    a job are left out."""
+    rows = db.get_latest_tasks()
+    batches = _batches_for(r["batch_id"] for r in rows)
+    latest: dict[str, list[dict]] = {}
+    for r in rows:
+        latest.setdefault(r["drive_guid"], []).append(_history_row_to_dict(r, batches))
+    return jsonify(latest)
+
+
 @app.route("/api/jobs", methods=["POST"])
 def create_jobs():
     body = request.get_json() or {}

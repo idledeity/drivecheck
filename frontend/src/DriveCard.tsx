@@ -4,14 +4,15 @@ import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTem
 import type { Drive, Job } from "./types"
 import { SIGNALS, DEFAULT_FOOTER_SIGNALS } from "./signals"
 import SignalValue from "./SignalValue"
-import { formatCapacity, formatThroughput } from "./format"
+import { formatCapacity, formatDuration, formatRelativeTime, formatThroughput, jobResultText } from "./format"
 import AsOf from "./AsOf"
 import SelfTestLights, { SelfTestPopover } from "./SelfTestLights"
 import { useSmartRead } from "./smartReadContext"
 import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
 import { TaskRow } from "./BatchRow"
-import { batchState, batchSteps, groupTasks } from "./taskItems"
+import { batchOutcome, batchState, batchSteps, groupTasks, itemDuration, itemFinishedAt, type TaskItem } from "./taskItems"
+import { STATUS_ICON } from "./jobStatusIcon"
 import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
@@ -38,6 +39,8 @@ interface Props {
   queuedJobs: Job[]
   /** Finished jobs on this drive the user hasn't seen yet, newest first. */
   newResults?: Job[]
+  /** The drive's last finished task: one job, or every step of its batch. */
+  lastTask?: Job[]
   /** A drive menu is open: no hover popovers, so none can open over it. */
   menuOpen?: boolean
   /** This drive's line color in history charts (its Health > Trends color),
@@ -51,7 +54,7 @@ interface Props {
 // incidental mouse pass-through on the way to somewhere else on the card.
 const HOVER_DELAY_MS = 400
 
-export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], menuOpen = false, trendStyle = DEFAULT_TREND_STYLE }: Props) {
+export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], lastTask = [], menuOpen = false, trendStyle = DEFAULT_TREND_STYLE }: Props) {
   const health  = (drive.health_status && HEALTH_DISPLAY[drive.health_status]) || HEALTH_DISPLAY.Unrated
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
@@ -117,6 +120,9 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // Queued behind the batch: its own later steps are counted by its pill.
   const otherQueued = batch ? queuedJobs.filter(j => j.batch?.id !== batch.id) : queuedJobs
 
+  // What an idle card shows: the last task, as Activity and History name it.
+  const lastItem = lastTask.length > 0 ? groupTasks(lastTask)[0] : null
+
   // A batch's steps show together, as one row (with steps from the live list).
   const jobRows = (jobs: Job[]) => groupTasks(jobs, allJobs).map(item =>
     <TaskRow key={item.key} item={item} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />)
@@ -132,6 +138,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
       </>
     ),
     queued: otherQueued.length > 0 && jobRows(otherQueued),
+    last: lastItem && <TaskRow item={lastItem} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />,
     batch: batch && <TaskRow item={{ kind: "batch", key: `batch-${batch.id}`, batchId: batch.id, steps: batchJobs }} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />,
     complete: newResults.length > 0 && jobRows(newResults),
     // The overview, then the score's history.
@@ -309,8 +316,13 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           <div className="dc-tn">
             <IconClock size={11} />
             <span>Idle</span>
+            {/* Names the lines below: what ran last, not what's running. */}
+            {lastItem && <span className="dc-tn-sub">· Last task</span>}
             {completePill && <div className="dc-tn-right">{completePill}</div>}
           </div>
+          {lastItem
+            ? <LastTask item={lastItem} trigger={pop.trigger("last")} />
+            : <div className="dc-tz-msg"><span>No tasks run yet</span></div>}
         </div>
       )}
       {popoverContent}
@@ -351,7 +363,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
 // Trend popovers are keyed "trend:<metric>".
 const TREND = "trend:"
-type PopoverKey = "task" | "queued" | "batch" | "complete" | "health" | "tests" | `${typeof TREND}${TrendMetric}`
+type PopoverKey = "task" | "queued" | "batch" | "last" | "complete" | "health" | "tests" | `${typeof TREND}${TrendMetric}`
 const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => key.startsWith(TREND)
 // Without a color from the grid (e.g. in tests): the first series color.
 const DEFAULT_TREND_STYLE = seriesStyle(0)
@@ -399,4 +411,43 @@ function useShortPillsToFit(ref: React.RefObject<HTMLDivElement | null>, deps: u
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+// An idle card's last task, on the lines a running task uses: its status
+// icon, pill and when it finished, then its outcome and how long it ran.
+// Grey throughout: on a card, green and red mean the drive's health; the
+// icon's shape still says how it ended. Hover opens its row.
+function LastTask({ item, trigger }: { item: TaskItem; trigger: Record<string, unknown> }) {
+  const status = item.kind === "job" ? item.job.status : batchState(item.steps).status
+  let pill: React.ReactNode, outcome: string
+  if (item.kind === "job") {
+    pill = <span className="dc-tn-op">{item.job.operation_name}</span>
+    outcome = jobResultText(item.job)
+  } else {
+    const state = batchState(item.steps)
+    const b = item.steps[0].batch!
+    pill = (
+      <span className="dc-batch-pill">
+        <span className="dc-batch-pill-name">{b.recipe_name ?? "Batch"}</span>
+        <span className="dc-batch-pill-n">{state.completed}/{state.total}</span>
+      </span>
+    )
+    outcome = batchOutcome(state, b.stop_on_failure)
+  }
+  const duration = itemDuration(item)
+  return (
+    <div className="dc-tz-last" {...trigger}>
+      <div className="dc-tn">
+        <div className="dc-tn-id">
+          <span className="dc-last-icon">{STATUS_ICON[status]}</span>
+          {pill}
+        </div>
+        <span className="dc-tz-time">{formatRelativeTime(new Date(itemFinishedAt(item)).toISOString())}</span>
+      </div>
+      <div className="dc-tz-msg">
+        <span className="dc-tz-msg-text" title={outcome}>{outcome}</span>
+        {duration >= 0 && <span className="dc-tz-time">ran {formatDuration(duration / 1000)}</span>}
+      </div>
+    </div>
+  )
 }

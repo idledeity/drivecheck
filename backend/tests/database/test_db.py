@@ -498,3 +498,19 @@ def test_self_tests_survive_history_pruning():
     db.record_self_tests("g1", "2020-01-01T00:00:00", [_self_test(100)])
     db.prune_history("2026-01-01T00:00:00")
     assert len(db.get_self_tests(["g1"])["g1"]) == 1
+
+
+def test_latest_tasks_are_each_drives_last_finished_job_or_its_whole_batch():
+    db.record_job(_finished_job("old", "guid-1", finished=datetime(2026, 1, 1)))
+    db.record_job(_finished_job("new", "guid-1", finished=datetime(2026, 1, 2)))
+    # guid-2's last job is a batch's final (skipped) step: the batch comes whole.
+    for step, (job_id, status) in enumerate([("s0", JobStatus.COMPLETED), ("s1", JobStatus.FAILED), ("s2", JobStatus.SKIPPED)]):
+        job = _finished_job(job_id, "guid-2", status=status, finished=datetime(2026, 1, 3, 0, step))
+        job.batch_id, job.batch_step = "b1", step
+        db.record_job(job)
+    db.record_job(Job(id="queued", drive_guid="guid-3", operation="dd_read_test", category="Scan",
+                      params={}, status=JobStatus.QUEUED, created_at=datetime(2026, 1, 4)))
+    by_drive: dict[str, set[str]] = {}
+    for row in db.get_latest_tasks():
+        by_drive.setdefault(row["drive_guid"], set()).add(row["id"])
+    assert by_drive == {"guid-1": {"new"}, "guid-2": {"s0", "s1", "s2"}}

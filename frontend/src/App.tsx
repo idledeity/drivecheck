@@ -61,6 +61,8 @@ export default function App() {
   const auth = useAuth()
   const [drives, setDrives] = useState<Drive[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
+  // Each drive's last finished task (a job, or a batch's steps), for idle cards.
+  const [latestTasks, setLatestTasks] = useState<Record<string, Job[]>>({})
   const [selected, setSelected] = useState<string[]>([])
   const anchorRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -124,6 +126,40 @@ export default function App() {
     const id = setInterval(() => { loadDrives(); loadJobs() }, 2_000)
     return () => clearInterval(id)
   }, [])
+
+  // Fetched at load and again whenever another job finishes.
+  const finishedKey = useMemo(() => {
+    const done = jobs.filter(j => j.finished_at)
+    return `${done.length}|${done.map(j => j.finished_at!).sort().at(-1) ?? ""}`
+  }, [jobs])
+  useEffect(() => {
+    fetch("/api/jobs/latest")
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) setLatestTasks(data) })
+      .catch(() => {})
+  }, [finishedKey])
+
+  // The fetched last tasks, brought up to date with the live list: its copy
+  // of a job wins (a fetch can catch a step's row before it is saved as
+  // finished), and a job it has finished since counts too.
+  const lastTaskByDrive = useMemo(() => {
+    const byDrive = new Map<string, Map<string, Job>>()
+    const add = (j: Job) => {
+      const pool = byDrive.get(j.drive_guid) ?? new Map<string, Job>()
+      pool.set(j.id, j)
+      byDrive.set(j.drive_guid, pool)
+    }
+    Object.values(latestTasks).flat().forEach(add)
+    jobs.forEach(add)
+    const out = new Map<string, Job[]>()
+    for (const [guid, pool] of byDrive) {
+      const jobsHere = [...pool.values()]
+      const last = jobsHere.filter(j => j.finished_at).sort((a, b) => a.finished_at!.localeCompare(b.finished_at!)).at(-1)
+      if (!last) continue
+      out.set(guid, last.batch ? jobsHere.filter(j => j.batch?.id === last.batch!.id) : [last])
+    }
+    return out
+  }, [latestTasks, jobs])
 
   const cancelJob = (jobId: string) =>
     fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" })
@@ -395,6 +431,7 @@ export default function App() {
                 job={activeJobMap.get(d.guid)}
                 queuedJobs={queuedJobsMap.get(d.guid) ?? EMPTY_JOBS}
                 newResults={unseenByDrive.get(d.guid) ?? EMPTY_JOBS}
+                lastTask={lastTaskByDrive.get(d.guid) ?? EMPTY_JOBS}
                 menuOpen={contextMenu !== null}
                 trendStyle={trendStyles[d.guid]}
               />

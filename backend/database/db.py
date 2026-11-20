@@ -748,6 +748,27 @@ def get_signal_buckets(
         ).fetchall()
 
 
+def get_latest_tasks() -> list[sqlite3.Row]:
+    """Each drive's most recently finished task: its last finished job, or,
+    when that job is a batch step, every step of its batch. Rows in no
+    particular order; a drive with no finished job has none."""
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            """
+            WITH latest AS (
+                SELECT id, batch_id FROM (
+                    SELECT id, batch_id, ROW_NUMBER() OVER (
+                        PARTITION BY drive_guid ORDER BY finished_at DESC, created_at DESC) AS n
+                      FROM jobs WHERE finished_at IS NOT NULL)
+                 WHERE n = 1)
+            SELECT * FROM jobs
+             WHERE id IN (SELECT id FROM latest)
+                OR batch_id IN (SELECT batch_id FROM latest WHERE batch_id IS NOT NULL)
+            """
+        ).fetchall()
+
+
 def get_jobs_between(guids: list[str], start_iso: str, end_iso: str) -> list[sqlite3.Row]:
     """Jobs on these drives that ran at any point in [start_iso, end_iso):
     started before end_iso and finished at or after start_iso, or not finished.

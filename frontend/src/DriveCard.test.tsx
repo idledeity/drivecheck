@@ -170,6 +170,35 @@ describe('task zone', () => {
     expect(screen.getByText('Idle')).toBeInTheDocument()
   })
 
+  it("shows an idle drive's last task: its pill, outcome and how long it ran", () => {
+    renderCard({ lastTask: [makeJob({
+      status: 'completed', operation_name: 'Full Read Test', summary: '0 errors',
+      started_at: '2026-01-01T10:00:00', finished_at: '2026-01-01T12:30:00',
+    })] })
+    expect(screen.getByText('Idle')).toBeInTheDocument()
+    expect(screen.getByText('· Last task')).toBeInTheDocument()
+    expect(document.querySelector('.dc-tz-last .dc-tn-op')).toHaveTextContent('Full Read Test')
+    expect(screen.getByText('0 errors')).toBeInTheDocument()
+    expect(screen.getByText('ran 2h 30m')).toBeInTheDocument()
+  })
+
+  it('shows a last batch as its recipe pill with the steps it completed', () => {
+    const batch = { id: 'b1', step: 0, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true }
+    renderCard({ lastTask: [
+      makeJob({ id: 's0', status: 'completed', batch, finished_at: '2026-01-01T10:00:00' }),
+      makeJob({ id: 's1', status: 'failed', batch: { ...batch, step: 1 }, operation_name: 'Bad Block Scan', finished_at: '2026-01-01T11:00:00' }),
+      makeJob({ id: 's2', status: 'skipped', batch: { ...batch, step: 2 }, finished_at: '2026-01-01T11:00:00' }),
+    ] })
+    expect(document.querySelector('.dc-tz-last .dc-batch-pill')).toHaveTextContent('Initial Scan1/3')
+    expect(screen.getByText('Failed at Bad Block Scan · 1 skipped')).toBeInTheDocument()
+  })
+
+  it('says so when the drive has never run a task', () => {
+    renderCard()
+    expect(screen.getByText('No tasks run yet')).toBeInTheDocument()
+    expect(screen.queryByText('· Last task')).not.toBeInTheDocument()
+  })
+
   it('shows the queued operation name when queued', () => {
     renderCard({ job: makeJob({ status: 'queued', operation_name: 'Full Read Test' }) })
     expect(screen.getByTitle('Queued: Full Read Test')).toHaveTextContent('Full Read Test')

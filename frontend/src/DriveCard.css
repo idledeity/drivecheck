@@ -333,7 +333,9 @@
 .dc-tz {
   margin-top: -1px;
   padding: 0 0 1px 10px;
-  min-height: 45px;
+  /* A running task's height (name row, bar, message), so idle, queued and
+     running cards line up. */
+  min-height: 47px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -453,6 +455,21 @@
    batch pill: the count pills and × keep their size. */
 .dc-tn-right { min-width: 0; flex-shrink: 3; }
 .dc-tn-right > :not(.dc-batch-pill) { flex: none; }
+/* An idle card's last task (DriveCard LastTask): the running task's lines,
+   all grey. Hover opens its row. */
+.dc-tn-sub { color: var(--t4); }
+/* Three lines in a running task's height: tighter than its rows (no bar,
+   but a pill on each of the last two lines). */
+.dc-tz.idle:has(.dc-tz-last) > .dc-tn { padding: 1px 0; }
+.dc-tz-last .dc-tz-msg { padding: 1px 0; }
+.dc-tz-last { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.dc-tz-last .dc-tn { padding: 1px 0; }
+.dc-tz-last .dc-tn-op { font-weight: 600; color: var(--t3); }
+.dc-tz-last .dc-batch-pill { cursor: inherit; }
+.dc-last-icon { display: flex; color: var(--t4); }
+.dc-last-icon svg { width: 11px; height: 11px; }
+.dc-tz-last .dc-tn > .dc-tz-time { margin-left: auto; flex: none; font-size: 10px; color: var(--t4); }
+
 /* Count pills: in full, or just the number when the row is short of room. */
 .dc-pill-short { display: none; }
 .dc-tn-short .dc-pill-full { display: none; }
