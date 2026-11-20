@@ -69,7 +69,7 @@ describe('Run Task recipes', () => {
     })
     renderTab(['d1', 'd2', 'd3'])
     await planReady()
-    const groups = within(plan()).getAllByLabelText('Drives').map(list => list.parentElement!)
+    const groups = within(plan()).getAllByLabelText('Drives').map(list => list.closest<HTMLElement>('[role=group]')!)
     expect(groups).toHaveLength(2)
     expect(within(groups[0]).getByText('Model d1')).toBeInTheDocument()
     expect(within(groups[0]).getByText('Model d2')).toBeInTheDocument()
@@ -77,6 +77,11 @@ describe('Run Task recipes', () => {
     expect(setting.tagName).toBe('DT')
     expect(setting.nextElementSibling).toHaveTextContent('8,192')
     expect(within(groups[1]).getByText('Skipped: not supported on this drive')).toBeInTheDocument()
+    // Settings start open; clicking the step folds them.
+    const badblocks = within(groups[0]).getByRole('button', { name: /Badblocks/ })
+    expect(badblocks).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(badblocks)
+    expect(within(groups[0]).queryByText('Block size')).not.toBeInTheDocument()
   })
 
   it('says why a drive is left out, and runs on the rest', async () => {

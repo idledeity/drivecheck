@@ -185,35 +185,31 @@
   gap: 8px;
 }
 
-.rt-plan-group {
+/* Each group of drives with the same plan is drawn as the queued batch it
+   will become (JobRow.css's batch row). The header wraps rather than using
+   the task row's grid: the recipe's pill and outcome, then the group's drive
+   chips (any number of them) on a line of their own. */
+.rt-plan-row { margin-bottom: 0; cursor: default; }
+.rt-plan-row > .queue-row-main {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 1px solid var(--bd2);
-  border-radius: 6px;
-  padding: 8px 10px;
-  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
 }
-.rt-plan-group.excluded { border-style: dashed; }
+.rt-plan-row > .queue-row-main .drive-chip-list { flex: 1 1 100%; padding-left: 22px; }  /* under the pill, past the icon */
+.rt-plan-row > .queue-row-main .queue-outcome { flex: 1 1 0; min-width: 12ch; white-space: normal; }
+.rt-plan-row.excluded { border-style: dashed; background: none; }
 
-.rt-plan-steps {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
-  color: var(--t2);
-}
-.rt-plan-steps li::marker { color: var(--t4); font-size: 11px; }
-.rt-plan-steps li.skipped { color: var(--t4); }
-.rt-plan-steps li.skipped .rt-plan-step-name { text-decoration: line-through; }
-
-.rt-plan-step-note {
-  font-size: 11.5px;
-  color: var(--t4);
-  margin-left: 8px;
-}
+/* Steps: a batch's step lines, list markers off. */
+.rt-plan-steps { margin: 2px 0 0; list-style: none; }
+.rt-plan-steps .queue-row.step { cursor: default; }
+.rt-plan-steps .queue-row.step.foldable { cursor: pointer; }
+.rt-plan-steps .queue-row.queue-row-skipped .queue-op { color: var(--t5); text-decoration: line-through; }
+.rt-plan-steps .queue-outcome { white-space: normal; }
+.rt-plan-caret { color: var(--t5); transition: transform 0.15s; }
+.rt-plan-caret.open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .rt-plan-caret { transition: none; } }
+.rt-plan-steps .queue-row-main:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 4px; }
 
 /* One row per setting under the step name: labels in one column, values
    lined up beside them. The rows share the grid (display: contents), so the
@@ -222,18 +218,12 @@
   display: grid;
   grid-template-columns: max-content auto;
   gap: 1px 14px;
-  margin: 2px 0 3px;
+  margin: 4px 0 1px 22px;
   font-size: 11.5px;
 }
 .rt-plan-step-settings > div { display: contents; }
 .rt-plan-step-settings dt { color: var(--t4); }
 .rt-plan-step-settings dd { margin: 0; color: var(--t2); font-variant-numeric: tabular-nums; }
-
-.rt-plan-step-check {
-  font-size: 11.5px;
-  color: var(--t4);
-  margin: 1px 0 3px;
-}
 
 .rt-plan-note {
   font-size: 11.5px;

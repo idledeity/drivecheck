@@ -172,7 +172,20 @@ describe('task zone', () => {
 
   it('shows the queued operation name when queued', () => {
     renderCard({ job: makeJob({ status: 'queued', operation_name: 'Full Read Test' }) })
-    expect(screen.getByText('Queued: Full Read Test')).toBeInTheDocument()
+    expect(screen.getByTitle('Queued: Full Read Test')).toHaveTextContent('Full Read Test')
+  })
+
+  it("shows a batch step's batch: a pill with its step, and the bar split per step", () => {
+    const batch = { id: 'b1', step: 1, recipe: 'initial_scan', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true }
+    renderCard({
+      job: makeJob({ id: 's1', status: 'running', batch, progress: { percent: 40, message: null, eta_seconds: null } }),
+      // The batch's last step, then a lone job behind it.
+      queuedJobs: [makeJob({ id: 's2', status: 'queued', batch: { ...batch, step: 2 } }), makeJob({ id: 'q', status: 'queued' })],
+    })
+    expect(screen.getByRole('button', { name: 'Initial Scan, step 2 of 3' })).toHaveTextContent('Initial Scan2/3')
+    // Only what's queued after the batch is counted.
+    expect(screen.getByRole('button', { name: '+1 queued' })).toBeInTheDocument()
+    expect(document.querySelectorAll('.dc-tz-segs > .dc-tz-bar')).toHaveLength(3)
   })
 
   it('shows a determinate progress bar and percent when running with a known percent', () => {
@@ -547,7 +560,7 @@ describe('popovers (hover-capable device)', () => {
         newResults: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })],
       })
       expect(pill()).toHaveTextContent('3 complete')
-      expect(pill()!.parentElement).toBe(screen.getByText('1 queued').parentElement)
+      expect(pill()!.closest('button')!.parentElement).toBe(screen.getByRole('button', { name: '1 queued' }).parentElement)
     })
 
     it('shows while the next job is only queued', () => {

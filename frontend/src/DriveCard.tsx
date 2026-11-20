@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { IconArrowDown, IconArrowUp, IconClock, IconLoader2, IconServer, IconTemperature } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
@@ -11,7 +11,7 @@ import { useSmartRead } from "./smartReadContext"
 import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
 import { TaskRow } from "./BatchRow"
-import { groupTasks } from "./taskItems"
+import { batchState, batchSteps, groupTasks } from "./taskItems"
 import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
@@ -109,6 +109,14 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     openMenu({ x: e.clientX, y: e.clientY })
   }
 
+  // The batch the active job is a step of, with every step known (live list,
+  // unseen results, its queue, the job itself; later entries win).
+  const batch = job?.batch ?? null
+  const batchJobs = batch && job ? batchSteps([...newResults, ...allJobs, ...queuedJobs, job]).get(batch.id) ?? [job] : []
+  const batchTotal = batch ? batchState(batchJobs).total : 0
+  // Queued behind the batch: its own later steps are counted by its pill.
+  const otherQueued = batch ? queuedJobs.filter(j => j.batch?.id !== batch.id) : queuedJobs
+
   // A batch's steps show together, as one row (with steps from the live list).
   const jobRows = (jobs: Job[]) => groupTasks(jobs, allJobs).map(item =>
     <TaskRow key={item.key} item={item} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />)
@@ -123,7 +131,8 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
         <JobDetailRows job={job} />
       </>
     ),
-    queued: queuedJobs.length > 0 && jobRows(queuedJobs),
+    queued: otherQueued.length > 0 && jobRows(otherQueued),
+    batch: batch && <TaskRow item={{ kind: "batch", key: `batch-${batch.id}`, batchId: batch.id, steps: batchJobs }} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />,
     complete: newResults.length > 0 && jobRows(newResults),
     // The overview, then the score's history.
     health: <>
@@ -149,9 +158,37 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // means health. How each job ended is in its popover (status icon) and on
   // the Activity tab.
   const completePill = newResults.length > 0 && (
-    <button className="dc-complete-pill" {...pop.trigger("complete")}>
-      {newResults.length} complete
+    <button className="dc-complete-pill" {...pop.trigger("complete")} aria-label={`${newResults.length} complete`}>
+      <CountLabel n={newResults.length} full={`${newResults.length} complete`} />
     </button>
+  )
+  // The task's name row: its name in a pill, then the batch's pill (opens the
+  // batch's row), what's queued behind it, unseen results and ×. When the
+  // names don't fit, the count pills shrink to their numbers first.
+  const tnRef = useRef<HTMLDivElement>(null)
+  useShortPillsToFit(tnRef, [job?.id, job?.status, otherQueued.length, newResults.length, batchTotal])
+  const nameRow = job && (
+    <div className="dc-tn" ref={tnRef}>
+      <div ref={tnIdFadeRef} className={`dc-tn-id${tnIdFaded ? " dc-edge-fade" : ""}`}>
+        {job.status === "running" ? <IconLoader2 size={11} className="spinning" /> : <IconClock size={11} />}
+        <span className="dc-tn-op" title={job.status === "queued" ? `Queued: ${job.operation_name}` : job.operation_name}>{job.operation_name}</span>
+      </div>
+      <div className="dc-tn-right">
+        {batch && (
+          <button className="dc-batch-pill" {...pop.trigger("batch")} aria-label={`${batch.recipe_name ?? "Batch"}, step ${batch.step + 1} of ${batchTotal}`}>
+            <span className="dc-batch-pill-name">{batch.recipe_name ?? "Batch"}</span>
+            <span className="dc-batch-pill-n">{batch.step + 1}/{batchTotal}</span>
+          </button>
+        )}
+        {otherQueued.length > 0 && (
+          <button className="dc-queued-pill" {...pop.trigger("queued")} aria-label={`${batch ? "+" : ""}${otherQueued.length} queued`}>
+            <CountLabel n={otherQueued.length} prefix={batch ? "+" : ""} full={`${batch ? "+" : ""}${otherQueued.length} queued`} />
+          </button>
+        )}
+        {completePill}
+        <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
+      </div>
+    </div>
   )
 
   return (
@@ -229,29 +266,24 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           className="dc-tz running"
           {...pop.trigger("task")}
         >
-          <div className="dc-tn">
-            <div ref={tnIdFadeRef} className={`dc-tn-id${tnIdFaded ? " dc-edge-fade" : ""}`}>
-              <IconLoader2 size={11} className="spinning" />
-              <span>{job.operation_name}</span>
-            </div>
-            <div className="dc-tn-right">
-              {queuedJobs.length > 0 && (
-                <button className="dc-queued-pill" {...pop.trigger("queued")}>
-                  {queuedJobs.length} queued
-                </button>
-              )}
-              {completePill}
-              <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
-            </div>
-          </div>
+          {nameRow}
           {/* The percent sits at the end of the bar it describes, leaving the
               name row room for the name, the pills and the ×. */}
           <div className="dc-tz-bar-row">
-            <div className="dc-tz-bar">
-              {job.progress.percent === null
-                ? <div className="dc-tz-bar-fill indeterminate" />
-                : <div className="dc-tz-bar-fill" style={{ width: `${job.progress.percent}%` }} />}
-            </div>
+            {batch
+              ? (
+                // One segment per step: those before this one in their
+                // outcome's color, this one filling, the rest empty.
+                <div className="dc-tz-segs">
+                  {Array.from({ length: batchTotal }, (_, i) => {
+                    const before = batchJobs.find(j => j.batch?.step === i)
+                    return i === batch.step
+                      ? <div key={i} className="dc-tz-bar"><TzBarFill percent={job.progress.percent} /></div>
+                      : <div key={i} className={`dc-tz-bar dc-tz-seg${i < batch.step && before ? ` ${before.status}` : ""}`} />
+                  })}
+                </div>
+              )
+              : <div className="dc-tz-bar"><TzBarFill percent={job.progress.percent} /></div>}
             {job.progress.percent !== null && <span className="dc-tz-pct">{job.progress.percent.toFixed(1)}%</span>}
           </div>
           {(job.progress.message || timing.text) && (
@@ -270,21 +302,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           className="dc-tz queued"
           {...pop.trigger("task")}
         >
-          <div className="dc-tn">
-            <div ref={tnIdFadeRef} className={`dc-tn-id${tnIdFaded ? " dc-edge-fade" : ""}`}>
-              <IconClock size={11} />
-              <span>Queued: {job.operation_name}</span>
-            </div>
-            <div className="dc-tn-right">
-              {queuedJobs.length > 0 && (
-                <button className="dc-queued-pill" {...pop.trigger("queued")}>
-                  {queuedJobs.length} queued
-                </button>
-              )}
-              {completePill}
-              <CancelJobButton job={job} drive={drive} onCancel={cancelJob} />
-            </div>
-          </div>
+          {nameRow}
         </div>
       ) : (
         <div className="dc-tz idle">
@@ -333,7 +351,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
 // Trend popovers are keyed "trend:<metric>".
 const TREND = "trend:"
-type PopoverKey = "task" | "queued" | "complete" | "health" | "tests" | `${typeof TREND}${TrendMetric}`
+type PopoverKey = "task" | "queued" | "batch" | "complete" | "health" | "tests" | `${typeof TREND}${TrendMetric}`
 const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => key.startsWith(TREND)
 // Without a color from the grid (e.g. in tests): the first series color.
 const DEFAULT_TREND_STYLE = seriesStyle(0)
@@ -345,4 +363,40 @@ const HEALTH_DISPLAY: Record<string, { bar: "green" | "aging" | "warn" | "red" |
   Failing:  { bar: "red",      label: "Failing"  },
   Critical: { bar: "critical", label: "Critical" },
   Unrated:  { bar: "grey",  label: "Unrated"  },
+}
+
+function TzBarFill({ percent }: { percent: number | null }) {
+  return percent === null
+    ? <div className="dc-tz-bar-fill indeterminate" />
+    : <div className="dc-tz-bar-fill" style={{ width: `${percent}%` }} />
+}
+
+// A count pill's text: in full ("3 queued"), or just the number while the
+// name row is short of room (useShortPillsToFit). Both are rendered and CSS
+// shows one, so switching needs no re-render.
+function CountLabel({ n, full, prefix = "" }: { n: number; full: string; prefix?: string }) {
+  return <><span className="dc-pill-full">{full}</span><span className="dc-pill-short" aria-hidden="true">{prefix}{n}</span></>
+}
+
+// Puts the name row in its short form (count pills as bare numbers) when the
+// full one would cut off a name: the task's pill, or the whole name side on
+// touch, where it scrolls instead of truncating. Measured before paint, and
+// again whenever the row is resized.
+function useShortPillsToFit(ref: React.RefObject<HTMLDivElement | null>, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const row = ref.current
+    if (!row) return
+    const fit = () => {
+      row.classList.remove("dc-tn-short")
+      const clipped = [...row.querySelectorAll<HTMLElement>(".dc-tn-id, .dc-tn-op, .dc-batch-pill-name")]
+        .some(el => el.scrollWidth > el.clientWidth + 1)
+      row.classList.toggle("dc-tn-short", clipped)
+    }
+    fit()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(fit)
+    observer.observe(row)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 }

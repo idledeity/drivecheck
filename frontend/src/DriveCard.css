@@ -411,6 +411,53 @@
 }
 .dc-complete-pill:hover { border-color: rgba(255, 178, 46, 0.55); }
 
+/* The task's name, in a pill like Activity's rows (smaller, to fit the
+   card's row). Shrinks and ellipsizes before anything on the right. */
+.dc-tn-op {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--t2);
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 0.5px solid var(--bd);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+/* The batch the task is a step of: its recipe and step, cyan as in Activity.
+   Opens the batch's row. */
+.dc-batch-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--cy);
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: rgba(24, 196, 238, 0.08);
+  border: 0.5px solid rgba(24, 196, 238, 0.45);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  /* Gives way before the task's own name (see .dc-tn-right). */
+  min-width: 0;
+  overflow: hidden;
+}
+.dc-batch-pill:hover { border-color: rgba(24, 196, 238, 0.75); }
+.dc-batch-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dc-batch-pill-n { flex: none; font-weight: 500; color: var(--t4); font-variant-numeric: tabular-nums; }
+/* The right side shrinks faster than the name side, and only through the
+   batch pill: the count pills and × keep their size. */
+.dc-tn-right { min-width: 0; flex-shrink: 3; }
+.dc-tn-right > :not(.dc-batch-pill) { flex: none; }
+/* Count pills: in full, or just the number when the row is short of room. */
+.dc-pill-short { display: none; }
+.dc-tn-short .dc-pill-full { display: none; }
+.dc-tn-short .dc-pill-short { display: inline; }
+
 /* Only as tall as the bar: the percent is centred on it and overhangs into
    the padding of the rows above and below, so the task zone keeps its height. */
 .dc-tz-bar-row {
@@ -429,6 +476,12 @@
   background: rgba(255,255,255,0.07);
   overflow: hidden;
 }
+/* A batch step's bar: one segment per step. Steps before this one are a
+   dim cyan, never green or red (those mean health on a card); how they
+   ended is in the batch pill's popover. */
+.dc-tz-segs { flex: 1; min-width: 0; display: flex; gap: 3px; height: 3px; }
+.dc-tz-seg.completed { background: rgba(0, 238, 255, 0.4); }
+.dc-tz-seg.failed, .dc-tz-seg.cancelled, .dc-tz-seg.interrupted, .dc-tz-seg.skipped { background: var(--t5); }
 .dc-tz-bar-fill {
   height: 100%;
   background: var(--cy2);

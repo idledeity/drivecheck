@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react"
-import { IconPlayerPlay } from "@tabler/icons-react"
-import type { BatchPreview, BatchPreviewDrive, Drive, ParamSpec, RecipeInfo } from "./types"
+import { IconChevronRight, IconPlayerPlay } from "@tabler/icons-react"
+import type { BatchPreview, BatchPreviewDrive, BatchPreviewStep, Drive, ParamSpec, RecipeInfo } from "./types"
 import DestructiveConfirmDialog from "./DestructiveConfirmDialog"
 import DriveChip from "./DriveChip"
+import { STATUS_ICON } from "./jobStatusIcon"
+import "./JobRow.css"
 import { formatSettingValue, humanizeKey } from "./format"
 import { LockWarning, ParamInput } from "./RunTaskParams"
 import { paramDefaults, paramErrors } from "./paramValues"
@@ -141,8 +143,11 @@ export default function RecipeForm({ recipe, drives, guids, onRun }: Props) {
   )
 }
 
-// The plan, with drives whose plans are the same shown together: one list of
-// steps under their chips, so nine identical drives read as one plan.
+// The plan, with drives whose plans are the same shown together, each group
+// drawn as the queued batch it will become: a task row with the drives'
+// chips, the recipe's pill and its steps as lines inside, as in Activity and
+// History. A step's settings show under it, open to start with; clicking the
+// step folds them.
 function PlanGroups({ preview, drives }: { preview: BatchPreview; drives: Drive[] }) {
   const groups = new Map<string, BatchPreviewDrive[]>()
   for (const d of preview.drives) {
@@ -155,45 +160,80 @@ function PlanGroups({ preview, drives }: { preview: BatchPreview; drives: Drive[
     <div className="rt-plan-groups">
       {ordered.map(group => {
         const plan = group[0]
+        const steps = plan.steps ?? []
+        const status = plan.excluded !== null ? "skipped" : "queued"
         return (
-          <div key={group.map(d => d.guid).join(",")} className={`rt-plan-group${plan.excluded ? " excluded" : ""}`}>
-            <div className="drive-chip-list" aria-label="Drives">
-              {group.map(p => {
-                const drive = drives.find(d => d.guid === p.guid)
-                return drive
-                  ? <DriveChip key={p.guid} drive={drive} blocked={p.locked && p.excluded === null} />
-                  : <span key={p.guid} className="rt-plan-unknown">Unknown drive</span>
-              })}
-            </div>
-            {plan.excluded !== null
-              ? <div className="rt-plan-note">Left out: {plan.excluded}</div>
-              : (
-                <ol className="rt-plan-steps">
-                  {(plan.steps ?? []).map((step, i) => (
-                    <li key={i} className={step.supported ? "" : "skipped"}>
-                      <span className="rt-plan-step-name">{step.operation_name}</span>
-                      {!step.supported && <span className="rt-plan-step-note">Skipped: not supported on this drive</span>}
-                      {step.supported && step.settings.length > 0 && (
-                        <dl className="rt-plan-step-settings">
-                          {step.settings.map(s => (
-                            <div key={s.name}>
-                              <dt>{s.label ?? humanizeKey(s.name)}</dt>
-                              <dd>{formatSettingValue(s.value)}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      )}
-                      {step.supported && step.check?.description && (
-                        <div className="rt-plan-step-check">{step.check.description}</div>
-                      )}
-                    </li>
-                  ))}
-                </ol>
+          <div key={group.map(d => d.guid).join(",")} role="group" aria-label={`Plan for ${group.length} drive${group.length === 1 ? "" : "s"}`}
+            className={`queue-row batch-row rt-plan-row queue-row-${status}${plan.excluded !== null ? " excluded" : ""}`}>
+            <div className="queue-row-main">
+              <span className="queue-lead">
+                <span className={`queue-status-icon queue-status-${status}`}>{STATUS_ICON[status]}</span>
+              </span>
+              {plan.excluded === null && (
+                <span className="queue-op batch">{preview.recipe.name}<span className="queue-op-count">{steps.length} step{steps.length === 1 ? "" : "s"}</span></span>
               )}
+              <span className="queue-outcome">
+                {plan.excluded !== null ? `Left out: ${plan.excluded}` : preview.stop_on_failure ? "Stops on failure" : ""}
+              </span>
+              <div className="drive-chip-list" aria-label="Drives">
+                {group.map(p => {
+                  const drive = drives.find(d => d.guid === p.guid)
+                  return drive
+                    ? <DriveChip key={p.guid} drive={drive} blocked={p.locked && p.excluded === null} />
+                    : <span key={p.guid} className="rt-plan-unknown">Unknown drive</span>
+                })}
+              </div>
+            </div>
+            {plan.excluded === null && (
+              <>
+                <div className="batch-strip" aria-hidden="true">
+                  {steps.map((step, i) => <span key={i} className={`batch-seg${step.supported ? "" : " skipped"}`} />)}
+                </div>
+                <ol className="batch-steps rt-plan-steps">
+                  {steps.map((step, i) => <PlanStep key={i} step={step} />)}
+                </ol>
+              </>
+            )}
           </div>
         )
       })}
     </div>
+  )
+}
+
+// One step of a plan, as a batch's step line: its settings open beneath it
+// until the line is clicked.
+function PlanStep({ step }: { step: BatchPreviewStep }) {
+  const [open, setOpen] = useState(true)
+  const status = step.supported ? "queued" : "skipped"
+  const foldable = step.supported && step.settings.length > 0
+  const toggle = () => { if (foldable) setOpen(o => !o) }
+  return (
+    <li className={`queue-row step queue-row-${status}${foldable ? " foldable" : ""}`} onClick={toggle}>
+      <div className="queue-row-main"
+        {...(foldable ? { role: "button", tabIndex: 0, "aria-expanded": open, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle() } } } : {})}>
+        <span className="queue-lead">
+          <span className={`queue-status-icon queue-status-${status}`}>{STATUS_ICON[status]}</span>
+        </span>
+        <span className="queue-op">{step.operation_name}</span>
+        <span className="queue-outcome">
+          {!step.supported ? "Skipped: not supported on this drive" : step.check?.description ?? ""}
+        </span>
+        <span className="queue-right">
+          {foldable && <IconChevronRight size={12} className={`rt-plan-caret${open ? " open" : ""}`} />}
+        </span>
+      </div>
+      {foldable && open && (
+        <dl className="rt-plan-step-settings">
+          {step.settings.map(s => (
+            <div key={s.name}>
+              <dt>{s.label ?? humanizeKey(s.name)}</dt>
+              <dd>{formatSettingValue(s.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </li>
   )
 }
 
