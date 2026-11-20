@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { IconChevronDown, IconChevronUp, IconX } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
 import { FINISHED_STATUSES, mergeHistory } from "./jobHistory"
-import { JobRow } from "./JobRow"
+import { groupTasks, type TaskItem } from "./taskItems"
+import { TaskRow } from "./BatchRow"
 import { DriveChipHeader } from "./DriveChip"
 import { Control, Segmented } from "./Controls"
 import { formatDuration, toLocalIso } from "./format"
@@ -14,6 +14,8 @@ interface Props {
   jobs: Job[]                 // App's live /api/jobs list, polled
   onCancel: (jobId: string) => void
   onMove: (jobId: string, direction: "up" | "down") => void
+  onCancelBatch: (batchId: string) => void
+  onMoveBatch: (batchId: string, direction: "up" | "down") => void
   unseen: Job[]               // finished jobs since the user last marked results seen
   onMarkSeen: () => void
   onShowHistory: () => void
@@ -33,12 +35,14 @@ const finishedTime = (j: Job) => new Date(j.finished_at ?? j.created_at).getTime
 
 // What's running, what runs next on each drive, and how recent jobs ended:
 // one lane per drive with something going on.
-export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onMove, unseen, onMarkSeen, onShowHistory }: Props) {
+export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onMove, onCancelBatch, onMoveBatch, unseen, onMarkSeen, onShowHistory }: Props) {
   const [scope, setScope] = useState<"all" | "selected">("all")
   const [recent, setRecent] = useState<Recent>("3d")
   const [showIdle, setShowIdle] = useState(false)
   const maxParallel = useMaxParallel()
   const finished = useRecentFinished(recent, jobs)
+  // Every job known here, for finding all of a batch's steps.
+  const pool = useMemo(() => mergeHistory(finished, jobs), [finished, jobs])
 
   const running = jobs.filter(j => j.status === "running")
   const queued = jobs.filter(j => j.status === "queued").sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0))
@@ -50,9 +54,14 @@ export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onM
   const lanes = guids.map(guid => {
     const run = running.find(j => j.drive_guid === guid)
     const next = queued.filter(j => j.drive_guid === guid)
-    const done = finished.filter(j => j.drive_guid === guid)
+    // A batch still going shows whole where it runs or waits, not here.
+    const activeBatches = new Set([run, ...next].map(j => j?.batch?.id).filter(Boolean))
+    const done = groupTasks(finished.filter(j => j.drive_guid === guid && !activeBatches.has(j.batch?.id)), pool)
     const recentDone = recent === "last" ? done.slice(0, 1) : done
-    return { guid, drive: drives.find(d => d.guid === guid), run, next, recentDone, busy: !!run || next.length > 0 || recentDone.length > 0 }
+    // The running job's batch takes its queued steps along.
+    const runItem = run ? groupTasks([run], pool)[0] : undefined
+    const nextItems = groupTasks(next.filter(j => !run?.batch || j.batch?.id !== run.batch.id), pool)
+    return { guid, drive: drives.find(d => d.guid === guid), run, runItem, next: nextItems, recentDone, busy: !!run || next.length > 0 || recentDone.length > 0 }
   })
   const inScope = lanes.filter(l => scope === "all" || selectedGuids.includes(l.guid))
   const shown = inScope.filter(l => l.busy)
@@ -61,6 +70,7 @@ export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onM
   const idle = inScope.filter(l => !l.busy)
   const hiddenBusy = lanes.filter(l => l.busy && !inScope.includes(l)).length
   const waitingForSlot = lanes.filter(l => !l.run && l.next.length > 0 && slotsFull).length
+  const news = groupTasks(unseen, pool)
   const nextToFinish = running
     .filter(j => j.progress.eta_seconds !== null)
     .sort((a, b) => (a.progress.eta_seconds ?? 0) - (b.progress.eta_seconds ?? 0))[0]
@@ -81,15 +91,15 @@ export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onM
         <div className="act-news">
           <div className="act-news-head">
             <h3 className="act-news-title">
-              {unseen.length ? `New since you last looked (${unseen.length})` : "Nothing new since you last looked"}
+              {news.length ? `New since you last looked (${news.length})` : "Nothing new since you last looked"}
             </h3>
             {unseen.length > 0 && <button className="act-seen-btn" onClick={onMarkSeen}>Mark seen</button>}
           </div>
-          {unseen.slice(0, 8).map(job => (
-            <JobRow key={job.id} job={job} drive={drives.find(d => d.guid === job.drive_guid)} onCancel={onCancel} />
+          {news.slice(0, 8).map(item => (
+            <TaskRow key={item.key} item={item} drive={drives.find(d => d.guid === itemGuid(item))} onCancel={onCancel} onCancelBatch={onCancelBatch} />
           ))}
-          {unseen.length > 8 && (
-            <button className="act-link" onClick={onShowHistory}>{unseen.length - 8} more in History</button>
+          {news.length > 8 && (
+            <button className="act-link" onClick={onShowHistory}>{news.length - 8} more in History</button>
           )}
         </div>
       </section>
@@ -115,42 +125,14 @@ export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onM
             <DriveChipHeader drive={lane.drive} className="act-lane-chip" />
             <LaneState lane={lane} slotsFull={slotsFull} />
           </div>
-          {lane.run && <JobRow job={lane.run} drive={lane.drive} onCancel={onCancel} />}
-          {lane.next.length > 0 && (
-            <>
-              <h4 className="act-sub">Up next</h4>
-              <ol className="act-queue">
-                {lane.next.map((job, i) => (
-                  <li key={job.id} className="act-q-row">
-                    <span className="act-q-n">{i + 1}</span>
-                    <span className="act-q-op">
-                      {job.operation_name}
-                      {/* The one case the order doesn't explain: the drive is free but every slot is taken. */}
-                      {i === 0 && !lane.run && slotsFull && (
-                        <span className="act-q-why">Waits for a free slot ({running.length} of {maxParallel} running)</span>
-                      )}
-                    </span>
-                    <span className="act-q-actions">
-                      <button className="icon-btn" title="Move up" aria-label={`Move up: ${job.operation_name}`} disabled={i === 0} onClick={() => onMove(job.id, "up")}>
-                        <IconChevronUp size={14} />
-                      </button>
-                      <button className="icon-btn" title="Move down" aria-label={`Move down: ${job.operation_name}`} disabled={i === lane.next.length - 1} onClick={() => onMove(job.id, "down")}>
-                        <IconChevronDown size={14} />
-                      </button>
-                      <button className="icon-btn act-q-cancel" title="Cancel" aria-label={`Cancel: ${job.operation_name}`} onClick={() => onCancel(job.id)}>
-                        <IconX size={14} />
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </>
-          )}
+          <LaneQueue lane={lane} waitsForSlot={!lane.run && slotsFull}
+            slotNote={`Waits for a free slot (${running.length} of ${maxParallel} running)`}
+            onCancel={onCancel} onMove={onMove} onCancelBatch={onCancelBatch} onMoveBatch={onMoveBatch} />
           {lane.recentDone.length > 0 && (
             <>
               <h4 className="act-sub">{recent === "last" ? "Last result" : "Recently finished"}</h4>
-              {lane.recentDone.slice(0, LANE_RECENT_CAP).map(job => (
-                <JobRow key={job.id} job={job} drive={lane.drive} onCancel={onCancel} />
+              {lane.recentDone.slice(0, LANE_RECENT_CAP).map(item => (
+                <TaskRow key={item.key} item={item} drive={lane.drive} onCancel={onCancel} onCancelBatch={onCancelBatch} />
               ))}
               {lane.recentDone.length > LANE_RECENT_CAP && (
                 <button className="act-link" onClick={onShowHistory}>{lane.recentDone.length - LANE_RECENT_CAP} more in History</button>
@@ -178,8 +160,57 @@ export default function ActivityTab({ drives, selectedGuids, jobs, onCancel, onM
   )
 }
 
-type Lane = { run?: Job; next: Job[]; recentDone: Job[] }
+type Lane = { drive?: Drive; run?: Job; runItem?: TaskItem; next: TaskItem[]; recentDone: TaskItem[] }
 const rank = (l: Lane) => (l.run ? 0 : l.next.length ? 1 : 2)
+const itemGuid = (item: TaskItem) => (item.kind === "job" ? item.job : item.steps[0]).drive_guid
+
+// A batch has started once any of its steps has left the queue; its
+// remaining steps then stay next on the drive.
+const batchStarted = (steps: Job[]) => steps.some(j => j.status !== "queued")
+const PINNED_TITLE = "Started — its remaining steps run next on this drive"
+
+type QueueHandlers = Pick<Props, "onCancel" | "onMove" | "onCancelBatch" | "onMoveBatch">
+
+// The running task and the drive's queue, as task rows. A batch is one row
+// with its steps inside; it moves as a whole, and once started nothing moves
+// past it.
+function LaneQueue({ lane, waitsForSlot, slotNote, onCancel, onMove, onCancelBatch, onMoveBatch }: {
+  lane: Lane; waitsForSlot: boolean; slotNote: string
+} & QueueHandlers) {
+  const units = lane.next
+  const pinnedFirst = units[0]?.kind === "batch" && batchStarted(units[0].steps)
+  const move = (item: TaskItem, direction: "up" | "down") =>
+    () => (item.kind === "job" ? onMove(item.job.id, direction) : onMoveBatch(item.batchId, direction))
+
+  return (
+    <>
+      {lane.runItem && <TaskRow item={lane.runItem} drive={lane.drive} onCancel={onCancel} onCancelBatch={onCancelBatch} />}
+      {units.length > 0 && (
+        <>
+          <h4 className="act-sub">Up next</h4>
+          <div className="act-queue">
+            {units.map((item, i) => {
+              const pinned = i === 0 && pinnedFirst
+              const upBlocked = i === 0 || (i === 1 && pinnedFirst)
+              const downBlocked = i === units.length - 1 || pinned
+              return (
+                <TaskRow key={item.key} item={item} drive={lane.drive} onCancel={onCancel} onCancelBatch={onCancelBatch} queue={{
+                  n: i + 1,
+                  up: upBlocked ? null : move(item, "up"),
+                  down: downBlocked ? null : move(item, "down"),
+                  label: item.kind === "job" ? item.job.operation_name : item.steps[0].batch?.recipe_name ?? "Batch",
+                  title: pinned ? PINNED_TITLE : undefined,
+                  // The one case the order doesn't explain: the drive is free but every slot is taken.
+                  note: i === 0 && waitsForSlot ? slotNote : undefined,
+                }} />
+              )
+            })}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
 
 function LaneState({ lane, slotsFull }: { lane: Lane; slotsFull: boolean }) {
   if (lane.run) return <span className="act-state run">Running</span>

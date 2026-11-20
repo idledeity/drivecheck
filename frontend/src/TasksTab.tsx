@@ -23,7 +23,7 @@ interface Props {
 // take them as plain props, which keeps them simple to test.
 export default function TasksTab({ drives, selected }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("run")
-  const { jobs, unseen, cancelJob, moveJob, runOperation, runRecipe, markJobsSeen } = useJobs()
+  const { jobs, unseen, cancelJob, moveJob, cancelBatch, moveBatch, runOperation, runRecipe, markJobsSeen } = useJobs()
 
   return (
     <div className="tasks-tab">
@@ -43,9 +43,10 @@ export default function TasksTab({ drives, selected }: Props) {
         {subTab === "run"      && <RunTaskTab drives={drives} selected={selected} onRun={runOperation} onRunRecipe={runRecipe} />}
         {subTab === "activity" && (
           <ActivityTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={cancelJob} onMove={moveJob}
+            onCancelBatch={cancelBatch} onMoveBatch={moveBatch}
             unseen={unseen} onMarkSeen={markJobsSeen} onShowHistory={() => setSubTab("history")} />
         )}
-        {subTab === "history"  && <HistoryTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={cancelJob} />}
+        {subTab === "history"  && <HistoryTab drives={drives} selectedGuids={selected} jobs={jobs} onCancel={cancelJob} onCancelBatch={cancelBatch} />}
       </div>
     </div>
   )

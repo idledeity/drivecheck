@@ -17,7 +17,7 @@ function renderMenu(activeJobs: Job[], guids = ['guid-1'], drives = guids.map(gu
   const onClose = vi.fn()
   const onRunTask = vi.fn()
   render(
-    <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}>
+    <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}>
       <SmartReadContext.Provider value={{ reading, readSmart }}>
       <ConfirmProvider>
         <DriveContextMenu

@@ -147,6 +147,27 @@ export default function App() {
       })
       .catch(() => setError("Backend unavailable — retrying…"))
 
+  // A batch moves and cancels as one unit; same handling as the single-job calls.
+  const cancelBatch = (batchId: string) =>
+    fetch(`/api/batches/${batchId}/cancel`, { method: "POST" })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return loadJobs()
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
+
+  const moveBatch = (batchId: string, direction: "up" | "down") =>
+    fetch(`/api/batches/${batchId}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction }),
+    })
+      .then(r => {
+        if (!r.ok && r.status !== 409) throw new Error(`HTTP ${r.status}`)
+        return loadJobs()
+      })
+      .catch(() => setError("Backend unavailable — retrying…"))
+
   const patchSettings = (updates: Partial<Settings>) =>
     fetch("/api/settings", {
       method: "PATCH",
@@ -335,7 +356,7 @@ export default function App() {
   const colorKey = driveColorOrder(drives).join(",")
   const trendStyles = useMemo(() => driveStyles(colorKey ? colorKey.split(",") : []), [colorKey])
 
-  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, runOperation, runRecipe, markJobsSeen }
+  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, cancelBatch, moveBatch, runOperation, runRecipe, markJobsSeen }
 
   return (
     <JobsContext.Provider value={jobsContext}>

@@ -79,7 +79,25 @@
   gap: 8px;
 }
 
-.queue-status-icon { grid-area: icon; display: flex; align-items: center; align-self: center; flex-shrink: 0; }
+.queue-lead { grid-area: icon; display: flex; align-items: center; align-self: center; gap: 8px; flex-shrink: 0; }
+.queue-status-icon { display: flex; align-items: center; flex-shrink: 0; }
+/* Place under Up next. */
+.queue-n {
+  min-width: 10px;
+  font-size: 11px;
+  color: var(--t4);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.queue-move { display: inline-flex; gap: 2px; align-self: center; }
+/* Why a queued task waits, where a finished one shows its outcome. */
+.queue-note {
+  grid-area: outcome;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--wa);
+  overflow-wrap: anywhere;
+}
 .queue-status-running     { color: var(--cy2); }
 .queue-status-queued      { color: var(--t4); }
 .queue-status-completed   { color: var(--gnb); }
@@ -274,3 +292,60 @@
     gap: 5px;
   }
 }
+
+/* A batch's step: a line inside its batch's row, no box and no drive chip.
+   Same icon, pill and outcome as a task row otherwise. */
+.queue-row.step {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding: 5px 0;
+}
+.queue-row.step:not(.compact) .queue-row-main {
+  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
+  grid-template-areas: "icon op outcome right";
+}
+@media (max-width: 640px) {
+  .queue-row.step:not(.compact) .queue-row-main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon op right"
+      "outcome outcome outcome";
+  }
+}
+
+/* A batch's row: a task row whose pill names the recipe (cyan, to tell a
+   batch from a single task) with its steps inside. */
+.queue-op.batch {
+  color: var(--cy);
+  border-color: rgba(24, 196, 238, 0.45);
+  background: rgba(24, 196, 238, 0.08);
+}
+.queue-op-count {
+  margin-left: 5px;
+  font-weight: 500;
+  color: var(--t4);
+}
+.batch-row > .queue-row-main .queue-outcome { color: var(--t4); }
+.batch-row > .queue-row-main .queue-outcome.bad { color: var(--re); }
+.batch-strip { display: flex; gap: 3px; margin-top: 2px; }
+.batch-seg { flex: 1; height: 3px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); }
+.batch-seg.completed { background: var(--gn); }
+.batch-seg.running { background: var(--cy2); }
+.batch-seg.failed, .batch-seg.interrupted { background: var(--re); }
+.batch-seg.cancelled { background: var(--t4); }
+.batch-seg.skipped { background: var(--t5); opacity: 0.5; }
+.batch-steps {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  padding-left: 21px;
+  border-top: 1px solid var(--bd);
+}
+.batch-steps > .queue-row.step + .queue-row.step { border-top: 1px solid rgba(62, 64, 80, 0.5); }
+.batch-steps > .queue-row.step:last-child { padding-bottom: 0; }
+.batch-row.compact .batch-steps { padding-left: 0; }
+@media (max-width: 640px) { .batch-steps { padding-left: 4px; } }
+/* With move buttons beside it, centre the time on the buttons. */
+.queue-right:has(.queue-move) { align-items: center; }

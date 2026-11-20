@@ -10,7 +10,8 @@ import SelfTestLights, { SelfTestPopover } from "./SelfTestLights"
 import { useSmartRead } from "./smartReadContext"
 import { isStale, useNow } from "./useNow"
 import { JobDetailRows } from "./JobDetails"
-import { JobRow } from "./JobRow"
+import { TaskRow } from "./BatchRow"
+import { groupTasks } from "./taskItems"
 import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
@@ -89,7 +90,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   // clipped to the card's radius), which would clip an inline popover
   // whenever there isn't much card below the task zone.
   const pop = useHoverPopover<PopoverKey>({ supportsHover, delayMs: HOVER_DELAY_MS, disabled: menuOpen })
-  const { cancelJob } = useJobs()
+  const { jobs: allJobs, cancelJob, cancelBatch } = useJobs()
   // A full read asked for by hand is under way: the self-test popover says so.
   const smartReading = useSmartRead().reading.has(drive.guid)
 
@@ -108,7 +109,9 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
     openMenu({ x: e.clientX, y: e.clientY })
   }
 
-  const jobRows = (jobs: Job[]) => jobs.map(j => <JobRow key={j.id} job={j} drive={drive} onCancel={cancelJob} compact />)
+  // A batch's steps show together, as one row (with steps from the live list).
+  const jobRows = (jobs: Job[]) => groupTasks(jobs, allJobs).map(item =>
+    <TaskRow key={item.key} item={item} drive={drive} onCancel={cancelJob} onCancelBatch={cancelBatch} compact />)
   const popoverBody = {
     // Named here because the details rows don't say which job it is.
     task: job && (

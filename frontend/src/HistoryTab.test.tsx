@@ -129,6 +129,23 @@ describe('HistoryTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show all time' }))
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith('/api/jobs/history?limit=500'))
   })
+
+  it('lists a finished batch as one entry with its steps, and leaves out one still running', async () => {
+    const b = (id: string, step: number) => ({ id, step, recipe: 'r', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: true })
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
+      done({ id: 'a0', drive_guid: 'd1', operation_name: 'Short', batch: b('A', 0) }),
+      done({ id: 'a1', drive_guid: 'd1', operation_name: 'Scan', status: 'failed', batch: b('A', 1) }),
+      done({ id: 'b0', drive_guid: 'd1', operation_name: 'Other', batch: b('B', 0) }),
+      done({ id: 'solo', drive_guid: 'd2', operation_name: 'Lone' }),
+    ]))
+    renderTab({ jobs: [makeJob({ id: 'b1', drive_guid: 'd1', status: 'running', batch: b('B', 1) })] })
+    expect(await screen.findByText('2 jobs')).toBeInTheDocument()
+    const row = screen.getByRole('group', { name: 'Batch: Recipe A' })
+    expect(row.textContent).toMatch(/Failed at Scan/)
+    expect(screen.queryByRole('group', { name: 'Batch: Recipe B' })).not.toBeInTheDocument()
+    // The batch counts once, under its derived status.
+    expect(screen.getByRole('button', { name: /^Failed/ }).textContent).toMatch(/1$/)
+  })
 })
 
 describe('mergeHistory', () => {
@@ -165,4 +182,3 @@ describe('useUnseenResults', () => {
     await waitFor(() => expect(result.current.map(j => j.id)).toEqual(['live', 'stored']))
   })
 })
-

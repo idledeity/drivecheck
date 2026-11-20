@@ -9,6 +9,10 @@ export type JobsContextValue = {
   cancelJob: (jobId: string) => void
   /** Move a queued job one place earlier or later among its drive's queued jobs. */
   moveJob: (jobId: string, direction: "up" | "down") => void
+  /** Cancel a batch: its queued steps at once, its running one as it stops. */
+  cancelBatch: (batchId: string) => void
+  /** Move a batch's queued steps, together, one place earlier or later. */
+  moveBatch: (batchId: string, direction: "up" | "down") => void
   /** Queue the operation on each drive; resolves to the server's reason if it refused, else null. */
   runOperation: (guids: string[], operation: string, params: Record<string, unknown>) => Promise<string | null>
   /** Start a recipe: one batch per drive. Resolves to the server's reason if it refused, else null. */
@@ -23,6 +27,8 @@ export const JobsContext = createContext<JobsContextValue>({
   unseen: [],
   cancelJob: () => {},
   moveJob: () => {},
+  cancelBatch: () => {},
+  moveBatch: () => {},
   runOperation: () => Promise.resolve(null),
   runRecipe: () => Promise.resolve(null),
   markJobsSeen: () => {},

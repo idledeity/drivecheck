@@ -1,29 +1,36 @@
 import { useState } from "react"
-import { IconAlertTriangle, IconBan, IconCheck, IconClock, IconHelpCircle, IconLoader2, IconPlayerSkipForward } from "@tabler/icons-react"
+import { IconChevronDown, IconChevronUp } from "@tabler/icons-react"
 import type { Drive, Job } from "./types"
-import { formatDuration, formatRelativeTime, jobResultText } from "./format"
+import { formatClock, formatDuration, formatRelativeTime, jobResultText } from "./format"
 import { JobDetails } from "./JobDetails"
 import { useEdgeFade } from "./useEdgeFade"
 import { useJobTiming } from "./useJobTiming"
 import DriveChip from "./DriveChip"
 import CancelJobButton from "./CancelJobButton"
+import { STATUS_ICON } from "./jobStatusIcon"
 import "./JobRow.css"
 
-const STATUS_ICON: Record<Job["status"], React.ReactNode> = {
-  running:     <IconLoader2 size={13} className="spinning" />,
-  queued:      <IconClock size={13} />,
-  completed:   <IconCheck size={13} />,
-  failed:      <IconAlertTriangle size={13} />,
-  cancelled:   <IconBan size={13} />,
-  interrupted: <IconHelpCircle size={13} />,
-  skipped:     <IconPlayerSkipForward size={13} />,
+
+// A queued task's place under Up next and its move buttons (null: can't move
+// that way). `note` explains a wait the order doesn't.
+export type QueueSlot = {
+  n: number
+  up: (() => void) | null
+  down: (() => void) | null
+  label: string
+  title?: string
+  note?: React.ReactNode
 }
 
 // One job: status icon, drive chip, operation, then progress while running,
 // the outcome once finished, and its details when clicked. Used by History and
 // by Activity's lanes and summary. `compact` leaves out the drive chip and
 // puts the outcome on its own line, for a narrow popover on that drive's card.
-export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void; compact?: boolean }) {
+// `step` is a batch's step, drawn as a line inside its batch's row (no box,
+// no drive chip). `queue` adds its place under Up next and move buttons.
+export function JobRow({ job, drive, onCancel, compact = false, step = false, queue }: {
+  job: Job; drive: Drive | undefined; onCancel: (jobId: string) => void; compact?: boolean; step?: boolean; queue?: QueueSlot
+}) {
   const [expanded, setExpanded] = useState(false)
   const cancellable = job.status === "running" || job.status === "queued"
   const finished = !cancellable
@@ -38,10 +45,13 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
   const [msgFadeRef, msgFaded] = useEdgeFade<HTMLSpanElement>()
 
   return (
-    <div className={`queue-row queue-row-${job.status}${compact ? " compact" : ""}`} onClick={() => setExpanded(e => !e)}>
+    <div className={`queue-row queue-row-${job.status}${compact ? " compact" : ""}${step ? " step" : ""}`} onClick={() => setExpanded(e => !e)}>
       <div className="queue-row-main">
-        <span className={`queue-status-icon queue-status-${job.status}`}>{STATUS_ICON[job.status]}</span>
-        {compact ? null : drive
+        <span className="queue-lead">
+          {queue && <span className="queue-n">{queue.n}</span>}
+          <span className={`queue-status-icon queue-status-${job.status}`}>{STATUS_ICON[job.status]}</span>
+        </span>
+        {compact || step ? null : drive
           ? <span className="queue-drive-id"><DriveChip drive={drive} serial="tail" /></span>
           : <span className="queue-drive-id">{job.drive_guid}</span>}
         <span className="queue-op">{job.operation_name}</span>
@@ -52,7 +62,10 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
             {jobResultText(job)}
           </span>
         )}
+        {queue?.note && <span className="queue-note">{queue.note}</span>}
         <div className="queue-right">
+          {job.status === "queued" && !step && <span className="queue-time">queued {formatClock(job.created_at)}</span>}
+          {queue && <QueueMoveButtons queue={queue} />}
           {job.finished_at && (
             <span className="queue-time" title={ranFor ? `Ran for ${ranFor}` : undefined}>
               {ranFor && <>{ranFor} · </>}{formatRelativeTime(job.finished_at)}
@@ -91,5 +104,19 @@ export function JobRow({ job, drive, onCancel, compact = false }: { job: Job; dr
         </div>
       )}
     </div>
+  )
+}
+
+export function QueueMoveButtons({ queue }: { queue: QueueSlot }) {
+  const click = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn() }
+  return (
+    <span className="queue-move">
+      <button className="icon-btn" title={queue.title ?? "Move up"} aria-label={`Move up: ${queue.label}`} disabled={!queue.up} onClick={queue.up ? click(queue.up) : undefined}>
+        <IconChevronUp size={14} />
+      </button>
+      <button className="icon-btn" title={queue.title ?? "Move down"} aria-label={`Move down: ${queue.label}`} disabled={!queue.down} onClick={queue.down ? click(queue.down) : undefined}>
+        <IconChevronDown size={14} />
+      </button>
+    </span>
   )
 }

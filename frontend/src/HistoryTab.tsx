@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Drive, Job, JobStatus } from "./types"
 import { mergeHistory } from "./jobHistory"
-import { JobRow } from "./JobRow"
+import { groupTasks, isActive, itemDuration, itemFinishedAt, itemJobs, itemStatus, type TaskItem } from "./taskItems"
+import { TaskRow } from "./BatchRow"
 import { DriveChipHeader } from "./DriveChip"
 import { Control, FilterChip, Segmented } from "./Controls"
 import { dayLabel, toLocalIso } from "./format"
@@ -12,6 +13,7 @@ interface Props {
   selectedGuids: string[]
   jobs: Job[]  // App's live /api/jobs list (this session's jobs, polled)
   onCancel: (jobId: string) => void
+  onCancelBatch?: (batchId: string) => void
 }
 
 type Range = "24h" | "7d" | "14d" | "30d" | "90d" | "all"
@@ -34,12 +36,11 @@ const IS_FINISHED = new Set<string>(FINISHED_STATUSES.map(s => s.value))
 const FETCH_LIMIT = 500
 const PAGE = 50
 
-const finishedAt = (j: Job) => new Date(j.finished_at ?? j.created_at).getTime()
-const duration = (j: Job) => j.started_at && j.finished_at ? new Date(j.finished_at).getTime() - new Date(j.started_at).getTime() : -1
+const itemGuid = (item: TaskItem) => itemJobs(item)[0].drive_guid
 
 // The finished-job log: one fetch per time range, with every other filter
 // applied here so changing it is instant and the status counts stay complete.
-export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCancel }: Props) {
+export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCancel, onCancelBatch = () => {} }: Props) {
   const [range, setRange] = useState<Range>("14d")
   const [scope, setScope] = useState<"all" | "selected">("all")
   // Which finished statuses the list shows (the Status filter chips).
@@ -70,6 +71,7 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
   // Stored rows plus live jobs that finished in range but may not be saved yet.
   const inRange = useMemo(() => {
     if (!loaded) return null
+    const finishedAt = (j: Job) => new Date(j.finished_at ?? j.created_at).getTime()
     const live = liveJobs.filter(j => IS_FINISHED.has(j.status) && (loaded.since === null || finishedAt(j) >= loaded.since))
     return mergeHistory(loaded.jobs, live).filter(j => IS_FINISHED.has(j.status))
   }, [loaded, liveJobs])
@@ -78,19 +80,26 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
     (scope === "all" || selectedGuids.includes(j.drive_guid)) && (includeDebug || j.category !== "Debug"),
   ), [inRange, scope, selectedGuids, includeDebug])
 
+  // One entry per task: a batch's steps go together, and a batch still
+  // running or waiting stays in Activity until every step has ended.
+  const items = useMemo(() => {
+    const active = new Set(liveJobs.filter(isActive).map(j => j.batch?.id).filter(Boolean))
+    return groupTasks(scoped.filter(j => !active.has(j.batch?.id)), [...(inRange ?? []), ...liveJobs])
+  }, [scoped, inRange, liveJobs])
+
   const operations = useMemo(() => {
     const names = new Map<string, string>()
     scoped.forEach(j => names.set(j.operation, j.operation_name))
     return [...names].sort((a, b) => a[1].localeCompare(b[1]))
   }, [scoped])
 
-  const byOperation = scoped.filter(j => operation === "all" || j.operation === operation)
+  const byOperation = items.filter(item => operation === "all" || itemJobs(item).some(j => j.operation === operation))
   const driveName = (guid: string) => { const d = drives.find(x => x.guid === guid); return d ? `${d.label ?? d.model ?? d.device} ${d.serial ?? ""}` : "~" }
-  const listed = byOperation.filter(j => shownStatuses.has(j.status as FinishedStatus)).sort((a, b) => {
-    if (sort === "old") return finishedAt(a) - finishedAt(b)
-    if (sort === "long") return duration(b) - duration(a)
-    if (sort === "drive") return driveName(a.drive_guid).localeCompare(driveName(b.drive_guid)) || finishedAt(b) - finishedAt(a)
-    return finishedAt(b) - finishedAt(a)
+  const listed = byOperation.filter(item => shownStatuses.has(itemStatus(item) as FinishedStatus)).sort((a, b) => {
+    if (sort === "old") return itemFinishedAt(a) - itemFinishedAt(b)
+    if (sort === "long") return itemDuration(b) - itemDuration(a)
+    if (sort === "drive") return driveName(itemGuid(a)).localeCompare(driveName(itemGuid(b))) || itemFinishedAt(b) - itemFinishedAt(a)
+    return itemFinishedAt(b) - itemFinishedAt(a)
   })
   const visible = listed.slice(0, shown)
   const hiddenDebug = (inRange ?? []).filter(j => j.category === "Debug" && (scope === "all" || selectedGuids.includes(j.drive_guid))).length
@@ -121,7 +130,7 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
           <div className="filter-chips">
             {FINISHED_STATUSES.map(s => (
               <FilterChip key={s.value} pressed={shownStatuses.has(s.value)} onToggle={() => reset(() => toggleShownStatus(s.value))}>
-                {s.label} <span className="filter-chip-count">{byOperation.filter(j => j.status === s.value).length}</span>
+                {s.label} <span className="filter-chip-count">{byOperation.filter(item => itemStatus(item) === s.value).length}</span>
               </FilterChip>
             ))}
           </div>
@@ -158,22 +167,22 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
               {range !== "all" && <> <button className="history-link" onClick={() => reset(() => setRange("all"))}>Show all time</button></>}
             </p>
           ) : grouped ? (
-            groupByDrive(visible).map(([guid, js]) => (
+            groupByDrive(visible).map(([guid, group]) => (
               <section key={guid} className="history-group">
                 <DriveChipHeader drive={drives.find(d => d.guid === guid)} className="history-drive-header" />
-                {js.map(job => <JobRow key={job.id} job={job} drive={drives.find(d => d.guid === job.drive_guid)} onCancel={onCancel} />)}
+                {group.map(item => <TaskRow key={item.key} item={item} drive={drives.find(d => d.guid === guid)} onCancel={onCancel} onCancelBatch={onCancelBatch} />)}
               </section>
             ))
           ) : (
             <div className="history-list">
-              {visible.map((job, i) => {
-                const now = loaded?.fetchedAt ?? finishedAt(job)
-                const day = sort === "new" || sort === "old" ? dayLabel(finishedAt(job), now) : null
-                const prev = i > 0 && day ? dayLabel(finishedAt(visible[i - 1]), now) : null
+              {visible.map((item, i) => {
+                const now = loaded?.fetchedAt ?? itemFinishedAt(item)
+                const day = sort === "new" || sort === "old" ? dayLabel(itemFinishedAt(item), now) : null
+                const prev = i > 0 && day ? dayLabel(itemFinishedAt(visible[i - 1]), now) : null
                 return (
-                  <div key={job.id} className="history-item">
+                  <div key={item.key} className="history-item">
                     {day && day !== prev && <h3 className="history-day">{day}</h3>}
-                    <JobRow job={job} drive={drives.find(d => d.guid === job.drive_guid)} onCancel={onCancel} />
+                    <TaskRow item={item} drive={drives.find(d => d.guid === itemGuid(item))} onCancel={onCancel} onCancelBatch={onCancelBatch} />
                   </div>
                 )
               })}
@@ -197,8 +206,8 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
   )
 }
 
-function groupByDrive(jobs: Job[]): [string, Job[]][] {
-  const groups = new Map<string, Job[]>()
-  jobs.forEach(j => { const g = groups.get(j.drive_guid); if (g) g.push(j); else groups.set(j.drive_guid, [j]) })
+function groupByDrive(items: TaskItem[]): [string, TaskItem[]][] {
+  const groups = new Map<string, TaskItem[]>()
+  items.forEach(item => { const guid = itemGuid(item); const g = groups.get(guid); if (g) g.push(item); else groups.set(guid, [item]) })
   return [...groups]
 }

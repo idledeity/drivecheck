@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ActivityTab from './ActivityTab'
+import ConfirmProvider from './ConfirmProvider'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Job } from './types'
 
@@ -29,8 +30,8 @@ const queued = (id: string, guid: string, pos: number) =>
   makeJob({ id, drive_guid: guid, status: 'queued', queue_position: pos, operation_name: `Queued ${id}` })
 
 function renderTab(props: Partial<React.ComponentProps<typeof ActivityTab>> = {}) {
-  const handlers = { onCancel: vi.fn(), onMove: vi.fn(), onMarkSeen: vi.fn(), onShowHistory: vi.fn() }
-  render(<ActivityTab drives={drives} selectedGuids={[]} jobs={[]} unseen={[]} {...handlers} {...props} />)
+  const handlers = { onCancel: vi.fn(), onMove: vi.fn(), onCancelBatch: vi.fn(), onMoveBatch: vi.fn(), onMarkSeen: vi.fn(), onShowHistory: vi.fn() }
+  render(<ConfirmProvider><ActivityTab drives={drives} selectedGuids={[]} jobs={[]} unseen={[]} {...handlers} {...props} /></ConfirmProvider>)
   return handlers
 }
 const lane = (name: RegExp) => screen.getByRole('region', { name })
@@ -47,9 +48,10 @@ describe('ActivityTab', () => {
 
   it('shows one lane per busy drive with its queue in run order', () => {
     renderTab({ jobs: [running('a', 'd1'), queued('second', 'd1', 1), queued('first', 'd1', 0)] })
-    const items = within(lane(/Exos One/)).getAllByRole('listitem').map(li => li.textContent)
-    expect(items[0]).toMatch(/^1Queued first/)
-    expect(items[1]).toMatch(/^2Queued second/)
+    const queue = lane(/Exos One/).querySelector('.act-queue')!
+    const rows = [...queue.querySelectorAll(':scope > .queue-row')].map(r => r.textContent)
+    expect(rows[0]).toMatch(/^1.*Queued first/)
+    expect(rows[1]).toMatch(/^2.*Queued second/)
     expect(screen.queryByRole('region', { name: /Exos Two/ })).not.toBeInTheDocument()
     expect(screen.getByText('2 idle drives hidden')).toBeInTheDocument()
   })
@@ -126,5 +128,72 @@ describe('ActivityTab', () => {
     maxParallel = null
     renderTab({ jobs: [running('a', 'd1')] })
     await waitFor(() => expect(screen.getByText('no parallel limit')).toBeInTheDocument())
+  })
+
+  describe('batches', () => {
+    const batch = (id: string, step: number, stopOnFailure = true) =>
+      ({ id, step, recipe: 'initial_scan', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: stopOnFailure })
+    const step = (job: Job, id: string, n: number): Job => ({ ...job, batch: batch(id, n) })
+    const box = (id: string) => screen.getByRole('group', { name: `Batch: Recipe ${id}` })
+    const header = (id: string) => box(id).querySelector(':scope > .queue-row-main')!
+
+    it('shows a queued batch as one task row that moves and cancels as a whole', async () => {
+      const h = renderTab({ jobs: [
+        running('a', 'd1'),
+        step(queued('s0', 'd1', 0), 'b1', 0), step(queued('s1', 'd1', 1), 'b1', 1),
+        queued('solo', 'd1', 2),
+      ] })
+      expect(header('b1').textContent).toMatch(/^1.*Exos One.*Recipe b12 steps.*Stops on failure/)
+      expect(within(box('b1')).getByText('Queued s0')).toBeInTheDocument()
+      // Steps move only with their batch.
+      expect(screen.queryByRole('button', { name: 'Move up: Queued s0' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Move up: Recipe b1' })).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: 'Move down: Recipe b1' }))
+      expect(h.onMoveBatch).toHaveBeenCalledWith('b1', 'down')
+      fireEvent.click(screen.getByRole('button', { name: 'Move up: Queued solo' }))
+      expect(h.onMove).toHaveBeenCalledWith('solo', 'up')
+      // Nothing has started, so cancelling goes without asking.
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel batch: Recipe b1' }))
+      expect(h.onCancelBatch).toHaveBeenCalledWith('b1')
+      // A step can go on its own, but always asks first: it changes the rest.
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel: Queued s1' }))
+      expect(h.onCancel).not.toHaveBeenCalled()
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel step' }))
+      await waitFor(() => expect(h.onCancel).toHaveBeenCalledWith('s1'))
+    })
+
+    it('keeps a running batch step together with the steps before and after it', () => {
+      renderTab({ jobs: [
+        step(makeJob({ id: 'done', drive_guid: 'd1', status: 'completed', operation_name: 'Done s0', finished_at: '2026-11-11T18:00:00' }), 'b1', 0),
+        step(running('r', 'd1'), 'b1', 1), step(queued('s2', 'd1', 0), 'b1', 2),
+        queued('solo', 'd1', 1),
+      ] })
+      expect(header('b1').textContent).toMatch(/Recipe b12 \/ 3.*Run r running · stops on failure/)
+      expect([...box('b1').querySelectorAll('.batch-steps .queue-op')].map(e => e.textContent)).toEqual(['Done s0', 'Run r', 'Queued s2'])
+      expect(screen.queryByRole('button', { name: 'Move up: Recipe b1' })).not.toBeInTheDocument()
+      // Up next starts after the batch, and its first step isn't also under Recently finished.
+      const queue = lane(/Exos One/).querySelector('.act-queue')!
+      expect(queue.textContent).toMatch(/^1.*Queued solo/)
+      expect(screen.getAllByText('Done s0')).toHaveLength(1)
+    })
+
+    it('pins a started batch between its steps: nothing moves past it', () => {
+      renderTab({ jobs: [
+        step(makeJob({ id: 'done', drive_guid: 'd1', status: 'completed' }), 'b1', 0),
+        step(queued('s1', 'd1', 0), 'b1', 1),
+        queued('solo', 'd1', 1),
+      ] })
+      expect(screen.getByRole('button', { name: 'Move down: Recipe b1' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Move up: Queued solo' })).toBeDisabled()
+      expect(header('b1').textContent).toMatch(/Recipe b12 \/ 2.*Queued s1 next/)
+    })
+
+    it("folds a batch's steps from its header", () => {
+      renderTab({ jobs: [running('a', 'd1'), step(queued('s0', 'd1', 0), 'b1', 0), step(queued('s1', 'd1', 1), 'b1', 1)] })
+      fireEvent.click(header('b1'))
+      expect(within(box('b1')).queryByText('Queued s0')).not.toBeInTheDocument()
+      fireEvent.click(header('b1'))
+      expect(within(box('b1')).getByText('Queued s0')).toBeInTheDocument()
+    })
   })
 })

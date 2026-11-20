@@ -110,44 +110,11 @@
   color: var(--t5);
 }
 
+/* Up next: task rows in run order (each row brings its own spacing). */
 .act-queue {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
-.act-q-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 4px 3px 8px;
-  border-radius: 6px;
-  background: var(--bi);
-}
-.act-q-n {
-  font-size: 11px;
-  color: var(--t4);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.act-q-op {
-  font-size: 12.5px;
-  color: var(--t2);
-  min-width: 0;
-}
-.act-q-why {
-  display: block;
-  font-size: 11px;
-  color: var(--wa);
-}
-.act-q-actions {
-  display: inline-flex;
-  gap: 2px;
-}
-.act-q-cancel:hover:not(:disabled) { color: var(--re); }
 
 .act-idle { gap: 6px; }
 
