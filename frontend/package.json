@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:isolated": "vitest run --isolate",
     "test:watch": "vitest"
   },
   "dependencies": {

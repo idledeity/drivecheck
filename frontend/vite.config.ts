@@ -44,6 +44,9 @@ export default defineConfig(({ command }) => {
     test: {
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
+      // Share one jsdom per worker instead of building one per file — that setup
+      // was ~half the run. `npm run test:isolated` runs with isolation back on.
+      isolate: false,
     },
   }
 })
