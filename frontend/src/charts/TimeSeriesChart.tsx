@@ -26,6 +26,10 @@ export interface ChartBand { from: number; to: number; tone: Tone; label?: strin
  *  color on overlapping spans just shows whichever was drawn last. Which job
  *  (and drive) it was is the tooltip's job, via tooltipExtra. */
 export interface ChartSpan { id: string; start: number; end: number | null; label?: string }
+/** A moment of note on one series — e.g. a drive's first reading of a signal,
+ *  which isn't a change. Drawn as a hollow diamond on the line; the tooltip
+ *  names the ones in the hovered bucket. */
+export interface ChartMarker { series: string; t: number; label: string }
 
 interface Props {
   series: ChartSeries[]
@@ -48,6 +52,7 @@ interface Props {
   thresholds?: ChartThreshold[]
   bands?: ChartBand[]
   spans?: ChartSpan[]
+  markers?: ChartMarker[]
   /** The crosshair snaps to start + k·snapMs (the bucket starts). Without it,
    *  it snaps to the nearest point of any series. */
   snapMs?: number
@@ -138,6 +143,17 @@ export default function TimeSeriesChart(props: Props) {
     .sort((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl))
   const dim = (s: ChartSeries) => (hl && s.id !== hl ? " dim" : "")
 
+  // Markers sit on their series' line: a step series at the marker's own
+  // time; a line (one point per bucket) at the start of the bucket holding it.
+  const bucketOf = (t: number) => (snapMs ? start + Math.floor((t - start) / snapMs) * snapMs : t)
+  const markers = (props.markers ?? []).flatMap(m => {
+    const s = series.find(x => x.id === m.series)
+    if (!s || m.t < start || m.t > end) return []
+    const at = s.shape === "step" ? m.t : bucketOf(m.t)
+    const v = valueAt(s, at, snapMs)
+    return v === null ? [] : [{ m, s, x: x(at), y: y(v) }]
+  })
+
   // ── hover ───────────────────────────────────────────────────────────────
   // The hovered time lives in the hover state (shared or local); everything
   // drawn for it — crosshair, dots, tooltip — is derived from it below.
@@ -215,7 +231,16 @@ export default function TimeSeriesChart(props: Props) {
   })
 
   return (
-    <div ref={wrapRef} className={`tsc${props.className ? ` ${props.className}` : ""}`}>
+    <div
+      ref={wrapRef}
+      className={`tsc${props.className ? ` ${props.className}` : ""}`}
+      // Leaving the chart's whole block clears the reading, not just leaving
+      // the plot: readings shown under a narrow chart must stay while the
+      // pointer moves down to read them. A lifted finger "leaves" too, which
+      // would clear a tap's reading as soon as it showed; on touch it stays
+      // until focus moves (a tap elsewhere).
+      onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
+    >
       {/* Layers are painted in order, back to front: bands, job shading,
           grid and axes, job rail, thresholds, areas, lines, end dots, then
           the hover crosshair on top. */}
@@ -229,9 +254,6 @@ export default function TimeSeriesChart(props: Props) {
         tabIndex={0}
         onPointerMove={e => hoverAt(snap(pointerT(e)))}
         onPointerDown={e => hoverAt(snap(pointerT(e)))}   // a tap on touch screens
-        // A lifted finger "leaves" too, which would clear a tap's reading as
-        // soon as it showed; on touch it stays until focus moves (a tap elsewhere).
-        onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
         onFocus={() => { if (!hover) hoverAt(latest()) }}   // keyboard users get a reading straight away
         onBlur={() => hoverAt(null)}
         onKeyDown={onKeyDown}
@@ -298,6 +320,11 @@ export default function TimeSeriesChart(props: Props) {
           <circle key={`end-${s.id}`} className={`tsc-dot${dim(s)}`} cx={last.x} cy={last.y} r={4} fill={s.color} />
         ))}
 
+        {markers.map(({ m, s, x: mx, y: my }) => (
+          <path key={`mark-${m.series}-${m.t}`} className={`tsc-marker${dim(s)}`}
+            d={`M${mx} ${my - 5}L${mx + 5} ${my}L${mx} ${my + 5}L${mx - 5} ${my}Z`} />
+        ))}
+
         {hoverT !== null && (
           <g className="tsc-hover">
             <line className="tsc-crosshair" x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
@@ -332,6 +359,15 @@ export default function TimeSeriesChart(props: Props) {
               ))}
             </div>
           )}
+          {(() => {
+            // Markers in the hovered bucket (or at the hovered point).
+            const hit = markers.filter(({ m }) => bucketOf(m.t) === bucketOf(hoverT))
+            return hit.length > 0 && (
+              <div className="tsc-tip-extra tsc-tip-marks">
+                {hit.map(({ m }) => <div key={`${m.series}-${m.t}`}><span className="tsc-mark-key" aria-hidden>◇</span> {m.label}</div>)}
+              </div>
+            )
+          })()}
           {props.tooltipExtra && <TipExtra>{props.tooltipExtra(hoverT)}</TipExtra>}
         </div>
       )}

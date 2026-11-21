@@ -3,6 +3,7 @@ import TimeSeriesChart from "./TimeSeriesChart"
 import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
 import type { ChartSeries } from "./TimeSeriesChart"
+import { firstReadingMarkers } from "./healthChanges"
 import { bucketLabel, jobSpans, jobsDuring, roundTemp } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
@@ -44,6 +45,7 @@ function TemperatureChart({ data, drives, showJobs = true, highlight = null, hei
       yInclude={warn === null ? undefined : [warn + 2]}
       thresholds={warn === null ? undefined : [{ value: warn, label: `${warn} °C warning`, tone: "warn" }]}
       spans={showJobs ? jobSpans(data, drives) : undefined}
+      markers={firstReadingMarkers(data, drives, "temp")}
       formatY={v => `${v}°`}
       formatValue={v => `${v.toFixed(1)} °C`}
       formatTime={t => bucketLabel(t, data.bucketMs)}

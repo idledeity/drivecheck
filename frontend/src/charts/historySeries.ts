@@ -129,13 +129,18 @@ export interface DriveChange { drive: ChartDrive; from: number; to: number }
  *  have no pending-sector or CRC counts). */
 export function counterSummary(data: DriveHistoryData, drives: ChartDrive[], name: string) {
   const changed: DriveChange[] = [], steady: DriveChange[] = [], missing: ChartDrive[] = []
+  // Drives that first reported it in the range: changes count from that
+  // first value, which is a reading, not a change.
+  const firstRead: { drive: ChartDrive; t: number; value: number }[] = []
   for (const d of drives) {
     const fl = firstLast(signalPoints(data, d.guid, name))
     if (!fl) missing.push(d)
     else (fl.to !== fl.from ? changed : steady).push({ drive: d, ...fl })
+    const t = data.drives[d.guid]?.firstReadings[name]
+    if (fl && t !== undefined && t >= data.start) firstRead.push({ drive: d, t, value: fl.from })
   }
   changed.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
-  return { changed, steady, missing }
+  return { changed, steady, missing, firstRead }
 }
 
 /** The health callout: drives whose score fell over the range (largest fall

@@ -2,6 +2,7 @@ import { IconBarcode, IconLock } from "@tabler/icons-react"
 import type { ReactNode } from "react"
 import type { Drive } from "./types"
 import { formatCapacity } from "./format"
+import { HEALTH_CLASS } from "./healthBands"
 import "./DriveChip.css"
 
 interface Props {
@@ -22,8 +23,6 @@ interface Props {
   // where a stack of outlined pills is more frame than content.
   thin?: boolean
 }
-
-const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Aging: "aging", Degraded: "warn", Failing: "crit", Critical: "critical" }
 
 // Compact identity pill for a drive: a dot in its health color, manufacturer,
 // name, capacity and serial. Inside a .drive-chip-list, a container query

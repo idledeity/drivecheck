@@ -45,6 +45,8 @@ _BUCKETED_SIGNALS = ["temp", "power_on_hours"]
 # Every other signal: each change is read, scored and sent.
 _EXACT_SIGNALS = [f.name for f in fields(DCSignals) if f.name not in _BUCKETED_SIGNALS]
 
+_ALL_SIGNALS = [f.name for f in fields(DCSignals)]
+
 # drive_signals stores every value as REAL; these are booleans in DCSignals.
 _BOOL_SIGNALS = {"smart_passed"}
 
@@ -72,7 +74,8 @@ def build_history(
     start_iso, end_iso = start.isoformat(), now.isoformat()
     logger.debug("building %s history for %d drive(s) from %s", range_key, len(guids), start_iso)
 
-    drives: dict[str, dict] = {g: {"vitals": _empty_vitals(), "signals": {}, "health": []} for g in guids}
+    drives: dict[str, dict] = {
+        g: {"vitals": _empty_vitals(), "signals": {}, "health": [], "first_readings": {}} for g in guids}
 
     # Columnar: one list per field, index-aligned with "t" (the bucket start).
     # Buckets with no rollup rows — the drive wasn't seen, or the collector
@@ -102,6 +105,12 @@ def build_history(
         rows.sort(key=lambda r: r["captured_at"])    # stable, so same-time rows keep their order
         drives[guid]["signals"], drives[guid]["health"] = _signal_series(rows, start_iso)
 
+    # When each signal was first reported, in or before the range: a counter
+    # whose first reading lands in the range was not seen before, so its
+    # first value is a reading, not a change (e.g. a signal a newer probe added).
+    for row in db.get_first_readings(guids, _ALL_SIGNALS, end_iso):
+        drives[row["drive_guid"]]["first_readings"][row["signal"]] = row["captured_at"]
+
     jobs = [
         {**_job(row), **(describe_job(row) if describe_job else {})}
         for row in db.get_jobs_between(guids, start_iso, end_iso)
@@ -123,7 +132,8 @@ def _signal_series(rows: list, start_iso: str) -> tuple[dict[str, list], list]:
     starts) as per-signal step series and a health step series. A value carried in from before the range is placed at
     the range start. Rows sharing a captured_at come from the same poll, so the
     score is taken once all of them are applied. _FULL_READ rows aren't a
-    series: they set the attribute facts scored with from then on."""
+    series: they set the attribute facts scored with from then on. Each
+    health point carries the factors that made it, for the change log."""
     signals: dict[str, list] = {}
     health: list[dict] = []
     current: dict = {}
@@ -140,6 +150,8 @@ def _signal_series(rows: list, start_iso: str) -> tuple[dict[str, list], list]:
                 continue
             if name in _BOOL_SIGNALS and value is not None:
                 value = bool(value)
+            elif isinstance(value, float) and value.is_integer():
+                value = int(value)    # stored as REAL; counts read (and print) as ints
             current[name] = value
             if name not in _BUCKETED_SIGNALS:
                 series = signals.setdefault(name, [])
@@ -151,7 +163,8 @@ def _signal_series(rows: list, start_iso: str) -> tuple[dict[str, list], list]:
         if not current:
             continue    # a full read before any signals: nothing to score yet
         scored = score_signals(current, extras)
-        point = {"t": t, "health_pct": scored.health_pct, "health_status": scored.health_status}
+        point = {"t": t, "health_pct": scored.health_pct, "health_status": scored.health_status,
+                 "factors": scored.factors, "floor": scored.floor}
         if health and health[-1]["t"] == t:
             health[-1] = point
         elif not health or (health[-1]["health_pct"], health[-1]["health_status"]) != (point["health_pct"], point["health_status"]):

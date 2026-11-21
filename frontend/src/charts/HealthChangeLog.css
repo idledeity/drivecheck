@@ -1,0 +1,119 @@
+/* The health score change log, under its chart (HealthChangeLog). */
+.hcl { border-top: 1px solid var(--chart-grid); margin-top: 6px; padding-top: 8px; }
+.hcl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
+.hcl-title {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t4);
+}
+.hcl-note { font-size: 11px; color: var(--t5); }
+.hcl-none { margin: 6px 0 0; padding-top: 6px; border-top: 1px solid var(--chart-grid); font-size: 11.5px; color: var(--t5); }
+
+.hcl-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.hcl-entry { border-bottom: 1px solid rgba(62, 64, 80, 0.55); }
+.hcl-entry:last-child { border-bottom: 0; }
+
+/* One row: when, drive, score, why, caret. The why column takes the rest and
+   wraps; on a phone the time takes its own line. */
+.hcl-main {
+  display: grid;
+  grid-template-columns: 96px auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hcl-main.one-drive { grid-template-columns: 96px auto minmax(0, 1fr) auto; }
+.hcl-main:hover { background: rgba(255, 255, 255, 0.02); }
+.hcl-main:focus-visible { outline: 2px solid var(--cy); outline-offset: 1px; border-radius: 4px; }
+.hcl-when { font-size: 11.5px; color: var(--t4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hcl-score { font-size: 12px; font-weight: 700; color: var(--t1); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hcl-status { margin-left: 6px; font-size: 10.5px; font-weight: 700; }
+.hcl-status.tone-ok { color: var(--gn); }
+.hcl-status.tone-aging { color: var(--ag); }
+.hcl-status.tone-warn { color: var(--wa); }
+.hcl-status.tone-crit { color: var(--re); }
+.hcl-status.tone-critical { color: var(--cr); }
+.hcl-why { font-size: 12px; color: var(--t2); min-width: 0; }
+.hcl-caret { color: var(--t5); transition: transform 0.15s; }
+.hcl-entry.open .hcl-caret { transform: rotate(90deg); color: var(--cy); }
+@media (prefers-reduced-motion: reduce) { .hcl-caret { transition: none; } }
+
+/* A first reading: dashed, in the marker's color — a reading, not a change. */
+.hcl-first {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px dashed rgba(24, 196, 238, 0.6);
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cy);
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+/* As of then: indented under the why column on wide screens. */
+.hcl-asof {
+  margin: 0 0 8px 106px;
+  padding: 8px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  background: var(--bi);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hcl-asof-head { font-size: 11px; color: var(--t4); }
+.hcl-asof-head b { color: var(--t2); font-weight: 600; }
+.hcl-asof-none, .hcl-asof-floor { margin: 0; font-size: 11px; color: var(--t4); }
+.hcl-scroll { overflow-x: auto; }
+.hcl-table { border-collapse: collapse; font-size: 11.5px; min-width: 100%; }
+.hcl-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--t5);
+  text-align: left;
+  padding: 2px 10px 4px 0;
+  white-space: nowrap;
+}
+.hcl-table td { padding: 3px 10px 3px 0; color: var(--t2); white-space: nowrap; border-top: 1px solid rgba(62, 64, 80, 0.5); }
+.hcl-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.hcl-table th:last-child, .hcl-table td:last-child { padding-right: 0; }
+.hcl-sets { color: var(--t1); font-weight: 600; }
+.hcl-role { font-size: 10.5px; color: var(--t4); }
+.hcl-role.start { color: var(--wa); }
+.hcl-was { font-size: 10.5px; color: var(--t5); }
+.hcl-unscored td { color: var(--t4); }
+
+.hcl-more {
+  margin-top: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--cy);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.hcl-more:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 3px; }
+
+@media (max-width: 640px) {
+  .hcl-main, .hcl-main.one-drive { grid-template-columns: auto auto minmax(0, 1fr) auto; row-gap: 3px; }
+  .hcl-when { grid-column: 1 / -1; }
+  .hcl-why { grid-column: 1 / -2; }
+  .hcl-asof { margin-left: 0; }
+}

@@ -3,6 +3,7 @@ import TimeSeriesChart from "./TimeSeriesChart"
 import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
 import type { ChartBand, ChartSeries } from "./TimeSeriesChart"
+import { healthChanges, healthMarkers } from "./healthChanges"
 import { bucketLabel, healthPoints, healthStatusAt, jobSpans, jobsDuring } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
@@ -54,6 +55,8 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
       yTicks={[0, failing, degraded, aging, healthy]}
       bands={bands}
       spans={showJobs ? jobSpans(data, drives) : undefined}
+      // Changes from a first reading: not the drive getting worse.
+      markers={healthMarkers(healthChanges(data, drives))}
       formatValue={(v, s, t) => {
         const status = healthStatusAt(data, s.id, t)
         return status ? `${v} · ${status}` : `${v}`

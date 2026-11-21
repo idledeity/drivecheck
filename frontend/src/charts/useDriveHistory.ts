@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import type { HealthFactor } from "../types"
 
 // GET /api/drives/history — see backend analysis/drive_history.py. Times
 // arrive as naive local ISO strings and are parsed to ms here, once, so charts
@@ -18,7 +19,8 @@ interface RawHistory {
   drives: Record<string, {
     vitals: { t: string[] } & Record<VitalsField, (number | null)[]>
     signals: Record<string, { t: string; value: SignalValue }[]>
-    health: { t: string; health_pct: number | null; health_status: string | null }[]
+    health: { t: string; health_pct: number | null; health_status: string | null; factors: HealthFactor[]; floor: number | null }[]
+    first_readings: Record<string, string>
   }>
   jobs: (Omit<HistoryJob, "start" | "end">)[]
 }
@@ -38,12 +40,22 @@ export type VitalsHistory = { t: number[] } & Record<VitalsField, (number | null
 /** A value holding from t until the next point (or the range end). */
 export interface StepPoint<V> { t: number; value: V }
 
-export interface HealthPoint { t: number; pct: number | null; status: string | null }
+export interface HealthPoint {
+  t: number
+  pct: number | null
+  status: string | null
+  /** What made the score at t, worst first (as the live score's factors). */
+  factors: HealthFactor[]
+  floor: number | null
+}
 
 export interface DriveHistory {
   vitals: VitalsHistory
   signals: Record<string, StepPoint<SignalValue>[]>
   health: HealthPoint[]
+  /** Per signal, when the drive first reported it (ms) — in the range or
+   *  before it. A first reading in the range is not a change. */
+  firstReadings: Record<string, number>
 }
 
 export interface HistoryJob {
@@ -81,7 +93,8 @@ export function parseHistory(raw: RawHistory): DriveHistoryData {
       vitals: { ...d.vitals, t: d.vitals.t.map(ms) },
       signals: Object.fromEntries(Object.entries(d.signals).map(
         ([name, points]) => [name, points.map(p => ({ t: ms(p.t), value: p.value }))])),
-      health: d.health.map(h => ({ t: ms(h.t), pct: h.health_pct, status: h.health_status })),
+      health: d.health.map(h => ({ t: ms(h.t), pct: h.health_pct, status: h.health_status, factors: h.factors ?? [], floor: h.floor ?? null })),
+      firstReadings: Object.fromEntries(Object.entries(d.first_readings ?? {}).map(([name, t]) => [name, ms(t)])),
     }
   }
   return {

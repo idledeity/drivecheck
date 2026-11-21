@@ -703,6 +703,33 @@ def get_signal_changes(
         ).fetchall()
 
 
+def get_first_readings(guids: list[str], signals: list[str], end_iso: str) -> list[sqlite3.Row]:
+    """When each drive first reported each named signal (its earliest non-null
+    row before end_iso), one row per (drive_guid, signal) that has one. Pruning
+    keeps each signal's value current at the cutoff, so a first row is a true
+    first reading, not the edge of retention."""
+    if not guids or not signals:
+        return []
+    logger.debug("looking up first readings for %d drive(s)", len(guids))
+    pairs = [(g, name) for g in guids for name in signals]
+    with _connection() as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"""
+            WITH pairs(drive_guid, signal) AS (VALUES {",".join(["(?, ?)"] * len(pairs))})
+            SELECT * FROM (
+                SELECT p.drive_guid, p.signal, (
+                    SELECT captured_at FROM drive_signals
+                     WHERE drive_guid = p.drive_guid AND signal = p.signal
+                       AND value IS NOT NULL AND captured_at < ?
+                     ORDER BY captured_at LIMIT 1) AS captured_at
+                  FROM pairs p)
+             WHERE captured_at IS NOT NULL
+            """,
+            (*(v for pair in pairs for v in pair), end_iso),
+        ).fetchall()
+
+
 def get_signal_buckets(
     guids: list[str], signals: list[str], start_iso: str, end_iso: str, bucket_seconds: int,
 ) -> list[sqlite3.Row]:

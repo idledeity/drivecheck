@@ -109,6 +109,16 @@ describe('TimeSeriesChart', () => {
     expect(tip()).toBeNull()
   })
 
+  it('keeps the reading while the pointer moves from the plot onto the readings under it', () => {
+    render(chart())
+    fireEvent.pointerMove(svgs()[0], { clientX: 300, pointerType: 'mouse' })
+    const wrap = svgs()[0].closest('.tsc')!
+    fireEvent.pointerLeave(svgs()[0], { pointerType: 'mouse', relatedTarget: wrap })
+    expect(tip()).not.toBeNull()
+    fireEvent.pointerLeave(wrap, { pointerType: 'mouse' })
+    expect(tip()).toBeNull()
+  })
+
   it('shows the readings under a narrow chart instead of floating over it', () => {
     // jsdom has no layout (clientWidth is 0): shadow it with a phone-ish width.
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 360 })

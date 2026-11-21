@@ -7,18 +7,19 @@ import ChartHoverSync from "./charts/ChartHoverSync"
 import TemperatureChart from "./charts/TemperatureChart"
 import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
+import HealthChangeLog from "./charts/HealthChangeLog"
 import CounterChart from "./charts/CounterChart"
 import ChartDriveChip from "./charts/ChartDriveChip"
 import CounterLanesChart from "./charts/CounterLanesChart"
 import CounterViewControls from "./charts/CounterViewControls"
-import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
+import { COUNTER_SIGNALS, counterFormat, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
 import { RATE_BUCKET, RECENT_WINDOWS, autoWindowLabel, counterWindows, windowFits } from "./charts/counterTrends"
 import type { Baseline, CounterWindows, RecentWindow } from "./charts/counterTrends"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
-import { momentLabel } from "./charts/scales"
+import { dateLabel, momentLabel } from "./charts/scales"
 import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
@@ -177,6 +178,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               footer={notReported("Not scored", shown.filter(d => !hasSignals(data, d.guid)))}
             >
               <HealthScoreChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
+              <HealthChangeLog data={data} drives={shown} />
             </ChartCard>
             <div className="trends-counters">
               {COUNTER_SIGNALS.map(name => (
@@ -237,7 +239,7 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
   stale: boolean
 }) {
   const [view, setView] = useCounterView(trendsCounterViews, name)
-  const { changed, steady, missing } = counterSummary(data, drives, name)
+  const { changed, steady, missing, firstRead } = counterSummary(data, drives, name)
   if (!changed.length && !steady.length) return null
   const title = SIGNALS[name]?.name ?? name
   // A drive with no signals at all (no SMART, e.g. a virtual disk) is named
@@ -261,6 +263,17 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
             </span>
           ))}
           {changed.length > CALLOUT_DRIVES && <span>+{changed.length - CALLOUT_DRIVES} more</span>}
+        </span>
+      ) : firstRead.length ? (
+        // Not "no change": the value wasn't known before it was first read.
+        <span className="trends-callout">
+          {firstRead.slice(0, CALLOUT_DRIVES).map(f => (
+            <span key={f.drive.guid} className="trends-callout-item">
+              <span>First read {dateLabel(f.t)}: <b>{counterFormat(name).value(f.value)}</b></span> <ChartDriveChip drive={f.drive} />
+            </span>
+          ))}
+          {firstRead.length > CALLOUT_DRIVES && <span>+{firstRead.length - CALLOUT_DRIVES} more</span>}
+          <span className="muted">· no change since</span>
         </span>
       ) : <span className="muted">No change in this range</span>}
       stale={stale}

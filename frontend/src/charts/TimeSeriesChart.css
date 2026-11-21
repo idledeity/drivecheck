@@ -50,6 +50,12 @@
   .tsc-line, .tsc-dot { transition: none; }
 }
 
+/* A moment of note (a first reading): hollow, in the accent — not a reading
+   of its own, so it never takes a drive's color or a status color. */
+.tsc-marker { fill: var(--chart); stroke: var(--cy); stroke-width: 1.5; pointer-events: none; transition: opacity 0.12s; }
+.tsc-marker.dim { opacity: 0.2; }
+.tsc-mark-key { color: var(--cy); }
+
 /* 2px ring in the surface color keeps dots legible where they cross lines. */
 .tsc-dot { stroke: var(--chart); stroke-width: 2; pointer-events: none; }
 

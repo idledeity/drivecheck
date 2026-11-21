@@ -42,3 +42,6 @@ export function healthBandText(status: string | null): string {
   const key = (status && status in HEALTH_BAND_TEXT ? status : "Unrated") as keyof typeof HEALTH_BAND_TEXT
   return `${status ?? "Unrated"}: ${HEALTH_BAND_TEXT[key]} ${status ? HEALTH_SCORE_HOW : ""}`.trim()
 }
+
+/** Each status's tone class (as the chart bands and chips use them). */
+export const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Aging: "aging", Degraded: "warn", Failing: "crit", Critical: "critical" }

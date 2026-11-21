@@ -800,7 +800,11 @@ change points (value carried in from before the range placed at `start`; `temp`
 and `power_on_hours` not sent); `health` as a step series scored when served —
 at each counter change, and per bucket for `temp` / `power_on_hours` (their worst
 value in the bucket, `db.get_signal_buckets`), since reading every change of
-those costs far more than a bucket-accurate health line is worth. Plus `jobs` overlapping the range (running ones have no `finished_at`)
+those costs far more than a bucket-accurate health line is worth. Each health
+point carries the `factors` and `floor` that made it (the change log reads
+them). `first_readings`: per signal, when the drive first reported it
+(`db.get_first_readings`, in or before the range — pruning keeps the value
+current at the cutoff, so a first row is a true first reading). Plus `jobs` overlapping the range (running ones have no `finished_at`)
 and `thresholds` (`analysis.health.SIGNAL_THRESHOLDS`, `HEALTH_BANDS`) so charts
 draw the same lines the score uses. Vitals lag live by up to ~2 minutes (rollup
 grace).
@@ -854,6 +858,17 @@ small component over these:
   are derived when drawn. Buckets are half-open: a change on an edge belongs
   to the bucket it starts. The view is remembered per counter for the session,
   separately for Trends and for card popovers (`useCounterView`).
+- First readings — a value read for the first time (a new drive, or a signal
+  a newer probe added) is not a change: `TimeSeriesChart` `markers` draw a
+  hollow cyan diamond on the line, named in the tooltip
+  (`firstReadingMarkers` for a signal, `healthMarkers` for score changes a
+  first reading caused); counter callouts say "First read …" instead of "No
+  change"; Events never count it (it's a series' first point).
+- `HealthChangeLog`, under the health chart: each score change in the range
+  (`healthChanges`: what moved it — a new worst factor, else the factor whose
+  points moved most), newest first, 5 then "Show all"; an entry opens the
+  factors as of then, plus signals first read then that aren't scored. Also
+  the chart's data as text.
 - `ChartCard` is the dashboard frame (title, subtitle, optional `controls` and
   callout on the right, dims when `stale`). `historySeries.ts` holds the glue:
   `chartDrive` (name + serial tail), job spans and the tooltip's job line,

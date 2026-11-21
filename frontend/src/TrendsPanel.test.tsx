@@ -154,6 +154,45 @@ describe('TrendsPanel', () => {
     expect(card('Uncorrected errors')).toHaveTextContent('No change in this range')
   })
 
+  it('logs score changes under the health chart, telling a first reading apart from a change', async () => {
+    const h = history()
+    const at = (m: number) => `2026-11-13T12:0${m}:00`
+    const f = (signal: string, label: string, value: string, role: string, points: number) =>
+      ({ key: `curve:${signal}`, kind: 'media', label, signal, value, standalone: role === 'start' ? points : 70, weight: 1, role, points })
+    Object.assign(h.drives.d2, {
+      signals: { uncorrected: [{ t: at(0), value: 7 }], pending: [{ t: at(4), value: 108 }], link_errors: [{ t: at(4), value: 57 }] },
+      health: [
+        { t: at(0), health_pct: 35, health_status: 'Failing', factors: [f('uncorrected', 'Uncorrected errors', '7', 'start', 39)], floor: null },
+        { t: at(4), health_pct: 20, health_status: 'Failing', factors: [f('pending', 'Pending sectors', '108', 'start', 27.6), f('uncorrected', 'Uncorrected errors', '7', 'adds', -5.9)], floor: null },
+      ],
+      first_readings: { uncorrected: '2026-11-01T00:00:00', pending: at(4), link_errors: at(4) },
+    })
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(h))
+    renderPanel(['d2'])
+    await waitFor(() => expect(lines('Health score over time')).toHaveLength(1))
+    const health = card('Health score')
+    const entries = within(health).getAllByRole('listitem')
+    expect(entries).toHaveLength(1)                       // the score carried in isn't a change
+    expect(entries[0]).toHaveTextContent(/35 → 20Failing.*Pending sectors 108 now sets the score.*first reading/)
+    expect(health.querySelectorAll('.tsc-marker')).toHaveLength(1)
+
+    // As of then: the factors, the one that set it before, and what else was first read.
+    const button = within(entries[0]).getByRole('button')
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    const rows = within(entries[0]).getAllByRole('row').map(r => r.textContent)
+    expect(rows).toEqual([
+      'FactorValueOn its ownRolePoints',
+      'Pending sectors108◇ first28sets the score28',
+      'Uncorrected errors770lowers it (set it before)−5.9',
+      'Link errors57◇ first—not scored',
+    ])
+
+    // The counter first read in the range says so, rather than "no change".
+    expect(card('Pending sectors')).toHaveTextContent(/First read .*: 108.*no change since/)
+    expect(card('Pending sectors').querySelectorAll('.tsc-marker')).toHaveLength(1)
+  })
+
   it('names a threshold far above the data instead of stretching the chart to it', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)

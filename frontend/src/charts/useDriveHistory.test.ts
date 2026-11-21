@@ -16,7 +16,8 @@ const raw = (range = '24h', guids = ['d1']) => ({
   drives: Object.fromEntries(guids.map(g => [g, {
     vitals: { t: ['2026-11-12T13:00:00'], temp_avg: [31.5], temp_min: [31], temp_max: [32], read_bps: [0], write_bps: [0], busy_pct: [0] },
     signals: { pending: [{ t: '2026-11-12T13:00:00', value: 0 }] },
-    health: [{ t: '2026-11-12T13:00:00', health_pct: 100, health_status: 'healthy' }],
+    health: [{ t: '2026-11-12T13:00:00', health_pct: 100, health_status: 'healthy', factors: [], floor: null }],
+    first_readings: { pending: '2026-11-12T13:00:00' },
   }])),
   jobs: [{ id: 'j1', drive_guid: 'd1', operation: 'badblocks', operation_name: 'Badblocks', category: 'Surface',
     status: 'running', summary: null, error: null, started_at: '2026-11-13T09:00:00', finished_at: null }],
@@ -34,7 +35,8 @@ describe('useDriveHistory', () => {
     expect(data.bucketMs).toBe(300_000)
     expect(data.drives.d1.vitals.t).toEqual([local('2026-11-12T13:00:00')])
     expect(data.drives.d1.vitals.temp_avg).toEqual([31.5])
-    expect(data.drives.d1.health[0]).toEqual({ t: local('2026-11-12T13:00:00'), pct: 100, status: 'healthy' })
+    expect(data.drives.d1.health[0]).toEqual({ t: local('2026-11-12T13:00:00'), pct: 100, status: 'healthy', factors: [], floor: null })
+    expect(data.drives.d1.firstReadings).toEqual({ pending: local('2026-11-12T13:00:00') })
     expect(data.jobs[0]).toMatchObject({ start: local('2026-11-13T09:00:00'), end: null })
     expect(result.current.stale).toBe(false)
   })

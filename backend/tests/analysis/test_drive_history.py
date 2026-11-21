@@ -72,11 +72,35 @@ def test_health_is_scored_per_poll_and_sent_only_when_it_changes():
 
     health = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"]
 
-    assert health == [
-        {"t": "2026-01-01T13:00:00", "health_pct": 100, "health_status": "Healthy"},
-        {"t": "2026-01-01T15:00:00", "health_pct": 79, "health_status": "Degraded"},
-        {"t": "2026-01-01T16:00:00", "health_pct": 9, "health_status": "Critical"},
+    assert [(p["t"], p["health_pct"], p["health_status"]) for p in health] == [
+        ("2026-01-01T13:00:00", 100, "Healthy"),
+        ("2026-01-01T15:00:00", 79, "Degraded"),
+        ("2026-01-01T16:00:00", 9, "Critical"),
     ]
+
+
+def test_each_health_point_carries_the_factors_that_made_it():
+    _signals("g1", "2026-01-01T13:00:00")
+    _signals("g1", "2026-01-01T15:00:00", reallocated=1)
+
+    health = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["health"]
+
+    assert health[0]["factors"] == [] and health[0]["floor"] is None
+    [factor] = [f for f in health[1]["factors"] if f["signal"] == "reallocated"]
+    assert (factor["role"], factor["points"]) == ("start", 79)
+
+
+def test_first_readings_are_each_signals_earliest_reported_value_in_or_before_the_range():
+    _signals("g1", "2026-01-01T06:00:00")                                    # before the range
+    db.record_signals("g1", "2026-01-02T09:00:00", {"link_errors": 57})
+    db.record_signals("g1", "2026-01-02T13:00:00", {"pending": 2})          # after the range
+
+    first = build_history(["g1"], "24h", now=NOW)["drives"]["g1"]["first_readings"]
+
+    assert first["reallocated"] == "2026-01-01T06:00:00"
+    assert first["link_errors"] == "2026-01-02T09:00:00"
+    assert first["pending"] == "2026-01-01T06:00:00"
+    assert "data_read" not in first
 
 
 def test_drives_are_kept_apart_and_unknown_drives_come_back_empty():
