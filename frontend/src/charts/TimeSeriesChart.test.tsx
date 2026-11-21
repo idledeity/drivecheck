@@ -109,6 +109,24 @@ describe('TimeSeriesChart', () => {
     expect(tip()).toBeNull()
   })
 
+  it('reads a step series as it stands at the end of the hovered bucket', () => {
+    // Starts 20s into minute 2 and changes 30s into minute 5.
+    const step: ChartSeries = { id: 's', label: 'Score', color: 'var(--s1)', shape: 'step',
+      points: [{ t: START + 2 * MIN + 20e3, v: 35 }, { t: START + 5 * MIN + 30e3, v: 20 }] }
+    render(chart({ series: [a, step] }))
+    fireEvent.focus(svgs()[0])                                          // last bucket (a's)
+    const at = (minute: number) => {
+      for (let i = 9; i > minute; i--) fireEvent.keyDown(svgs()[0], { key: 'ArrowLeft' })
+      const text = within(tip()!).queryByText('Score')?.closest('.tsc-tip-row')?.textContent ?? ''
+
+      for (let i = 9; i > minute; i--) fireEvent.keyDown(svgs()[0], { key: 'ArrowRight' })
+      return text
+    }
+    expect(at(2)).toContain('35 °C')        // not "No data": it starts inside the bucket
+    expect(at(5)).toContain('20 °C')        // the change inside the bucket shows
+    expect(at(1)).not.toContain('Score')
+  })
+
   it('keeps the reading while the pointer moves from the plot onto the readings under it', () => {
     render(chart())
     fireEvent.pointerMove(svgs()[0], { clientX: 300, pointerType: 'mouse' })

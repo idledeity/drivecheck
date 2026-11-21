@@ -208,9 +208,12 @@ export default function TimeSeriesChart(props: Props) {
   // A synced chart may be handed a time outside this chart's range; ignore it.
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
   // Each series' value at the hovered time; series with nothing there (a
-  // missing bucket, or before a step series starts) are left out.
+  // missing bucket, or before a step series starts) are left out. A step
+  // series reads as it stands at the bucket's end: a change inside the
+  // bucket shows (where its marker sits), and a series that starts inside
+  // it isn't "No data".
   const readings = hoverT === null ? [] : series
-    .map(s => ({ s, v: valueAt(s, hoverT, snapMs) }))
+    .map(s => ({ s, v: valueAt(s, s.shape === "step" && snapMs ? Math.min(hoverT + snapMs, end) - 1 : hoverT, snapMs) }))
     .filter((r): r is { s: ChartSeries; v: number } => r.v !== null)
   // Every chart in a sync group draws the crosshair; only the hovered one
   // draws the tooltip.

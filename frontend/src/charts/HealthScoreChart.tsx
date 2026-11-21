@@ -58,7 +58,8 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
       // Changes from a first reading: not the drive getting worse.
       markers={healthMarkers(healthChanges(data, drives))}
       formatValue={(v, s, t) => {
-        const status = healthStatusAt(data, s.id, t)
+        // At the bucket's end, as the chart reads the score (TimeSeriesChart).
+        const status = healthStatusAt(data, s.id, Math.min(t + data.bucketMs, data.end) - 1)
         return status ? `${v} · ${status}` : `${v}`
       }}
       formatTime={t => bucketLabel(t, data.bucketMs)}

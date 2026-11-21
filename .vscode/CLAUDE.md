@@ -866,9 +866,13 @@ small component over these:
   change"; Events never count it (it's a series' first point).
 - `HealthChangeLog`, under the health chart: each score change in the range
   (`healthChanges`: what moved it — a new worst factor, else the factor whose
-  points moved most), newest first, 5 then "Show all"; an entry opens the
-  factors as of then, plus signals first read then that aren't scored. Also
-  the chart's data as text.
+  points moved most), newest first, 5 then "Show all" (3 in the card's
+  health popover); an entry opens the factors as of then, plus signals first
+  read then that aren't scored. Also the chart's data as text.
+- Hover readings: a step series reads as it stands at the hovered bucket's
+  end (a change inside the bucket shows, where its marker sits); lines read
+  their bucket's point. The chart's whole block (plot plus readings shown
+  under a narrow chart) is the hover area.
 - `ChartCard` is the dashboard frame (title, subtitle, optional `controls` and
   callout on the right, dims when `stale`). `historySeries.ts` holds the glue:
   `chartDrive` (name + serial tail), job spans and the tooltip's job line,

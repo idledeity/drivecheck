@@ -1,5 +1,6 @@
 /* The health score change log, under its chart (HealthChangeLog). */
-.hcl { border-top: 1px solid var(--chart-grid); margin-top: 6px; padding-top: 8px; }
+/* Sized by its own width, not the screen's: it's also in a card's popover. */
+.hcl { container-type: inline-size; border-top: 1px solid var(--chart-grid); margin-top: 6px; padding-top: 8px; }
 .hcl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
 .hcl-title {
   margin: 0;
@@ -111,7 +112,7 @@
 }
 .hcl-more:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 3px; }
 
-@media (max-width: 640px) {
+@container (max-width: 560px) {
   .hcl-main, .hcl-main.one-drive { grid-template-columns: auto auto minmax(0, 1fr) auto; row-gap: 3px; }
   .hcl-when { grid-column: 1 / -1; }
   .hcl-why { grid-column: 1 / -2; }

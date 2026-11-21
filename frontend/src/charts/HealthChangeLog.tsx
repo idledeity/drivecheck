@@ -11,14 +11,17 @@ import { momentLabel } from "./scales"
 import type { DriveHistoryData } from "./useDriveHistory"
 import "./HealthChangeLog.css"
 
-// Entries shown before "Show all".
-const SHOWN = 5
 
 /** Under the health chart: each time a charted drive's score changed in the
  *  range, newest first, with what changed it. An entry opens to the score's
  *  factors as of then (re-scored from the values stored then). Also the
  *  chart's data in text, for anyone not using the hover readout. */
-function HealthChangeLog({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
+function HealthChangeLog({ data, drives, limit = 5 }: {
+  data: DriveHistoryData
+  drives: ChartDrive[]
+  /** Entries shown before "Show all". */
+  limit?: number
+}) {
   const changes = useMemo(() => healthChanges(data, drives), [data, drives])
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [showAll, setShowAll] = useState(false)
@@ -30,7 +33,7 @@ function HealthChangeLog({ data, drives }: { data: DriveHistoryData; drives: Cha
     else next.add(key)
     return next
   })
-  const shown = showAll ? changes : changes.slice(0, SHOWN)
+  const shown = showAll ? changes : changes.slice(0, limit)
   return (
     <div className="hcl">
       <div className="hcl-head">
@@ -62,7 +65,7 @@ function HealthChangeLog({ data, drives }: { data: DriveHistoryData; drives: Cha
           )
         })}
       </ul>
-      {changes.length > SHOWN && (
+      {changes.length > limit && (
         <button type="button" className="hcl-more" onClick={() => setShowAll(v => !v)}>
           {showAll ? "Show fewer" : `Show all ${changes.length}`}
         </button>

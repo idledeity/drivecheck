@@ -4,6 +4,7 @@ import { Segmented } from "./Controls"
 import TemperatureChart from "./charts/TemperatureChart"
 import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
+import HealthChangeLog from "./charts/HealthChangeLog"
 import CounterChart from "./charts/CounterChart"
 import type { SeriesStyle } from "./charts/drivePalette"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
@@ -101,6 +102,9 @@ function Body({ data, drives, metric }: { data: DriveHistoryData; drives: ChartD
         {dropped[0] && <> · fell <b>{dropped[0].from} → {dropped[0].to}</b></>}
       </div>
       <HealthScoreChart data={data} drives={drives} height={130} />
+      {/* Short here: the popover scrolls past its height cap, but a long
+          log would bury the chart on a phone. */}
+      <HealthChangeLog data={data} drives={drives} limit={3} />
     </>
   }
   return <CounterBody data={data} drives={drives} metric={metric} />
