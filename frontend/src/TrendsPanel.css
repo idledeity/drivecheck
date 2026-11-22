@@ -1,8 +1,13 @@
 .trends {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   min-width: 0;
 }
+/* Pinned (Pin filters): at most a screen tall, so the filter row stays put
+   while the charts scroll in their own box beneath it. */
+.trends.pinned { max-height: calc(100dvh - 16px); }
+.trends > .filter-row { flex: none; }
 
 .trends-drives { flex: 1 1 320px; }
 /* Range and Show jobs line up with the first row of drive chips, not the
@@ -29,13 +34,25 @@
    matches what's drawn. */
 .trends-drive[aria-pressed="false"] .drive-chip { border-style: dashed; opacity: 0.45; }
 
-.trends-jobs { color: var(--t3); cursor: pointer; margin-left: auto; }
-.trends-jobs input { accent-color: var(--cy); margin: 0; }
+/* Stacked, so the pair fits the corner Show jobs had on its own. */
+.trends-checks { display: flex; flex-direction: column; gap: 6px; margin-left: auto; }
+.trends-jobs { color: var(--t3); cursor: pointer; }
+.trends-jobs input, .trends-pin input { accent-color: var(--cy); margin: 0; }
+.trends-pin { color: var(--t3); cursor: pointer; }
 
 .trends-charts {
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+.trends.pinned .trends-charts {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* The scrollbar takes its own lane rather than covering card edges, and
+     the cards don't shift when it appears. */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 /* Error counters: small multiples, two across where there's room. */
@@ -77,5 +94,5 @@
 }
 
 @media (max-width: 640px) {
-  .trends-jobs { margin-left: 0; }
+  .trends-checks { margin-left: 0; flex-direction: row; gap: 8px 16px; }
 }

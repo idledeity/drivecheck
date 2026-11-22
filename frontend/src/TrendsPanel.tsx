@@ -41,6 +41,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   const [range, setRange] = useState<HistoryRange>("24h")
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showJobs, setShowJobs] = useState(true)
+  const [pinned, setPinned] = usePinnedFilters()
   // The counters' Events and Rate views compare a recent window against the
   // rest of the range (or the window before it); one setting for every card,
   // so the same words mean the same thing in each.
@@ -100,7 +101,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   })
 
   return (
-    <div className="trends">
+    <div className={`trends${pinned ? " pinned" : ""}`}>
       <div className="filter-row">
         <Control label="Range">
           <Segmented label="Range" idPrefix="trends-range" value={range} onChange={setRange}
@@ -142,10 +143,16 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             <option value="prev">Window before</option>
           </select>
         </Control>
-        <label className="ctl-check trends-jobs">
-          <input type="checkbox" checked={showJobs} onChange={e => setShowJobs(e.target.checked)} />
-          Show jobs
-        </label>
+        <div className="trends-checks">
+          <label className="ctl-check trends-jobs">
+            <input type="checkbox" checked={showJobs} onChange={e => setShowJobs(e.target.checked)} />
+            Show jobs
+          </label>
+          <label className="ctl-check trends-pin" title="Keep these filters in view: the charts scroll in their own box below them">
+            <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
+            Pin filters
+          </label>
+        </div>
       </div>
 
       {error && <p className="health-empty">Couldn't load history: {error}</p>}
@@ -191,6 +198,21 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       )}
     </div>
   )
+}
+
+const PIN_KEY = "trends.pinFilters"
+
+/** Whether the filter row stays put over scrolling charts (the default) or
+ *  scrolls away with the page. A layout preference, so it's remembered in
+ *  this browser; storage can be unavailable, so it only ever falls back. */
+function usePinnedFilters(): [boolean, (on: boolean) => void] {
+  const [pinned, setPinned] = useState(() => {
+    try { return localStorage.getItem(PIN_KEY) !== "0" } catch { return true }
+  })
+  return [pinned, on => {
+    setPinned(on)
+    try { localStorage.setItem(PIN_KEY, on ? "1" : "0") } catch { /* not remembered */ }
+  }]
 }
 
 function HottestCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
