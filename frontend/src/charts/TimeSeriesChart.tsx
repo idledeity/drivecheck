@@ -51,7 +51,7 @@ interface Props {
   formatY?: (v: number) => string
   /** A value as the tooltip shows it; t is the hovered time, for looking up
    *  related values (e.g. the bucket's maximum beside its average). */
-  formatValue?: (v: number, series: ChartSeries, t: number) => string
+  formatValue?: (v: number, series: ChartSeries, t: number) => ReactNode
   thresholds?: ChartThreshold[]
   bands?: ChartBand[]
   spans?: ChartSpan[]

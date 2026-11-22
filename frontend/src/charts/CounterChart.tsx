@@ -78,11 +78,28 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
       spans={showJobs ? jobSpans(data, drives) : undefined}
       markers={firstReadingMarkers(data, drives, signal)}
       formatY={counterFormat(signal).axis}
-      formatValue={counterFormat(signal).value}
+      formatValue={(v, s) => <CounterReading v={v} base={baseOf(s)} format={counterFormat(signal).value} />}
       formatTime={t => bucketLabel(t, data.bucketMs)}
       absent={absent}
     />
   )
+}
+
+/** A series' value at the range start: its first point, the value carried
+ *  in from before the range (or the first one recorded, if read in it). */
+function baseOf(s: ChartSeries): number | null {
+  return s.points.find(p => p.v !== null)?.v ?? null
+}
+
+/** A count in the readings, with how far it has moved since the range start
+ *  (up to the time read, so it always agrees with the count beside it);
+ *  nothing beside a count that hasn't moved. */
+function CounterReading({ v, base, format }: { v: number; base: number | null; format: (v: number) => string }) {
+  const d = base === null ? 0 : v - base
+  return <>
+    {format(v)}
+    {d !== 0 && <span className="tsc-tip-delta" title="Change since the start of the range">{d > 0 ? "+" : "−"}{format(Math.abs(d))}</span>}
+  </>
 }
 
 // Memoized: the panel re-renders on every 2s poll, but this chart only

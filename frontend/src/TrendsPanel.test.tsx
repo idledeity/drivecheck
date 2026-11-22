@@ -131,6 +131,11 @@ describe('TrendsPanel', () => {
   }
   const allDrives = [...drives, makeDrive({ guid: 'd3', model: 'QEMU HARDDISK', serial: null })]
   const card = (title: string) => screen.getByRole('heading', { name: title }).closest('section')!
+  // A card's reading rows at its newest point (focusing a chart starts there).
+  const readingsAtNewest = (title: string) => {
+    fireEvent.focus(within(card(title)).getByRole('img'))
+    return [...card(title).querySelectorAll('.tsc-tip-row')].map(r => r.textContent)
+  }
 
   it('charts health scores over the status bands, counting falls in the header and naming drives never scored', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
@@ -144,12 +149,12 @@ describe('TrendsPanel', () => {
     expect(health.querySelectorAll('.tsc-band')).toHaveLength(5)
   })
 
-  it('charts a counter that moved, and names its change', async () => {
+  it('charts a counter that moved, with its change since the range start beside the count', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
     await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
     expect(card('Reallocated sectors')).toHaveTextContent('1 of 2 drives changed')
-    expect(card('Reallocated sectors').querySelector('.hcl-list')).toHaveTextContent(/Exos X16.*0 → 3 \+3.*once, last/)
+    expect(readingsAtNewest('Reallocated sectors')).toContainEqual(expect.stringMatching(/Exos X16.*3\+3$/))
     expect(screen.getByText('warning ≥ 1')).toBeInTheDocument()
     // Steady but not zero: still charted, saying nothing changed.
     expect(lines('Uncorrected errors over time')).toHaveLength(2)
@@ -192,7 +197,6 @@ describe('TrendsPanel', () => {
 
     // The counter first read in the range says so, rather than "no change".
     expect(card('Pending sectors')).toHaveTextContent('First read in this range · no change since')
-    expect(card('Pending sectors').querySelector('.hcl-list')).toHaveTextContent(/Ultrastar.*108.*◇ first read .*no change since/)
     expect(card('Pending sectors').querySelectorAll('.tsc-marker')).toHaveLength(1)
   })
 
@@ -203,7 +207,7 @@ describe('TrendsPanel', () => {
     const cycles = card('Load/unload cycles')
     expect(cycles).toHaveTextContent('Running total · warning ≥ 500,000 · critical ≥ 700,000')
     expect(cycles.querySelector('.tsc-threshold')).toBeNull()
-    expect(cycles.querySelector('.hcl-list')).toHaveTextContent(/Exos X16.*2,000 → 2,001 \+1/)
+    expect(readingsAtNewest('Load/unload cycles')).toContainEqual(expect.stringMatching(/Exos X16.*2,001\+1$/))
   })
 
   it('charts a counter that is 0 throughout in full, with a "not reported" reading for each drive without it', async () => {

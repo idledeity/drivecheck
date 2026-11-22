@@ -175,6 +175,8 @@
 .tsc-tip-name { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsc-tip-value { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tsc-tip-empty { color: var(--t5); font-weight: 400; }
+/* A counter's change since the range start, after its count (CounterChart). */
+.tsc-tip-delta { margin-left: 6px; color: var(--cy); font-weight: 600; font-size: 11px; }
 /* A marker on a row (narrow charts): the chart's hollow diamond, in its accent. */
 .tsc-tip-mark { color: var(--cy); font-weight: 400; font-size: 11px; line-height: 1; margin-right: 8px; }   /* line-height: the ◇ (a fallback font) would grow the row */
 .tsc-tip-extra {

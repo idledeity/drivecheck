@@ -12,7 +12,6 @@ import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
 import HealthChangeLog from "./charts/HealthChangeLog"
 import CounterChart from "./charts/CounterChart"
-import CounterChangeList from "./charts/CounterChangeList"
 import CounterLanesChart from "./charts/CounterLanesChart"
 import CounterViewControls from "./charts/CounterViewControls"
 import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
@@ -318,8 +317,8 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
       title={title}
       subtitle={subtitle}
       controls={<CounterViewControls value={view} onChange={setView} label={title} idPrefix={`trends-${name}-view`} />}
-      // A count, not drives: which drives moved is in the list under the
-      // chart, as the health card's score changes are.
+      // A count, not drives: each drive's change since the range start is
+      // beside its value in the readings under the chart.
       callout={changed.length
         ? <><b>{changed.length}</b> of {changed.length + steady.length} drives changed</>
         : firstRead.length
@@ -328,10 +327,7 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
       stale={stale}
     >
       {view.view === "total"
-        ? <>
-            <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
-            <CounterChangeList data={data} drives={drives} signal={name} />
-          </>
+        ? <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
         : <CounterLanesChart data={data} drives={drives} signal={name} label={title} view={view.view} kind={counterKind(name)}
             windows={windows} showTotal={view.showTotal} log={counterScale(name) === "log1p"} showJobs={showJobs} highlight={highlight} />}
     </ChartCard>
