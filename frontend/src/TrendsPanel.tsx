@@ -1,4 +1,4 @@
-import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { RefObject } from "react"
 import { IconPinFilled, IconX } from "@tabler/icons-react"
 import type { Drive } from "./types"
@@ -6,7 +6,7 @@ import { Control, Segmented } from "./Controls"
 import DriveChip from "./DriveChip"
 import ChartCard from "./charts/ChartCard"
 import ChartHoverSync from "./charts/ChartHoverSync"
-import { ChartHoverContext } from "./charts/chartHover"
+import { ChartHoverContext, ChartPickContext } from "./charts/chartHover"
 import TemperatureChart from "./charts/TemperatureChart"
 import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
@@ -54,6 +54,10 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   // The drive whose legend chip is hovered or focused: its line comes forward
   // in every chart (others dim), which also finds it where lines coincide.
   const [hovered, setHovered] = useState<string | null>(null)
+  // A drive picked from the readings under any chart: highlighted in every
+  // chart until its row is clicked again (another row moves the highlight).
+  const [picked, setPicked] = useState<string | null>(null)
+  const pick = useCallback((guid: string) => setPicked(p => (p === guid ? null : guid)), [])
   // Fetch every selected drive, hidden or not, so toggling a chip is instant.
   const { data, stale, error } = useDriveHistory(selectedGuids, range)
 
@@ -84,7 +88,9 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
     return visible.length ? visible : all
   }, [all, hidden])
 
-  const highlight = hovered && shown.some(d => d.guid === hovered) ? hovered : null
+  // Hovering a drive's chip previews it over the picked one.
+  const isShown = (g: string | null) => g !== null && shown.some(d => d.guid === g)
+  const highlight = isShown(hovered) ? hovered : isShown(picked) ? picked : null
   // A window picked for a longer range reads as Auto until it fits again.
   const rangeMs = data ? data.end - data.start : Infinity
   const recentShown: RecentWindow = windowFits(recent, rangeMs) ? recent : "auto"
@@ -97,12 +103,17 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   }
 
   // The last shown drive can't be hidden, so the charts never go empty.
-  const toggle = (guid: string) => setHidden(prev => {
-    const next = new Set(prev)
-    if (!shown.some(d => d.guid === guid)) next.delete(guid)
-    else if (shown.length > 1) next.add(guid)
-    return next
-  })
+  const toggle = (guid: string) => {
+    // Hiding the picked drive drops the pick, so showing it again doesn't
+    // bring back a highlight nobody asked for.
+    if (guid === picked && isShown(guid) && shown.length > 1) setPicked(null)
+    setHidden(prev => {
+      const next = new Set(prev)
+      if (!shown.some(d => d.guid === guid)) next.delete(guid)
+      else if (shown.length > 1) next.add(guid)
+      return next
+    })
+  }
 
   return (
     // One hover group for the filter row too, so it can show (and clear) a
@@ -169,6 +180,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       {!data && !error && <p className="health-empty">Loading history…</p>}
 
       {data && windows && (
+          <ChartPickContext.Provider value={pick}>
           <div className="trends-charts">
             <ChartCard
               title="Temperature"
@@ -202,6 +214,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               ))}
             </div>
           </div>
+          </ChartPickContext.Provider>
       )}
     </div>
     </ChartHoverSync>

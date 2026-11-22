@@ -31,8 +31,9 @@
 /* Hold the touch grips (ChartGrips): each lane's line, and the axis strip. */
 .clc-strip-wrap, .clc-axis-wrap { position: relative; }
 .clc-strip, .clc-axis { display: block; width: 100%; overflow: visible; }
-.clc-strip { transition: opacity 0.12s; }
+.clc-strip, .clc-head { transition: opacity 0.12s; }
 .clc-strip.dim { opacity: 0.25; }
+.clc-head.dim { opacity: 0.4; }
 .clc-axis text { font-family: system-ui, -apple-system, sans-serif; }
 
 /* Before the counter was first recorded. */

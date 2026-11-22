@@ -1,6 +1,6 @@
 import { memo, useCallback, useId, useLayoutEffect, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { onReadings, useChartHover, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
+import { onReadings, readingRow, useChartHover, useChartPick, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { timeTicks } from "./scales"
@@ -202,7 +202,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
         const dim = highlight && l.drive.guid !== highlight ? " dim" : ""
         return (
           <div key={l.drive.guid} className="clc-lane">
-            <div className="clc-head">
+            <div className={`clc-head${dim}`}>
               {chips && <ChartDriveChip drive={l.drive} />}
               {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} format={format} /></span>}
             </div>
@@ -250,7 +250,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{bucketLabel(tipBucket, bucket)}</div>
           <TipRows lanes={lanes} absent={drives.filter(d => !lanes.some(l => l.drive.guid === d.guid))}
-            view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} />
+            view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} highlight={highlight} />
         </div>
       )}
     </div>
@@ -378,12 +378,14 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
  *  change in it (Events), or the bar's change (Rate). keepEmpty (under a
  *  narrow chart, in the page flow): a drive with nothing there keeps its row
  *  as "—", so the readings' height holds while scrubbing. */
-function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty }: {
+function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highlight }: {
   lanes: Lane[]
   /** Drives that don't report the counter: no lane, but a row here. */
   absent: ChartDrive[]
   view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat; keepEmpty: boolean
+  highlight: string | null
 }) {
+  const pick = useChartPick()
   const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null }[] => {
     const empty = keepEmpty ? [{ drive: l.drive, text: null }] : []
     const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${format.value(Math.abs(d))}`
@@ -402,18 +404,24 @@ function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty }: {
   if (!rows.length && !absent.length) return <div className="tsc-tip-none">No data</div>
   return (
     <div className="tsc-tip-rows">
-      {rows.map(r => (
-        <div key={r.drive.guid} className="tsc-tip-row">
-          <span className="tsc-tip-label"><ChartDriveChip drive={r.drive} /></span>
-          <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}</span>
-        </div>
-      ))}
-      {absent.map(d => (
-        <div key={d.guid} className="tsc-tip-row absent">
-          <span className="tsc-tip-label"><ChartDriveChip drive={d} /></span>
-          <span className="tsc-tip-value"><span className="tsc-tip-empty">not reported</span></span>
-        </div>
-      ))}
+      {rows.map(r => {
+        const row = readingRow(pick, r.drive.guid, highlight)
+        return (
+          <div key={r.drive.guid} className={`tsc-tip-row${row.cls}`} {...row.props}>
+            <span className="tsc-tip-label"><ChartDriveChip drive={r.drive} /></span>
+            <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}</span>
+          </div>
+        )
+      })}
+      {absent.map(d => {
+        const row = readingRow(pick, d.guid, highlight)
+        return (
+          <div key={d.guid} className={`tsc-tip-row absent${row.cls}`} {...row.props}>
+            <span className="tsc-tip-label"><ChartDriveChip drive={d} /></span>
+            <span className="tsc-tip-value"><span className="tsc-tip-empty">not reported</span></span>
+          </div>
+        )
+      })}
     </div>
   )
 }

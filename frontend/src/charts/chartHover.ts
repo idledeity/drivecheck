@@ -141,3 +141,31 @@ export function useGroupLatest(id: string, own: number | null): number | null {
   useLayoutEffect(() => () => report?.(id, null), [report, id])
   return group?.latest ?? own
 }
+
+// ── picking a drive from the readings ────────────────────────────────────────
+// A page of charts (Trends) can let a click on a readings row highlight that
+// series across every chart; it holds which one is picked and passes the
+// result back in as each chart's highlight. Without a provider (e.g. a lone
+// chart in a drive-card popover) rows aren't clickable.
+
+/** Pick (or, if it's already picked, unpick) a series by id. */
+export const ChartPickContext = createContext<((id: string) => void) | null>(null)
+
+export const useChartPick = () => useContext(ChartPickContext)
+
+/** A readings row's extra class (" dim" while another series is
+ *  highlighted, " pickable" where rows pick) and, where the page lets rows
+ *  pick, the props that make it a toggle for its series. */
+export function readingRow(pick: ((id: string) => void) | null, id: string, highlight: string | null) {
+  const cls = (highlight !== null && highlight !== id ? " dim" : "") + (pick ? " pickable" : "")
+  const props = pick ? {
+    role: "button",
+    tabIndex: 0,
+    "aria-pressed": highlight === id,
+    onClick: () => pick(id),
+    onKeyDown: (e: { key: string; preventDefault: () => void }) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(id) }
+    },
+  } : {}
+  return { cls, props }
+}

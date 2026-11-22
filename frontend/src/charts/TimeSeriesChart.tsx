@@ -1,6 +1,6 @@
 import { useCallback, useId, useLayoutEffect, useMemo, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
+import { readingRow, useChartHover, useChartPick, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
@@ -61,7 +61,10 @@ interface Props {
   snapMs?: number
   /** Lines break across gaps between points longer than this; default 1.5 × snapMs. */
   gapMs?: number
-  /** A series to bring forward: drawn on top, the others dimmed. */
+  /** A series to bring forward: drawn on top, the others (and their
+   *  readings rows) dimmed. One with no line here — say a drive that doesn't
+   *  report this signal — still dims every line, so the chart reads as
+   *  "not this one". */
   highlight?: string | null
   /** Extra tooltip lines for the hovered time, after the series rows.
    *  Compact under a narrow chart: keep it to a fixed height there (one
@@ -148,7 +151,8 @@ export default function TimeSeriesChart(props: Props) {
   // a bucket of slack keeps neighbouring buckets joined.
   const gapMs = props.gapMs ?? (snapMs ? snapMs * 1.5 : Infinity)
   // A highlighted series is drawn last, so it's on top of any it overlaps.
-  const hl = props.highlight && series.some(s => s.id === props.highlight) ? props.highlight : null
+  const hl = props.highlight ?? null
+  const pick = useChartPick()
   const paths = series
     .map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
     .sort((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl))
@@ -388,8 +392,8 @@ export default function TimeSeriesChart(props: Props) {
           <g className="tsc-hover">
             {/* Heavier while it can be grabbed (a tapped reading, on touch) or is pinned. */}
             <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
-            {readings.map(r => (
-              <circle key={r.s.id} className="tsc-dot" cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
+            {readings.toSorted((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl)).map(r => (
+              <circle key={r.s.id} className={`tsc-dot${dim(r.s)}`} cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
             ))}
           </g>
         )}
@@ -409,8 +413,10 @@ export default function TimeSeriesChart(props: Props) {
           {tipRows.length === 0 && !props.absent?.length && <div className="tsc-tip-none">No data</div>}
           {(tipRows.length > 0 || !!props.absent?.length) && (
             <div className="tsc-tip-rows">
-              {tipRows.map(r => (
-                <div key={r.s.id} className="tsc-tip-row">
+              {tipRows.map(r => {
+                const row = readingRow(pick, r.s.id, hl)
+                return (
+                <div key={r.s.id} className={`tsc-tip-row${row.cls}`} {...row.props}>
                   <span className="tsc-tip-label">
                     {r.s.tipLabel ?? <>
                       <LineKey color={r.s.color} dash={r.s.dash} width={12} />
@@ -425,13 +431,17 @@ export default function TimeSeriesChart(props: Props) {
                     {r.v === null ? <span className="tsc-tip-empty">—</span> : formatValue(r.v, r.s, tipT)}
                   </span>
                 </div>
-              ))}
-              {props.absent?.map(r => (
-                <div key={r.id} className="tsc-tip-row absent">
+                )
+              })}
+              {props.absent?.map(r => {
+                const row = readingRow(pick, r.id, hl)
+                return (
+                <div key={r.id} className={`tsc-tip-row absent${row.cls}`} {...row.props}>
                   <span className="tsc-tip-label">{r.label}</span>
                   <span className="tsc-tip-value"><span className="tsc-tip-empty">{r.text}</span></span>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
           {!tipBelow && tipMarks.length > 0 && (

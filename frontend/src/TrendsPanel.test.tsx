@@ -29,6 +29,7 @@ const drives = [
   makeDrive({ guid: 'd2', model: 'Ultrastar', serial: '1EJ6JG4J' }),
 ]
 const renderPanel = (selectedGuids = ['d1', 'd2']) => render(<TrendsPanel drives={drives} selectedGuids={selectedGuids} />)
+const card = (title: string) => screen.getByRole('heading', { name: title }).closest('section')!
 const lines = (chart: string) => document.querySelectorAll(`[aria-label="${chart}"] .tsc-line`)
 
 describe('TrendsPanel', () => {
@@ -76,7 +77,7 @@ describe('TrendsPanel', () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
     renderPanel()
     await waitFor(() => expect(lines('Temperature over time')).toHaveLength(2))
-    const chip = (name: RegExp) => screen.getByRole('button', { name })
+    const chip = (name: RegExp) => within(screen.getByRole('group', { name: 'Drives shown' })).getByRole('button', { name })
     fireEvent.click(chip(/Ultrastar/))
     expect(chip(/Ultrastar/)).toHaveAttribute('aria-pressed', 'false')
     expect(lines('Temperature over time')).toHaveLength(1)
@@ -84,6 +85,45 @@ describe('TrendsPanel', () => {
     fireEvent.click(chip(/Exos X16/))                            // the only one left: stays on
     expect(chip(/Exos X16/)).toHaveAttribute('aria-pressed', 'true')
     expect(fetch).toHaveBeenCalledTimes(1)                            // toggling never refetches
+  })
+
+  it('highlights a drive in every chart from a readings row: another row moves it, the same row clears it', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
+    renderPanel()
+    await waitFor(() => expect(lines('Temperature over time')).toHaveLength(2))
+    const tempLines = () => [...lines('Temperature over time')]
+    const dimmed = (els: Element[]) => els.map(e => e.classList.contains('dim'))
+    const row = (name: RegExp) => within(card('Temperature')).getByRole('button', { name })
+    expect(dimmed(tempLines())).toEqual([false, false])
+
+    fireEvent.click(row(/Ultrastar/))
+    expect(row(/Ultrastar/)).toHaveAttribute('aria-pressed', 'true')
+    // d2's line comes last (drawn on top) and stays bright; d1's dims, in this chart and the others.
+    expect(tempLines().map(l => l.getAttribute('stroke'))).toEqual(['var(--s1)', 'var(--s2)'])
+    expect(dimmed(tempLines())).toEqual([true, false])
+    expect(dimmed([...lines('Disk throughput over time')])).toEqual([true, false])
+    expect(row(/Exos X16/)).toHaveClass('dim')
+    expect(row(/Ultrastar/)).not.toHaveClass('dim')
+
+    fireEvent.click(row(/Exos X16/))                                    // switches: d1 now on top
+    expect(tempLines().map(l => l.getAttribute('stroke'))).toEqual(['var(--s2)', 'var(--s1)'])
+    expect(dimmed(tempLines())).toEqual([true, false])
+    expect(row(/Ultrastar/)).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.keyDown(row(/Exos X16/), { key: 'Enter' })               // the same row again: clears
+    expect(dimmed(tempLines())).toEqual([false, false])
+    expect(row(/Exos X16/)).not.toHaveClass('dim')
+  })
+
+  it('drops the highlight when the highlighted drive is hidden', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
+    renderPanel()
+    await waitFor(() => expect(lines('Temperature over time')).toHaveLength(2))
+    fireEvent.click(within(card('Temperature')).getByRole('button', { name: /Ultrastar/ }))
+    const chip = within(screen.getByRole('group', { name: 'Drives shown' })).getByRole('button', { name: /Ultrastar/ })
+    fireEvent.click(chip)                                                // hide
+    fireEvent.click(chip)                                                // and show again
+    expect([...lines('Temperature over time')].some(l => l.classList.contains('dim'))).toBe(false)
   })
 
   it('refetches for a new range, dimming the old charts until it arrives', async () => {
@@ -130,7 +170,6 @@ describe('TrendsPanel', () => {
     return h
   }
   const allDrives = [...drives, makeDrive({ guid: 'd3', model: 'QEMU HARDDISK', serial: null })]
-  const card = (title: string) => screen.getByRole('heading', { name: title }).closest('section')!
   // A card's reading rows at its newest point (focusing a chart starts there).
   const readingsAtNewest = (title: string) => {
     fireEvent.focus(within(card(title)).getByRole('img'))

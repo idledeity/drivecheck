@@ -68,7 +68,8 @@
   stroke-linecap: round;
 }
 .tsc-area { fill-opacity: 0.1; stroke: none; }
-/* Another series is highlighted (a legend chip hovered): these step back. */
+/* Another series is highlighted (a legend chip hovered, or a readings row
+   picked): these step back. */
 .tsc-line.dim, .tsc-dot.dim { opacity: 0.2; }
 .tsc-area.dim { fill-opacity: 0.03; }
 .tsc-line, .tsc-dot { transition: opacity 0.12s; }
@@ -171,6 +172,18 @@
   line-height: 1.5;
 }
 .tsc-tip-row { display: contents; }
+/* A row picks its drive (Trends): a click highlights it in every chart, and
+   again clears it. The row is display: contents on the grid, so its look
+   goes on its cells. While a drive is highlighted the other rows step back,
+   like their lines. */
+.tsc-tip-row.pickable { cursor: pointer; }
+.tsc-tip-row.pickable:focus-visible { outline: none; }
+.tsc-tip-row.pickable:focus-visible > * { outline: 2px solid var(--cy); outline-offset: 1px; border-radius: 3px; }
+.tsc-tip-row > * { transition: opacity 0.12s; }
+.tsc-tip-row.dim > * { opacity: 0.4; }
+@media (prefers-reduced-motion: reduce) {
+  .tsc-tip-row > * { transition: none; }
+}
 .tsc-tip-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .tsc-tip-name { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsc-tip-value { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
