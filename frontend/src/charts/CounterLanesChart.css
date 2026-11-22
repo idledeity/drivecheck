@@ -52,6 +52,7 @@
 .clc-bar.recent { fill-opacity: 1; }
 .clc-total { fill: none; stroke: var(--t3); stroke-opacity: 0.5; stroke-width: 1.2; }
 .clc-hover-band { fill: var(--t2); fill-opacity: 0.08; pointer-events: none; }
+.clc-hover-band.pinned { fill-opacity: 0.16; }
 
 @media (prefers-reduced-motion: reduce) {
   .clc-strip { transition: none; }

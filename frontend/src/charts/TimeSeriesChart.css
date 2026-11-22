@@ -136,6 +136,9 @@
   box-shadow: none;
   container: drive-chips / inline-size;
 }
+/* Pinned, it stays put, so its buttons (the jobs summary) can be used; the
+   rest lets clicks through to the chart under it, which unpin. */
+.tsc-tip.pinned button { pointer-events: auto; }
 .tsc-tip-time { color: var(--t4); font-size: 11px; margin-bottom: 4px; }
 .tsc-tip-none { color: var(--t5); }
 /* One grid for all rows, so every value starts on the same line. The label

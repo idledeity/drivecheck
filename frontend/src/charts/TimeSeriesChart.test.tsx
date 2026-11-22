@@ -170,6 +170,44 @@ describe('TimeSeriesChart', () => {
     expect(at(1)).not.toContain('Score')
   })
 
+  it('pins the time on a click: it stays as the pointer moves or leaves, and every synced chart shows its readings', () => {
+    const { container } = render(<ChartHoverSync>{chart()}{chart({ ariaLabel: 'Second' })}</ChartHoverSync>)
+    const times = () => [...container.querySelectorAll('.tsc-tip-time')].map(e => e.textContent)
+    fireEvent.pointerMove(svgs()[0], { clientX: 300, pointerType: 'mouse' })
+    expect(times()).toHaveLength(1)                       // hovering: the hovered chart only
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'mouse', button: 0 })
+    const pinnedAt = times()
+    expect(pinnedAt).toHaveLength(2)                      // pinned: both charts
+    expect(pinnedAt[0]).toBe(pinnedAt[1])
+    fireEvent.pointerMove(svgs()[0], { clientX: 100, pointerType: 'mouse' })
+    fireEvent.pointerMove(svgs()[1], { clientX: 500, pointerType: 'mouse' })
+    fireEvent.pointerLeave(svgs()[0].closest('.tsc')!, { pointerType: 'mouse' })
+    fireEvent.blur(svgs()[0])
+    expect(times()).toEqual(pinnedAt)
+  })
+
+  it('unpins on another click, back to following the pointer, or on Escape', () => {
+    const { container } = render(<ChartHoverSync>{chart()}{chart({ ariaLabel: 'Second' })}</ChartHoverSync>)
+    const times = () => [...container.querySelectorAll('.tsc-tip-time')].map(e => e.textContent)
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'mouse', button: 0 })
+    const pinnedAt = times()[0]
+    fireEvent.pointerDown(svgs()[1], { clientX: 300, pointerType: 'mouse', button: 0 })   // a click on any chart unpins
+    expect(times()).toHaveLength(1)
+    fireEvent.pointerMove(svgs()[1], { clientX: 100, pointerType: 'mouse' })
+    expect(times()[0]).not.toBe(pinnedAt)                 // following the pointer again
+    fireEvent.pointerDown(svgs()[1], { clientX: 100, pointerType: 'mouse', button: 0 })
+    fireEvent.keyDown(svgs()[1], { key: 'ArrowRight' })   // the arrow keys move a pinned time, still pinned
+    expect(times()).toHaveLength(2)
+    fireEvent.keyDown(svgs()[1], { key: 'Escape' })
+    expect(times()).toHaveLength(0)
+  })
+
+  it('ignores clicks other than the main button for pinning', () => {
+    const { container } = render(<ChartHoverSync>{chart()}{chart({ ariaLabel: 'Second' })}</ChartHoverSync>)
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'mouse', button: 2 })
+    expect(container.querySelectorAll('.tsc-tip')).toHaveLength(0)
+  })
+
   it('keeps the reading while the pointer moves from the plot onto the readings under it', () => {
     render(chart())
     fireEvent.pointerMove(svgs()[0], { clientX: 300, pointerType: 'mouse' })

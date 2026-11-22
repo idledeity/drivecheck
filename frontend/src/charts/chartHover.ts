@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useSt
 
 // Shared crosshair for charts on one time axis: hovering one chart moves the
 // crosshair in every chart under the same ChartHoverSync, and only the chart
-// under the pointer shows its tooltip. A chart outside any ChartHoverSync
+// under the pointer shows its tooltip (every chart, while a time is pinned). A chart outside any ChartHoverSync
 // (e.g. alone in a drive-card popover) keeps its hover to itself.
 
 export interface ChartHover {
@@ -13,7 +13,18 @@ export interface ChartHover {
   /** Placed by touch (a tap, the line's grip or an axis scrub): that
    *  chart's line can be grabbed, and a tap outside the charts clears it. */
   touch?: boolean
+  /** Pinned by a mouse (or pen) click: it stays put while the pointer moves
+   *  on or leaves the charts, and every chart in the group shows its
+   *  readings, until a click on a chart (or Escape) unpins it. */
+  pinned?: boolean
 }
+
+/** Optional flags for a new hover: how it was placed. */
+export type HoverFlags = Pick<ChartHover, "touch" | "pinned">
+
+/** A click on a chart's readings (a pinned tooltip, or readings under a
+ *  narrow chart) is reading them, not pinning or unpinning the time. */
+export const onReadings = (target: EventTarget) => target instanceof Element && !!target.closest(".tsc-tip")
 
 interface HoverState {
   hover: ChartHover | null
@@ -25,7 +36,8 @@ export const ChartHoverContext = createContext<HoverState | null>(null)
 export function useChartHoverState(): HoverState {
   const [hover, setHoverState] = useState<ChartHover | null>(null)
   const setHover = useCallback((next: ChartHover | null) => {
-    setHoverState(prev => (prev?.t === next?.t && prev?.source === next?.source && !prev?.touch === !next?.touch ? prev : next))
+    setHoverState(prev => (prev?.t === next?.t && prev?.source === next?.source
+      && !prev?.touch === !next?.touch && !prev?.pinned === !next?.pinned ? prev : next))
   }, [])
   // The same object until the hover changes: it's a context value, and a new
   // object would re-render every chart in the group whenever the parent does

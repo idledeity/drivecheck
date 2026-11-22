@@ -1,10 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { RefObject } from "react"
+import { IconPinFilled, IconX } from "@tabler/icons-react"
 import type { Drive } from "./types"
 import { Control, Segmented } from "./Controls"
 import DriveChip from "./DriveChip"
 import ChartCard from "./charts/ChartCard"
 import ChartHoverSync from "./charts/ChartHoverSync"
+import { ChartHoverContext } from "./charts/chartHover"
 import TemperatureChart from "./charts/TemperatureChart"
 import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
@@ -104,6 +106,8 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   })
 
   return (
+    // One hover group for the filter row too, so it can show (and clear) a pinned time.
+    <ChartHoverSync>
     <div ref={trendsRef} className={`trends${pinned ? " pinned" : ""}`}>
       <div className="filter-row">
         <Control label="Range">
@@ -126,6 +130,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             <option value="prev">Window before</option>
           </select>
         </Control>
+        <PinnedTime />
         <div className="trends-checks">
           <label className="ctl-check trends-jobs">
             <input type="checkbox" checked={showJobs} onChange={e => setShowJobs(e.target.checked)} />
@@ -162,7 +167,6 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       {!data && !error && <p className="health-empty">Loading history…</p>}
 
       {data && windows && (
-        <ChartHoverSync>
           <div className="trends-charts">
             <ChartCard
               title="Temperature"
@@ -197,9 +201,24 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               ))}
             </div>
           </div>
-        </ChartHoverSync>
       )}
     </div>
+    </ChartHoverSync>
+  )
+}
+
+/** The time clicked to pin on the charts, with a button to unpin it (as a
+ *  click on a chart or Escape do). Nothing while no time is pinned. */
+function PinnedTime() {
+  const hover = useContext(ChartHoverContext)
+  if (!hover?.hover?.pinned) return null
+  return (
+    <button type="button" className="trends-pinned" onClick={() => hover.setHover(null)}
+      title="Readings in every chart are at this time. Click a chart, press Escape or click here to unpin.">
+      <IconPinFilled size={12} aria-hidden />
+      Pinned {momentLabel(hover.hover.t)}
+      <IconX size={12} aria-label="Unpin" />
+    </button>
   )
 }
 

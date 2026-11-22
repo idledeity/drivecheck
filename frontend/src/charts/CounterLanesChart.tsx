@@ -1,6 +1,7 @@
 import { memo, useCallback, useId, useLayoutEffect, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
+import { onReadings, useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
+import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
@@ -113,18 +114,25 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     const k = view === "rate" ? Math.floor((t - start) / bucket) : Math.round((t - start) / bucket)
     return Math.min(lastBucket, Math.max(start, start + k * bucket))
   }
-  const hoverAt = (t: number | null, touch = false) => setHover(t === null ? null : { t, source: id, touch })
+  const hoverAt = (t: number | null, flags: HoverFlags = {}) => setHover(t === null ? null : { t, source: id, ...flags })
   const clientT = (clientX: number) => {
     const r = wrapRef.current!.getBoundingClientRect()
     return toT(((clientX - r.left) / (r.width || width)) * width)
   }
-  // Mouse and pen hover; touch only taps (see chartTouch). A tap on the
-  // readings under the chart is just reading them.
+  // Mouse and pen hover, and a click pins the time (or unpins it, back to
+  // following the pointer); touch only taps (see chartTouch). A tap or click
+  // on the readings is just reading them.
+  const pinned = !!hover?.pinned
   const tap = useTouchTap(e => {
-    if (!(e.target instanceof Element && e.target.closest(".tsc-tip"))) hoverAt(snap(clientT(e.clientX)), true)
+    if (!onReadings(e.target)) hoverAt(snap(clientT(e.clientX)), { touch: true })
   })
   const onPointer = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== "touch") hoverAt(snap(clientT(e.clientX)))
+    if (e.pointerType !== "touch" && !pinned && !onReadings(e.target)) hoverAt(snap(clientT(e.clientX)))
+  }
+  const onPress = (e: PointerEvent<HTMLDivElement>) => {
+    tap.down(e)
+    if (e.pointerType === "touch" || e.button !== 0 || onReadings(e.target)) return
+    hoverAt(snap(clientT(e.clientX)), { pinned: !pinned })
   }
   // A reading placed by touch: its line can be grabbed in every chart that
   // draws it, and a tap outside the charts clears it (watched by the chart
@@ -136,7 +144,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     if (e.key === "Escape") return hoverAt(null)
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
     e.preventDefault()
-    hoverAt(snap((hover?.t ?? lastBucket) + (e.key === "ArrowRight" ? bucket : -bucket)))
+    hoverAt(snap((hover?.t ?? lastBucket) + (e.key === "ArrowRight" ? bucket : -bucket)), { pinned })
   }
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
   // A time from another chart in the group lands in whichever bar holds it.
@@ -149,7 +157,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   const newest = useGroupLatest(id, start + Math.max(0, Math.ceil((end - start) / data.bucketMs) - 1) * data.bucketMs)
   const tipBucket = hoverBucket ?? (tipBelow && newest !== null && newest >= start ? snap(newest) : null)
   const isSource = hoverBucket !== null && hover?.source === id
-  const showTip = tipBucket !== null && (tipBelow || isSource)
+  const showTip = tipBucket !== null && (tipBelow || isSource || (pinned && hoverBucket !== null))
   const hx = hoverBucket === null ? 0 : x(hoverBucket)
   // The grip sits mid-bar in Rate (the hover is a band there), on the line in Events.
   const gripX = hoverBucket === null ? 0 : view === "rate" ? (hx + x(Math.min(end, hoverBucket + bucket))) / 2 : hx
@@ -174,15 +182,15 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       aria-label={`${label}, ${view === "rate" ? "rate per drive" : "changes per drive"}`}
       tabIndex={0}
       onPointerMove={e => { tap.move(e); onPointer(e) }}
-      onPointerDown={e => { tap.down(e); onPointer(e) }}
+      onPointerDown={onPress}
       onPointerUp={tap.up}
       onPointerCancel={tap.cancel}
-      onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
+      onPointerLeave={e => { if (e.pointerType !== "touch" && !pinned) hoverAt(null) }}
       onFocus={() => { if (!hover) hoverAt(lastBucket) }}
       // Only the chart that set the reading clears it, and focus moving
-      // within the chart keeps it (see TimeSeriesChart).
+      // within the chart keeps it, as does pinning (see TimeSeriesChart).
       onBlur={e => {
-        if (hover?.source !== id || hover.touch) return
+        if (hover?.source !== id || hover.touch || pinned) return
         if (!(e.relatedTarget instanceof Node && wrapRef.current?.contains(e.relatedTarget))) hoverAt(null)
       }}
       onKeyDown={onKeyDown}
@@ -198,7 +206,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
               {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} format={format} /></span>}
             </div>
             <div className="clc-strip-wrap">
-              {gripped && hoverBucket !== null && <LineGrip x={gripX} top={0} height={laneH} onDrag={cx => hoverAt(snap(clientT(cx)), true)} />}
+              {gripped && hoverBucket !== null && <LineGrip x={gripX} top={0} height={laneH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
               <svg className={`clc-strip${dim}`} width={width} height={laneH} viewBox={`0 0 ${width} ${laneH}`} aria-hidden="true">
                 <defs>
                   <pattern id={`${uid}-h${i}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -213,8 +221,8 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
                   : <RateBars lane={l} x={x} windows={windows} plotEnd={ML + plotW} h={laneH} yMax={yMax} color={color} />}
                 {showTotal && <TotalBackdrop points={l.points} x={x} start={start} plotEnd={ML + plotW} h={laneH} log={log} />}
                 {hoverBucket !== null && (view === "rate"
-                  ? <rect className="clc-hover-band" x={hx} y={0} width={Math.max(1, x(Math.min(end, hoverBucket + bucket)) - hx)} height={laneH} />
-                  : <line className={`tsc-crosshair${gripped ? " grip" : ""}`} x1={hx} x2={hx} y1={0} y2={laneH} />)}
+                  ? <rect className={`clc-hover-band${pinned ? " pinned" : ""}`} x={hx} y={0} width={Math.max(1, x(Math.min(end, hoverBucket + bucket)) - hx)} height={laneH} />
+                  : <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={0} y2={laneH} />)}
               </svg>
             </div>
           </div>
@@ -222,7 +230,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       })}
 
       <div className="clc-axis-wrap">
-        <AxisScrub top={0} height={AXIS_H} onTime={cx => hoverAt(snap(clientT(cx)), true)} />
+        <AxisScrub top={0} height={AXIS_H} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
         <svg className="clc-axis" width={width} height={AXIS_H} viewBox={`0 0 ${width} ${AXIS_H}`} aria-hidden="true">
           {xTicks.map(tk => {
             const tx = x(tk.t)
@@ -238,7 +246,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       </div>
 
       {showTip && (
-        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role={isSource ? "status" : undefined}>
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{bucketLabel(tipBucket, bucket)}</div>
           <TipRows lanes={lanes} view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} />
         </div>

@@ -1,6 +1,7 @@
 import { useCallback, useId, useLayoutEffect, useMemo, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
 import { useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
+import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
@@ -197,17 +198,24 @@ export default function TimeSeriesChart(props: Props) {
   // Keyboard focus starts on the newest point: the bucket at `end` is still
   // filling, so it rarely has any data yet.
   const latest = () => allTimes.length ? allTimes[allTimes.length - 1] : snap(end)
-  const hoverAt = (t: number | null, touch = false) => setHover(t === null ? null : { t, source: id, touch })
+  const hoverAt = (t: number | null, flags: HoverFlags = {}) => setHover(t === null ? null : { t, source: id, ...flags })
   // Client x → time. The rendered width can briefly differ from the measured
   // one (mid-resize), so scale client px to the SVG's own px first.
   const clientT = (clientX: number) => {
     const r = svgRef.current!.getBoundingClientRect()
     return toT(((clientX - r.left) / (r.width || width)) * width)
   }
-  // Mouse and pen hover; touch only taps (see chartTouch).
-  const tap = useTouchTap(e => hoverAt(snap(clientT(e.clientX)), true))
+  // Mouse and pen hover, and a click pins the time (or unpins it, back to
+  // following the pointer); touch only taps (see chartTouch).
+  const pinned = !!hover?.pinned
+  const tap = useTouchTap(e => hoverAt(snap(clientT(e.clientX)), { touch: true }))
   const onPointer = (e: PointerEvent<SVGSVGElement>) => {
-    if (e.pointerType !== "touch") hoverAt(snap(clientT(e.clientX)))
+    if (e.pointerType !== "touch" && !pinned) hoverAt(snap(clientT(e.clientX)))
+  }
+  const onPress = (e: PointerEvent<SVGSVGElement>) => {
+    tap.down(e)
+    if (e.pointerType === "touch" || e.button !== 0) return
+    hoverAt(snap(clientT(e.clientX)), { pinned: !pinned })
   }
   // A reading placed by touch: its line can be grabbed in every chart that
   // draws it, and a tap outside the charts clears it (watched by the chart
@@ -220,7 +228,7 @@ export default function TimeSeriesChart(props: Props) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
     e.preventDefault()
     const from = hover?.t ?? latest()
-    if (from !== null) hoverAt(step(from, e.key === "ArrowRight" ? 1 : -1))
+    if (from !== null) hoverAt(step(from, e.key === "ArrowRight" ? 1 : -1), { pinned })
   }
 
   // A synced chart may be handed a time outside this chart's range; ignore it.
@@ -245,9 +253,10 @@ export default function TimeSeriesChart(props: Props) {
   // Markers in the hovered bucket (or at the hovered point).
   const tipMarks = tipT === null ? [] : markers.filter(({ m }) => bucketOf(m.t) === bucketOf(tipT))
   // Every chart in a sync group draws the crosshair; only the hovered one
-  // draws the floating tooltip. Narrow charts all show their readings.
+  // draws the floating tooltip, unless the time is pinned. Narrow charts all
+  // show their readings.
   const isSource = hoverT !== null && hover?.source === id
-  const showTip = tipT !== null && (tipBelow || isSource)
+  const showTip = tipT !== null && (tipBelow || isSource || (pinned && hoverT !== null))
   const hx = hoverT === null ? 0 : x(hoverT)
 
   // A floating tooltip sits right of the crosshair, or left of it where it
@@ -272,7 +281,8 @@ export default function TimeSeriesChart(props: Props) {
       // pointer moves down to read them. A lifted finger "leaves" too, which
       // would clear a tap's reading as soon as it showed; on touch it stays
       // until focus moves (a tap elsewhere).
-      onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
+      // A pinned time stays too.
+      onPointerLeave={e => { if (e.pointerType !== "touch" && !pinned) hoverAt(null) }}
     >
       {/* Layers are painted in order, back to front: bands, job shading,
           grid and axes, job rail, thresholds, areas, lines, end dots, then
@@ -287,7 +297,7 @@ export default function TimeSeriesChart(props: Props) {
         ref={svgRef}
         tabIndex={0}
         onPointerMove={e => { tap.move(e); onPointer(e) }}
-        onPointerDown={e => { tap.down(e); onPointer(e) }}
+        onPointerDown={onPress}
         onPointerUp={tap.up}
         onPointerCancel={tap.cancel}
         onFocus={() => { if (!hover) hoverAt(latest()) }}   // keyboard users get a reading straight away
@@ -295,9 +305,10 @@ export default function TimeSeriesChart(props: Props) {
         // chart in the group blurs this one after that chart placed its own.
         // Focus moving into the readings (the jobs summary) keeps it, and a
         // tapped reading is cleared by a tap outside the charts instead
-        // (useTapOutside): a tap on the readings blurs the plot too.
+        // (useTapOutside): a tap on the readings blurs the plot too. A pinned
+        // time is unpinned only by a click on a chart, or Escape.
         onBlur={e => {
-          if (hover?.source !== id || hover.touch) return
+          if (hover?.source !== id || hover.touch || pinned) return
           if (!(e.relatedTarget instanceof Node && wrapRef.current?.contains(e.relatedTarget))) hoverAt(null)
         }}
         onKeyDown={onKeyDown}
@@ -371,8 +382,8 @@ export default function TimeSeriesChart(props: Props) {
 
         {hoverT !== null && (
           <g className="tsc-hover">
-            {/* Heavier while it can be grabbed (a tapped reading, on touch). */}
-            <line className={`tsc-crosshair${gripped ? " grip" : ""}`} x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
+            {/* Heavier while it can be grabbed (a tapped reading, on touch) or is pinned. */}
+            <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
             {readings.map(r => (
               <circle key={r.s.id} className="tsc-dot" cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
             ))}
@@ -385,11 +396,11 @@ export default function TimeSeriesChart(props: Props) {
           page flow, full width. Rows are label then value, on one grid so
           the values line up in a column. */}
       {/* Touch scrubbing: the placed crosshair itself, or along the time axis. */}
-      {gripped && hoverT !== null && <LineGrip x={hx} top={M.top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), true)} />}
-      <AxisScrub top={M.top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), true)} />
+      {gripped && hoverT !== null && <LineGrip x={hx} top={M.top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
+      <AxisScrub top={M.top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
 
       {showTip && (
-        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role={isSource ? "status" : undefined}>
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{formatTime(tipT)}</div>
           {tipRows.length === 0 && <div className="tsc-tip-none">No data</div>}
           {tipRows.length > 0 && (

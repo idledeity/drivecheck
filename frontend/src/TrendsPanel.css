@@ -31,6 +31,22 @@
    matches what's drawn. */
 .trends-drive[aria-pressed="false"] .drive-chip { border-style: dashed; opacity: 0.45; }
 
+.trends-pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--cy);
+  background: rgba(24,196,238,0.1);
+  border: 1px solid rgba(24,196,238,0.3);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.trends-pinned:hover { background: rgba(24,196,238,0.18); }
+.trends-pinned:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; }
+
 .trends-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-left: auto; }
 .trends-jobs { color: var(--t3); cursor: pointer; }
 .trends-jobs input, .trends-pin input { accent-color: var(--cy); margin: 0; }
