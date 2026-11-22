@@ -45,6 +45,9 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
       points,
     }] : []
   })
+  // Drives that don't report it: no line, but a row in the readings.
+  const absent = drives.filter(d => !series.some(s => s.id === d.guid))
+    .map(d => ({ id: d.guid, label: <ChartDriveChip drive={d} />, text: "not reported" }))
   const { inView: thresholds } = counterThresholds(data, drives, signal)
   // A fitted linear axis over a counter that barely moved (one drive, +1)
   // would span a single count: fractional ticks, and a +1 drawn as a cliff.
@@ -77,6 +80,7 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
       formatY={counterFormat(signal).axis}
       formatValue={counterFormat(signal).value}
       formatTime={t => bucketLabel(t, data.bucketMs)}
+      absent={absent}
     />
   )
 }

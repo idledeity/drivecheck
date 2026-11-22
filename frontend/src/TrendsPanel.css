@@ -77,19 +77,6 @@
   min-width: 0;
 }
 
-/* Callouts that name drives: chips wrap as a unit with their numbers. */
-.trends-callout {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px 10px;
-}
-.trends-callout-item { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 6px; min-width: 0; }
-
-/* A footnote's label on its own line, so the chips below read as one list
-   rather than the first one belonging to the label. */
-.trends-foot-label { flex-basis: 100%; }
 
 .health-bands-key .tone-ok   { color: var(--gn); }
 .health-bands-key .tone-warn { color: var(--wa); }

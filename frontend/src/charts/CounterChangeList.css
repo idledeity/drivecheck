@@ -1,0 +1,20 @@
+/* A counter's changes in range, under its chart (CounterChangeList); the
+   frame, title and list come from the health change log's styles. One row:
+   drive, from → to and the change, then how often and when last. */
+.ccl-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 6px 2px;
+}
+.ccl-values { font-size: 12px; color: var(--t3); font-variant-numeric: tabular-nums; min-width: 0; }
+.ccl-values b { color: var(--t1); font-weight: 700; }
+.ccl-when { font-size: 11.5px; color: var(--t4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A half-width card or a phone: the drive on its own line, then the values
+   and when, wrapping as a pair rather than squeezed beside the chip. */
+@container (max-width: 560px) {
+  .ccl-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .ccl-row > :first-child { flex-basis: 100%; }
+}

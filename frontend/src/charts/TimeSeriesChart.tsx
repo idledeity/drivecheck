@@ -67,6 +67,9 @@ interface Props {
    *  Compact under a narrow chart: keep it to a fixed height there (one
    *  line), since it's in the page flow and scrubbing mustn't resize it. */
   tooltipExtra?: (t: number, opts: { compact: boolean }) => ReactNode
+  /** Rows after the readings for things with no line at all, e.g. a drive
+   *  that doesn't report the signal: its label, and why (e.g. "not reported"). */
+  absent?: { id: string; label: ReactNode; text: string }[]
   formatTime?: (t: number) => string
   className?: string
 }
@@ -403,8 +406,8 @@ export default function TimeSeriesChart(props: Props) {
       {showTip && (
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{formatTime(tipT)}</div>
-          {tipRows.length === 0 && <div className="tsc-tip-none">No data</div>}
-          {tipRows.length > 0 && (
+          {tipRows.length === 0 && !props.absent?.length && <div className="tsc-tip-none">No data</div>}
+          {(tipRows.length > 0 || !!props.absent?.length) && (
             <div className="tsc-tip-rows">
               {tipRows.map(r => (
                 <div key={r.s.id} className="tsc-tip-row">
@@ -421,6 +424,12 @@ export default function TimeSeriesChart(props: Props) {
                     {tipBelow && tipMarks.some(({ m }) => m.series === r.s.id) && <span className="tsc-tip-mark">◇ first</span>}
                     {r.v === null ? <span className="tsc-tip-empty">—</span> : formatValue(r.v, r.s, tipT)}
                   </span>
+                </div>
+              ))}
+              {props.absent?.map(r => (
+                <div key={r.id} className="tsc-tip-row absent">
+                  <span className="tsc-tip-label">{r.label}</span>
+                  <span className="tsc-tip-value"><span className="tsc-tip-empty">{r.text}</span></span>
                 </div>
               ))}
             </div>

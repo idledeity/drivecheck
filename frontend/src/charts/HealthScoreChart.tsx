@@ -21,14 +21,20 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
   height?: number
 }) {
   const { healthy_gte: healthy, aging_gte: aging, degraded_gte: degraded, failing_gte: failing } = data.thresholds.health
-  const series: ChartSeries[] = drives.map(d => ({
-    id: d.guid,
-    label: d.label,
-    ...d.style,
-    shape: "step",
-    tipLabel: <ChartDriveChip drive={d} />,
-    points: healthPoints(data, d.guid),
-  }))
+  const series: ChartSeries[] = drives.flatMap(d => {
+    const points = healthPoints(data, d.guid)
+    return points.some(p => p.v !== null) ? [{
+      id: d.guid,
+      label: d.label,
+      ...d.style,
+      shape: "step" as const,
+      tipLabel: <ChartDriveChip drive={d} />,
+      points,
+    }] : []
+  })
+  // Drives never scored in the range (e.g. no SMART): a row in the readings.
+  const absent = drives.filter(d => !series.some(s => s.id === d.guid))
+    .map(d => ({ id: d.guid, label: <ChartDriveChip drive={d} />, text: "not scored" }))
   // Headroom above 100, so a perfect score isn't drawn on the plot's edge.
   const top = 104
   const bands: ChartBand[] = [
@@ -57,6 +63,7 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
       spans={showJobs ? jobSpans(data, drives) : undefined}
       // Changes from a first reading: not the drive getting worse.
       markers={healthMarkers(healthChanges(data, drives))}
+      absent={absent}
       formatValue={(v, s, t) => {
         // At the bucket's end, as the chart reads the score (TimeSeriesChart).
         const status = healthStatusAt(data, s.id, Math.min(t + data.bucketMs, data.end) - 1)

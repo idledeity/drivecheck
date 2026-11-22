@@ -249,7 +249,8 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       {showTip && (
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{bucketLabel(tipBucket, bucket)}</div>
-          <TipRows lanes={lanes} view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} />
+          <TipRows lanes={lanes} absent={drives.filter(d => !lanes.some(l => l.drive.guid === d.guid))}
+            view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} />
         </div>
       )}
     </div>
@@ -377,8 +378,11 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
  *  change in it (Events), or the bar's change (Rate). keepEmpty (under a
  *  narrow chart, in the page flow): a drive with nothing there keeps its row
  *  as "—", so the readings' height holds while scrubbing. */
-function TipRows({ lanes, view, t, bucket, end, format, keepEmpty }: {
-  lanes: Lane[]; view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat; keepEmpty: boolean
+function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty }: {
+  lanes: Lane[]
+  /** Drives that don't report the counter: no lane, but a row here. */
+  absent: ChartDrive[]
+  view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat; keepEmpty: boolean
 }) {
   const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null }[] => {
     const empty = keepEmpty ? [{ drive: l.drive, text: null }] : []
@@ -395,13 +399,19 @@ function TipRows({ lanes, view, t, bucket, end, format, keepEmpty }: {
     const text = `${format.value(to)}${delta ? ` (${signed(delta)})` : ""}`
     return [{ drive: l.drive, text }]
   })
-  if (!rows.length) return <div className="tsc-tip-none">No data</div>
+  if (!rows.length && !absent.length) return <div className="tsc-tip-none">No data</div>
   return (
     <div className="tsc-tip-rows">
       {rows.map(r => (
         <div key={r.drive.guid} className="tsc-tip-row">
           <span className="tsc-tip-label"><ChartDriveChip drive={r.drive} /></span>
           <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}</span>
+        </div>
+      ))}
+      {absent.map(d => (
+        <div key={d.guid} className="tsc-tip-row absent">
+          <span className="tsc-tip-label"><ChartDriveChip drive={d} /></span>
+          <span className="tsc-tip-value"><span className="tsc-tip-empty">not reported</span></span>
         </div>
       ))}
     </div>

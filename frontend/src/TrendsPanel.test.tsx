@@ -132,14 +132,15 @@ describe('TrendsPanel', () => {
   const allDrives = [...drives, makeDrive({ guid: 'd3', model: 'QEMU HARDDISK', serial: null })]
   const card = (title: string) => screen.getByRole('heading', { name: title }).closest('section')!
 
-  it('charts health scores over the status bands, naming the biggest fall and drives never scored', async () => {
+  it('charts health scores over the status bands, counting falls in the header and naming drives never scored', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
-    await waitFor(() => expect(lines('Health score over time')).toHaveLength(3))
+    await waitFor(() => expect(lines('Health score over time')).toHaveLength(2))   // the never-scored drive gets a row, not a line
     const health = card('Health score')
     expect(health).toHaveTextContent('Healthy ≥ 95 · Aging 80–94 · Degraded 40–79 · Failing 15–39 · Critical < 15')
-    expect(health).toHaveTextContent(/Fell 95 → 80.*Exos X16/)
-    expect(health.querySelector('.chart-card-foot')).toHaveTextContent(/^Not scored.*QEMU HARDDISK/)
+    expect(health.querySelector('.chart-card-callout')).toHaveTextContent('1 of 2 drives fell')
+    expect(health.querySelector('.hcl-list')).toHaveTextContent(/Exos X16.*95 → 80/)
+    expect([...health.querySelectorAll('.tsc-tip-row.absent')].map(r => r.textContent)).toEqual([expect.stringMatching(/QEMU HARDDISK.*not scored$/)])
     expect(health.querySelectorAll('.tsc-band')).toHaveLength(5)
   })
 
@@ -147,7 +148,8 @@ describe('TrendsPanel', () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
     await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
-    expect(card('Reallocated sectors')).toHaveTextContent(/\+3.*Exos X16/)
+    expect(card('Reallocated sectors')).toHaveTextContent('1 of 2 drives changed')
+    expect(card('Reallocated sectors').querySelector('.hcl-list')).toHaveTextContent(/Exos X16.*0 → 3 \+3.*once, last/)
     expect(screen.getByText('warning ≥ 1')).toBeInTheDocument()
     // Steady but not zero: still charted, saying nothing changed.
     expect(lines('Uncorrected errors over time')).toHaveLength(2)
@@ -189,7 +191,8 @@ describe('TrendsPanel', () => {
     ])
 
     // The counter first read in the range says so, rather than "no change".
-    expect(card('Pending sectors')).toHaveTextContent(/First read .*: 108.*no change since/)
+    expect(card('Pending sectors')).toHaveTextContent('First read in this range · no change since')
+    expect(card('Pending sectors').querySelector('.hcl-list')).toHaveTextContent(/Ultrastar.*108.*◇ first read .*no change since/)
     expect(card('Pending sectors').querySelectorAll('.tsc-marker')).toHaveLength(1)
   })
 
@@ -200,17 +203,18 @@ describe('TrendsPanel', () => {
     const cycles = card('Load/unload cycles')
     expect(cycles).toHaveTextContent('Running total · warning ≥ 500,000 · critical ≥ 700,000')
     expect(cycles.querySelector('.tsc-threshold')).toBeNull()
-    expect(cycles).toHaveTextContent(/\+1.*Exos X16/)
+    expect(cycles.querySelector('.hcl-list')).toHaveTextContent(/Exos X16.*2,000 → 2,001 \+1/)
   })
 
-  it('charts a counter that is 0 throughout in full, naming drives without it (but not ones with no SMART at all)', async () => {
+  it('charts a counter that is 0 throughout in full, with a "not reported" reading for each drive without it', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
     render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
     await waitFor(() => expect(lines('Pending sectors over time')).toHaveLength(1))
     const pending = card('Pending sectors')
     expect(pending).toHaveTextContent('No change in this range')
-    expect(pending.querySelector('.chart-card-foot')).toHaveTextContent(/^Not reported by.*Ultrastar/)
-    expect(pending.querySelector('.chart-card-foot')).not.toHaveTextContent('QEMU')
+    const absent = [...pending.querySelectorAll('.tsc-tip-row.absent')].map(r => r.textContent)
+    expect(absent).toEqual([expect.stringMatching(/Ultrastar.*not reported$/), expect.stringMatching(/QEMU.*not reported$/)])
+    expect(pending.querySelector('.chart-card-foot')).toBeNull()
   })
 
   it('switches a counter to its Events view: a lane per drive with its status line', async () => {

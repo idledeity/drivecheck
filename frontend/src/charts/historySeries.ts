@@ -3,6 +3,7 @@ import type { ChartPoint, ChartSpan, ChartThreshold } from "./TimeSeriesChart"
 import type { SeriesStyle } from "./drivePalette"
 import type { DriveHistoryData, HistoryJob } from "./useDriveHistory"
 import { clockLabel } from "./scales"
+import { counterChanges } from "./counterTrends"
 
 // Shared glue between drive history data and the charts: who's charted, in
 // what color, and the jobs shaded behind every chart.
@@ -141,6 +142,35 @@ export function counterSummary(data: DriveHistoryData, drives: ChartDrive[], nam
   }
   changed.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
   return { changed, steady, missing, firstRead }
+}
+
+/** One charted drive's counter over the range: where it started and ended,
+ *  how often it changed and when it last did, and whether its first value
+ *  was read inside the range (a reading, not a change). */
+export interface CounterDriveChange {
+  drive: ChartDrive
+  from: number
+  to: number
+  changes: number
+  lastChange: number | null
+  firstRead: number | null
+}
+
+/** The drives whose counter changed in the range, or was first read in it:
+ *  biggest change first, then first readings with no change since. */
+export function counterDriveChanges(data: DriveHistoryData, drives: ChartDrive[], signal: string): CounterDriveChange[] {
+  const rows: CounterDriveChange[] = []
+  for (const drive of drives) {
+    const points = signalPoints(data, drive.guid, signal)
+    const values = points.flatMap(p => (p.v === null ? [] : [p.v]))
+    if (!values.length) continue
+    const changes = counterChanges(points)
+    const t = data.drives[drive.guid]?.firstReadings[signal]
+    const firstRead = t !== undefined && t >= data.start ? t : null
+    if (!changes.length && firstRead === null) continue
+    rows.push({ drive, from: values[0], to: values[values.length - 1], changes: changes.length, lastChange: changes.at(-1)?.t ?? null, firstRead })
+  }
+  return rows.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from) || (b.lastChange ?? 0) - (a.lastChange ?? 0))
 }
 
 /** The health callout: drives whose score fell over the range (largest fall

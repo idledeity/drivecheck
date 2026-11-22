@@ -12,17 +12,17 @@ import ThroughputChart from "./charts/ThroughputChart"
 import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
 import HealthChangeLog from "./charts/HealthChangeLog"
 import CounterChart from "./charts/CounterChart"
-import ChartDriveChip from "./charts/ChartDriveChip"
+import CounterChangeList from "./charts/CounterChangeList"
 import CounterLanesChart from "./charts/CounterLanesChart"
 import CounterViewControls from "./charts/CounterViewControls"
-import { COUNTER_SIGNALS, counterFormat, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
+import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, trendsCounterViews, useCounterView } from "./charts/counters"
 import { RATE_BUCKET, RECENT_WINDOWS, autoWindowLabel, counterWindows, windowFits } from "./charts/counterTrends"
 import type { Baseline, CounterWindows, RecentWindow } from "./charts/counterTrends"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
-import { dateLabel, momentLabel } from "./charts/scales"
+import { momentLabel } from "./charts/scales"
 import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
@@ -192,7 +192,6 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               subtitle={<HealthBandsKey data={data} />}
               callout={<HealthCallout data={data} drives={shown} />}
               stale={stale}
-              footer={notReported("Not scored", shown.filter(d => !hasSignals(data, d.guid)))}
             >
               <HealthScoreChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
               <HealthChangeLog data={data} drives={shown} />
@@ -279,23 +278,16 @@ function PeakCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDr
   return <>Peak <b>{formatThroughput(peak.value)}</b> · {peak.drive.label} · {momentLabel(peak.t)}</>
 }
 
+/** A count, not drives: which drives' scores moved is in the score change
+ *  log under the chart. */
 function HealthCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
-  const { dropped, lowest } = healthSummary(data, drives)
-  if (dropped.length) {
-    const [worst] = dropped
-    return (
-      <span className="trends-callout">
-        <span className="trends-callout-item"><span>Fell <b>{worst.from} → {worst.to}</b></span><ChartDriveChip drive={worst.drive} /></span>
-        {dropped.length > 1 && <span>+{dropped.length - 1} more</span>}
-      </span>
-    )
-  }
-  if (!lowest) return <span className="muted">Not scored in this range</span>
-  return <span className="trends-callout"><span className="trends-callout-item"><span>Lowest <b>{lowest.value}</b></span><ChartDriveChip drive={lowest.drive} /></span></span>
+  const { dropped } = healthSummary(data, drives)
+  const scored = drives.filter(d => data.drives[d.guid]?.health.some(h => h.pct !== null)).length
+  if (!scored) return <span className="muted">Not scored in this range</span>
+  if (!dropped.length) return <span className="muted">No drops in this range</span>
+  return <><b>{dropped.length}</b> of {scored} drives fell</>
 }
 
-// How many changed drives a counter's callout names before "+N more".
-const CALLOUT_DRIVES = 2
 
 /** One counter's card, as its running total (the default), each change per
  *  drive, or its rate per drive against the usual. Left out when no charted
@@ -313,12 +305,9 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
   stale: boolean
 }) {
   const [view, setView] = useCounterView(trendsCounterViews, name)
-  const { changed, steady, missing, firstRead } = counterSummary(data, drives, name)
+  const { changed, steady, firstRead } = counterSummary(data, drives, name)
   if (!changed.length && !steady.length) return null
   const title = SIGNALS[name]?.name ?? name
-  // A drive with no signals at all (no SMART, e.g. a virtual disk) is named
-  // once, under the health chart, rather than under every counter.
-  const footer = notReported("Not reported by", missing.filter(d => hasSignals(data, d.guid)))
   // Thresholds too far above the data to draw are named in the subtitle.
   const { beyond } = counterThresholds(data, drives, name)
   const subtitle = view.view === "total" ? counterSubtitle(name, beyond)
@@ -329,45 +318,22 @@ function CounterCard({ name, data, drives, windows, baseline, showJobs, highligh
       title={title}
       subtitle={subtitle}
       controls={<CounterViewControls value={view} onChange={setView} label={title} idPrefix={`trends-${name}-view`} />}
-      callout={changed.length ? (
-        <span className="trends-callout">
-          {changed.slice(0, CALLOUT_DRIVES).map(c => (
-            <span key={c.drive.guid} className="trends-callout-item">
-              <b>{c.to > c.from ? "+" : "−"}{Math.abs(c.to - c.from).toLocaleString()}</b> <ChartDriveChip drive={c.drive} />
-            </span>
-          ))}
-          {changed.length > CALLOUT_DRIVES && <span>+{changed.length - CALLOUT_DRIVES} more</span>}
-        </span>
-      ) : firstRead.length ? (
-        // Not "no change": the value wasn't known before it was first read.
-        <span className="trends-callout">
-          {firstRead.slice(0, CALLOUT_DRIVES).map(f => (
-            <span key={f.drive.guid} className="trends-callout-item">
-              <span>First read {dateLabel(f.t)}: <b>{counterFormat(name).value(f.value)}</b></span> <ChartDriveChip drive={f.drive} />
-            </span>
-          ))}
-          {firstRead.length > CALLOUT_DRIVES && <span>+{firstRead.length - CALLOUT_DRIVES} more</span>}
-          <span className="muted">· no change since</span>
-        </span>
-      ) : <span className="muted">No change in this range</span>}
+      // A count, not drives: which drives moved is in the list under the
+      // chart, as the health card's score changes are.
+      callout={changed.length
+        ? <><b>{changed.length}</b> of {changed.length + steady.length} drives changed</>
+        : firstRead.length
+          ? <span className="muted">First read in this range · no change since</span>
+          : <span className="muted">No change in this range</span>}
       stale={stale}
-      footer={footer}
     >
       {view.view === "total"
-        ? <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
+        ? <>
+            <CounterChart data={data} drives={drives} signal={name} label={title} scale={counterScale(name)} showJobs={showJobs} highlight={highlight} />
+            <CounterChangeList data={data} drives={drives} signal={name} />
+          </>
         : <CounterLanesChart data={data} drives={drives} signal={name} label={title} view={view.view} kind={counterKind(name)}
             windows={windows} showTotal={view.showTotal} log={counterScale(name) === "log1p"} showJobs={showJobs} highlight={highlight} />}
     </ChartCard>
   )
-}
-
-/** Whether a drive has any recorded signals in the range. */
-function hasSignals(data: DriveHistoryData, guid: string): boolean {
-  return Object.values(data.drives[guid]?.signals ?? {}).some(points => points.length > 0)
-}
-
-/** A chart footnote naming drives the chart has no line for (none: no footnote). */
-function notReported(label: string, drives: ChartDrive[]) {
-  if (!drives.length) return undefined
-  return <><span className="trends-foot-label">{label}</span>{drives.map(d => <ChartDriveChip key={d.guid} drive={d} />)}</>
 }
