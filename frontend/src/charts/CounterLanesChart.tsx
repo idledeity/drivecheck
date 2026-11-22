@@ -1,6 +1,6 @@
-import { memo, useId, useLayoutEffect, useRef } from "react"
+import { memo, useCallback, useId, useLayoutEffect, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover, useLeftGutter } from "./chartHover"
+import { useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
@@ -15,6 +15,8 @@ import {
 import type { CounterWindows, EventStatus, RateBucket, RateStatus } from "./counterTrends"
 import { counterFormat } from "./counters"
 import type { CounterFormat } from "./counters"
+import { useTapOutside, useTouchTap } from "./chartTouch"
+import { AxisScrub, LineGrip } from "./ChartGrips"
 import "./CounterLanesChart.css"
 
 // A counter's Events or Rate view: one lane per drive, on the same time axis
@@ -111,11 +113,25 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     const k = view === "rate" ? Math.floor((t - start) / bucket) : Math.round((t - start) / bucket)
     return Math.min(lastBucket, Math.max(start, start + k * bucket))
   }
-  const hoverAt = (t: number | null) => setHover(t === null ? null : { t, source: id })
-  const pointerT = (e: PointerEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    return toT(((e.clientX - r.left) / (r.width || width)) * width)
+  const hoverAt = (t: number | null, touch = false) => setHover(t === null ? null : { t, source: id, touch })
+  const clientT = (clientX: number) => {
+    const r = wrapRef.current!.getBoundingClientRect()
+    return toT(((clientX - r.left) / (r.width || width)) * width)
   }
+  // Mouse and pen hover; touch only taps (see chartTouch). A tap on the
+  // readings under the chart is just reading them.
+  const tap = useTouchTap(e => {
+    if (!(e.target instanceof Element && e.target.closest(".tsc-tip"))) hoverAt(snap(clientT(e.clientX)), true)
+  })
+  const onPointer = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "touch") hoverAt(snap(clientT(e.clientX)))
+  }
+  // A reading placed by touch: its line can be grabbed in every chart that
+  // draws it, and a tap outside the charts clears it (watched by the chart
+  // that placed it).
+  const gripped = !!hover?.touch
+  const clearHover = useCallback(() => setHover(null), [setHover])
+  useTapOutside(gripped && hover.source === id, clearHover)
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") return hoverAt(null)
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
@@ -125,9 +141,18 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
   // A time from another chart in the group lands in whichever bar holds it.
   const hoverBucket = hoverT === null ? null : view === "rate" ? snap(hoverT) : hoverT
-  const showTip = hoverBucket !== null && hover?.source === id
   const tipBelow = width < TIP_BELOW_WIDTH
+  // Narrow charts always show their readings: the hovered bucket's, else the newest.
+  // The group's newest time (see TimeSeriesChart), in the bucket holding it.
+  // Reported in the data's own buckets, not Rate's wide bars, which would
+  // pull every chart in the group back to the bar's start.
+  const newest = useGroupLatest(id, start + Math.max(0, Math.ceil((end - start) / data.bucketMs) - 1) * data.bucketMs)
+  const tipBucket = hoverBucket ?? (tipBelow && newest !== null && newest >= start ? snap(newest) : null)
+  const isSource = hoverBucket !== null && hover?.source === id
+  const showTip = tipBucket !== null && (tipBelow || isSource)
   const hx = hoverBucket === null ? 0 : x(hoverBucket)
+  // The grip sits mid-bar in Rate (the hover is a band there), on the line in Events.
+  const gripX = hoverBucket === null ? 0 : view === "rate" ? (hx + x(Math.min(end, hoverBucket + bucket))) / 2 : hx
 
   useLayoutEffect(() => {
     const tip = tipRef.current
@@ -144,14 +169,22 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     <div
       ref={wrapRef}
       className="clc"
+      data-chart=""
       role="group"
       aria-label={`${label}, ${view === "rate" ? "rate per drive" : "changes per drive"}`}
       tabIndex={0}
-      onPointerMove={e => hoverAt(snap(pointerT(e)))}
-      onPointerDown={e => hoverAt(snap(pointerT(e)))}
+      onPointerMove={e => { tap.move(e); onPointer(e) }}
+      onPointerDown={e => { tap.down(e); onPointer(e) }}
+      onPointerUp={tap.up}
+      onPointerCancel={tap.cancel}
       onPointerLeave={e => { if (e.pointerType !== "touch") hoverAt(null) }}
       onFocus={() => { if (!hover) hoverAt(lastBucket) }}
-      onBlur={() => hoverAt(null)}
+      // Only the chart that set the reading clears it, and focus moving
+      // within the chart keeps it (see TimeSeriesChart).
+      onBlur={e => {
+        if (hover?.source !== id || hover.touch) return
+        if (!(e.relatedTarget instanceof Node && wrapRef.current?.contains(e.relatedTarget))) hoverAt(null)
+      }}
       onKeyDown={onKeyDown}
     >
       {lanes.map((l, i) => {
@@ -164,44 +197,50 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
               {chips && <ChartDriveChip drive={l.drive} />}
               {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} format={format} /></span>}
             </div>
-            <svg className={`clc-strip${dim}`} width={width} height={laneH} viewBox={`0 0 ${width} ${laneH}`} aria-hidden="true">
-              <defs>
-                <pattern id={`${uid}-h${i}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                  <line className="clc-hatch" x1="0" y1="0" x2="0" y2="6" />
-                </pattern>
-              </defs>
-              {first > start && <rect x={ML} y={0} width={Math.max(0, x(first) - ML)} height={laneH} fill={`url(#${uid}-h${i})`} />}
-              {jobs.map((b, j) => <rect key={j} className="tsc-span" x={b.x} y={0} width={b.w} height={laneH} />)}
-              <rect className="clc-recent" x={recentX} y={0} width={Math.max(0, ML + plotW - recentX)} height={laneH} />
-              {view === "events"
-                ? <EventMarks lane={l} x={x} start={start} end={end} plotEnd={ML + plotW} h={laneH} color={color} format={format} />
-                : <RateBars lane={l} x={x} windows={windows} plotEnd={ML + plotW} h={laneH} yMax={yMax} color={color} />}
-              {showTotal && <TotalBackdrop points={l.points} x={x} start={start} plotEnd={ML + plotW} h={laneH} log={log} />}
-              {hoverBucket !== null && (view === "rate"
-                ? <rect className="clc-hover-band" x={hx} y={0} width={Math.max(1, x(Math.min(end, hoverBucket + bucket)) - hx)} height={laneH} />
-                : <line className="tsc-crosshair" x1={hx} x2={hx} y1={0} y2={laneH} />)}
-            </svg>
+            <div className="clc-strip-wrap">
+              {gripped && hoverBucket !== null && <LineGrip x={gripX} top={0} height={laneH} onDrag={cx => hoverAt(snap(clientT(cx)), true)} />}
+              <svg className={`clc-strip${dim}`} width={width} height={laneH} viewBox={`0 0 ${width} ${laneH}`} aria-hidden="true">
+                <defs>
+                  <pattern id={`${uid}-h${i}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <line className="clc-hatch" x1="0" y1="0" x2="0" y2="6" />
+                  </pattern>
+                </defs>
+                {first > start && <rect x={ML} y={0} width={Math.max(0, x(first) - ML)} height={laneH} fill={`url(#${uid}-h${i})`} />}
+                {jobs.map((b, j) => <rect key={j} className="tsc-span" x={b.x} y={0} width={b.w} height={laneH} />)}
+                <rect className="clc-recent" x={recentX} y={0} width={Math.max(0, ML + plotW - recentX)} height={laneH} />
+                {view === "events"
+                  ? <EventMarks lane={l} x={x} start={start} end={end} plotEnd={ML + plotW} h={laneH} color={color} format={format} />
+                  : <RateBars lane={l} x={x} windows={windows} plotEnd={ML + plotW} h={laneH} yMax={yMax} color={color} />}
+                {showTotal && <TotalBackdrop points={l.points} x={x} start={start} plotEnd={ML + plotW} h={laneH} log={log} />}
+                {hoverBucket !== null && (view === "rate"
+                  ? <rect className="clc-hover-band" x={hx} y={0} width={Math.max(1, x(Math.min(end, hoverBucket + bucket)) - hx)} height={laneH} />
+                  : <line className={`tsc-crosshair${gripped ? " grip" : ""}`} x1={hx} x2={hx} y1={0} y2={laneH} />)}
+              </svg>
+            </div>
           </div>
         )
       })}
 
-      <svg className="clc-axis" width={width} height={AXIS_H} viewBox={`0 0 ${width} ${AXIS_H}`} aria-hidden="true">
-        {xTicks.map(tk => {
-          const tx = x(tk.t)
-          if (tx < ML + 14 || tx > ML + plotW - 14) return null
-          return (
-            <g key={tk.t}>
-              <line className="tsc-baseline" x1={tx} x2={tx} y1={0} y2={4} />
-              <text className="tsc-tick" x={tx} y={AXIS_H - 4} textAnchor="middle">{tk.label}</text>
-            </g>
-          )
-        })}
-      </svg>
+      <div className="clc-axis-wrap">
+        <AxisScrub top={0} height={AXIS_H} onTime={cx => hoverAt(snap(clientT(cx)), true)} />
+        <svg className="clc-axis" width={width} height={AXIS_H} viewBox={`0 0 ${width} ${AXIS_H}`} aria-hidden="true">
+          {xTicks.map(tk => {
+            const tx = x(tk.t)
+            if (tx < ML + 14 || tx > ML + plotW - 14) return null
+            return (
+              <g key={tk.t}>
+                <line className="tsc-baseline" x1={tx} x2={tx} y1={0} y2={4} />
+                <text className="tsc-tick" x={tx} y={AXIS_H - 4} textAnchor="middle">{tk.label}</text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
 
       {showTip && (
-        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role="status">
-          <div className="tsc-tip-time">{bucketLabel(hoverBucket, bucket)}</div>
-          <TipRows lanes={lanes} view={view} t={hoverBucket} bucket={bucket} end={end} format={format} />
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role={isSource ? "status" : undefined}>
+          <div className="tsc-tip-time">{bucketLabel(tipBucket, bucket)}</div>
+          <TipRows lanes={lanes} view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} />
         </div>
       )}
     </div>
@@ -326,20 +365,23 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
 }
 
 /** The tooltip: per drive, the count at the end of the hovered bucket and its
- *  change in it (Events), or the bar's change (Rate). */
-function TipRows({ lanes, view, t, bucket, end, format }: {
-  lanes: Lane[]; view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat
+ *  change in it (Events), or the bar's change (Rate). keepEmpty (under a
+ *  narrow chart, in the page flow): a drive with nothing there keeps its row
+ *  as "—", so the readings' height holds while scrubbing. */
+function TipRows({ lanes, view, t, bucket, end, format, keepEmpty }: {
+  lanes: Lane[]; view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat; keepEmpty: boolean
 }) {
-  const rows = lanes.flatMap(l => {
+  const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null }[] => {
+    const empty = keepEmpty ? [{ drive: l.drive, text: null }] : []
     const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${format.value(Math.abs(d))}`
     if (view === "rate") {
       const b = l.buckets.find(q => q.start === t)
-      return b && b.delta !== null ? [{ drive: l.drive, text: signed(b.delta) }] : []
+      return b && b.delta !== null ? [{ drive: l.drive, text: signed(b.delta) }] : empty
     }
     // The count as the bucket closes, and what changed within it.
     const e = Math.min(end, t + bucket)
     const to = stepValue(l.points, e >= end ? end : e - 1)
-    if (to === null) return []
+    if (to === null) return empty
     const delta = netChange(counterChanges(l.points), t, e, end)
     const text = `${format.value(to)}${delta ? ` (${signed(delta)})` : ""}`
     return [{ drive: l.drive, text }]
@@ -350,7 +392,7 @@ function TipRows({ lanes, view, t, bucket, end, format }: {
       {rows.map(r => (
         <div key={r.drive.guid} className="tsc-tip-row">
           <span className="tsc-tip-label"><ChartDriveChip drive={r.drive} /></span>
-          <span className="tsc-tip-value">{r.text}</span>
+          <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}</span>
         </div>
       ))}
     </div>

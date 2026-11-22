@@ -55,9 +55,9 @@ function ThroughputChart({ data, drives, showJobs = true, highlight = null, heig
         return `${formatThroughput(read)} read · ${formatThroughput(write)} write`
       }}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? t => {
+      tooltipExtra={showJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
-        return jobs.length ? <JobsDuring jobs={jobs} /> : null
+        return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}
     />
   )

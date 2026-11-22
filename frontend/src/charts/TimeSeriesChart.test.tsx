@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import type { ChartSeries } from './TimeSeriesChart'
 import ChartHoverSync from './ChartHoverSync'
+import JobsDuring from './JobsDuring'
+import type { ChartDrive } from './historySeries'
 
 const MIN = 60e3
 const START = new Date(2026, 10, 12, 13, 0).getTime()
@@ -100,13 +102,54 @@ describe('TimeSeriesChart', () => {
     expect(row).toHaveTextContent('booop40 °C')
   })
 
-  it('keeps a tap\'s reading when the finger lifts, but clears when the mouse leaves', () => {
-    render(chart())
+  it('places a reading on a touch tap, grabbable, and keeps it when the finger lifts', () => {
+    const { container } = render(chart())
     fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'touch' })
+    expect(tip()).toBeNull()                                   // a touch down alone does nothing
+    fireEvent.pointerUp(svgs()[0], { clientX: 302, pointerType: 'touch' })
     fireEvent.pointerLeave(svgs()[0], { pointerType: 'touch' })
-    expect(tip()).not.toBeNull()
+    expect(tip()).toHaveTextContent('35 °C')
+    expect(container.querySelectorAll('.chart-grip')).toHaveLength(1)
     fireEvent.pointerLeave(svgs()[0], { pointerType: 'mouse' })
     expect(tip()).toBeNull()
+  })
+
+  it('leaves the reading alone when a touch drags (a scroll) instead of tapping', () => {
+    render(chart())
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, clientY: 50, pointerType: 'touch' })
+    fireEvent.pointerMove(svgs()[0], { clientX: 300, clientY: 80, pointerType: 'touch' })
+    fireEvent.pointerUp(svgs()[0], { clientX: 300, clientY: 80, pointerType: 'touch' })
+    expect(tip()).toBeNull()
+    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'touch' })
+    fireEvent.pointerCancel(svgs()[0], { pointerType: 'touch' })   // the browser took it as a scroll
+    fireEvent.pointerUp(svgs()[0], { clientX: 300, pointerType: 'touch' })
+    expect(tip()).toBeNull()
+  })
+
+  it('scrubs by dragging the line, and clears on a tap outside the charts', () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    let captured = false
+    proto.setPointerCapture = () => { captured = true }
+    proto.hasPointerCapture = () => captured
+    try {
+      const { container } = render(<><p>outside</p>{chart()}</>)
+      fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'touch' })
+      fireEvent.pointerUp(svgs()[0], { clientX: 300, pointerType: 'touch' })
+      const grip = container.querySelector('.chart-grip')!
+      grip.getBoundingClientRect = () => ({ left: 278, width: 44 }) as DOMRect   // centred on the tap
+      fireEvent.pointerDown(grip, { clientX: 300, pointerType: 'touch' })
+      fireEvent.pointerMove(grip, { clientX: 100, pointerType: 'touch' })
+      expect(tip()).not.toHaveTextContent('35 °C')
+      expect(tip()).toHaveTextContent(/13:0[12]/)
+      const outside = screen.getByText('outside')
+      fireEvent.pointerDown(outside, { clientX: 5, pointerType: 'touch' })
+      fireEvent.pointerUp(outside, { clientX: 5, pointerType: 'touch' })
+      expect(tip()).toBeNull()
+      expect(container.querySelector('.chart-grip')).toBeNull()
+    } finally {
+      delete proto.setPointerCapture
+      delete proto.hasPointerCapture
+    }
   })
 
   it('reads a step series as it stands at the end of the hovered bucket', () => {
@@ -137,16 +180,107 @@ describe('TimeSeriesChart', () => {
     expect(tip()).toBeNull()
   })
 
-  it('shows the readings under a narrow chart instead of floating over it', () => {
+  it('scrubs along the time axis on a sideways drag, but leaves a vertical one to the page', () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    proto.setPointerCapture = () => {}
+    try {
+      const { container } = render(chart())
+      const axis = container.querySelector('.chart-axis-scrub')!
+      fireEvent.pointerDown(axis, { clientX: 300, clientY: 170, pointerType: 'touch' })
+      fireEvent.pointerMove(axis, { clientX: 302, clientY: 190, pointerType: 'touch' })   // vertical first
+      fireEvent.pointerMove(axis, { clientX: 400, clientY: 190, pointerType: 'touch' })
+      fireEvent.pointerUp(axis, { clientX: 400, clientY: 190, pointerType: 'touch' })
+      expect(tip()).toBeNull()
+      fireEvent.pointerDown(axis, { clientX: 300, clientY: 170, pointerType: 'touch' })
+      fireEvent.pointerMove(axis, { clientX: 320, clientY: 172, pointerType: 'touch' })   // sideways
+      expect(tip()).toHaveTextContent('35 °C')
+      fireEvent.pointerMove(axis, { clientX: 100, clientY: 172, pointerType: 'touch' })
+      expect(tip()).not.toHaveTextContent('35 °C')
+      fireEvent.pointerUp(axis, { clientX: 100, clientY: 172, pointerType: 'touch' })
+      expect(tip()).not.toBeNull()                                    // stays, grabbable
+      expect(container.querySelectorAll('.chart-grip')).toHaveLength(1)
+    } finally {
+      delete proto.setPointerCapture
+    }
+  })
+
+  it('always shows the readings under narrow charts, every synced one at the same time', () => {
     // jsdom has no layout (clientWidth is 0): shadow it with a phone-ish width.
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 360 })
     try {
-      render(chart())
-      fireEvent.focus(svgs()[0])
-      expect(tip()).toHaveClass('below')
+      const { container } = render(<ChartHoverSync>{chart()}{chart({ ariaLabel: 'Second' })}</ChartHoverSync>)
+      const tips = () => [...container.querySelectorAll('.tsc-tip')]
+      // Nothing picked: both read the newest bucket, with no crosshair drawn.
+      expect(tips()).toHaveLength(2)
+      expect(tips()[0]).toHaveClass('below')
+      tips().forEach(t => expect(t).toHaveTextContent('13:09'))
+      expect(container.querySelector('.tsc-crosshair')).toBeNull()
+      // A tap on one moves both, and the line can be grabbed in either.
+      fireEvent.pointerDown(svgs()[1], { clientX: 180, pointerType: 'touch' })
+      fireEvent.pointerUp(svgs()[1], { clientX: 180, pointerType: 'touch' })
+      tips().forEach(t => expect(t).not.toHaveTextContent('13:09'))
+      expect(tips()[0].textContent).toBe(tips()[1].textContent)
+      expect(container.querySelectorAll('.chart-grip')).toHaveLength(2)
+      // Dragging the line in the chart that wasn't tapped moves both.
+      const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+      let captured = false
+      proto.setPointerCapture = () => { captured = true }
+      proto.hasPointerCapture = () => captured
+      try {
+        const before = tips()[0].textContent
+        const grip = svgs()[0].closest('.tsc')!.querySelector('.chart-grip')!
+        grip.getBoundingClientRect = () => ({ left: 158, width: 44 }) as DOMRect
+        fireEvent.pointerDown(grip, { clientX: 180, pointerType: 'touch' })
+        fireEvent.pointerMove(grip, { clientX: 320, pointerType: 'touch' })
+        expect(tips()[0].textContent).not.toBe(before)
+        expect(tips()[0].textContent).toBe(tips()[1].textContent)
+      } finally {
+        delete proto.setPointerCapture
+        delete proto.hasPointerCapture
+      }
     } finally {
       delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth
     }
+  })
+
+  it('keeps the narrow readings one shape while scrubbing: every row, markers on rows, jobs on one line', () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 360 })
+    try {
+      const drive = { guid: 'a', label: 'Exos FF02', style: { color: 'var(--s1)' } } as unknown as ChartDrive
+      const jobsAt = (t: number) => t >= START + 8 * MIN
+        ? [{ id: 'j1', name: 'badblocks', drive }, { id: 'j2', name: 'SMART long', drive }]
+        : t >= START + 6 * MIN ? [{ id: 'j1', name: 'badblocks', drive }] : []
+      const { container } = render(chart({
+        markers: [{ series: 'a', t: START + 5 * MIN, label: 'First reading: Temperature · Exos FF02' }],
+        tooltipExtra: (t, { compact }) => <JobsDuring jobs={jobsAt(t)} compact={compact} />,
+      }))
+      const tipEl = () => container.querySelector('.tsc-tip')!
+      const shape = () => [tipEl().querySelectorAll('.tsc-tip-row').length, tipEl().querySelectorAll('.tsc-tip-extra').length]
+      fireEvent.focus(svgs()[0])                                            // minute 9: two jobs
+      expect(shape()).toEqual([2, 1])
+      expect(within(tipEl() as HTMLElement).getByRole('button', { name: /2 jobs/ })).toBeInTheDocument()
+      for (let i = 0; i < 2; i++) fireEvent.keyDown(svgs()[0], { key: 'ArrowLeft' })   // minute 7: one job
+      expect(shape()).toEqual([2, 1])
+      expect(tipEl()).toHaveTextContent('badblocks')
+      for (let i = 0; i < 2; i++) fireEvent.keyDown(svgs()[0], { key: 'ArrowLeft' })   // minute 5: b empty, a's marker
+      expect(shape()).toEqual([2, 1])
+      expect(tipEl()).toHaveTextContent('No jobs')
+      const row = (name: string) => within(tipEl() as HTMLElement).getByText(name).closest('.tsc-tip-row')!
+      expect(row('booop')).toHaveTextContent('booop—')
+      expect(row('Exos FF02')).toHaveTextContent('◇ first35 °C')
+      expect(tipEl()).not.toHaveTextContent('First reading: Temperature')
+    } finally {
+      delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth
+    }
+  })
+
+  it('lists several jobs in a popover from the narrow readings\' summary', () => {
+    const drive = { guid: 'a', label: 'Exos FF02', style: { color: 'var(--s1)' } } as unknown as ChartDrive
+    render(<JobsDuring compact jobs={[{ id: 'j1', name: 'badblocks', drive }, { id: 'j2', name: 'SMART long', drive }]} />)
+    expect(screen.queryByText('badblocks')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /2 jobs/ }))      // jsdom has no hover: a tap pins it
+    expect(screen.getByText('badblocks')).toBeInTheDocument()
+    expect(screen.getByText('SMART long')).toBeInTheDocument()
   })
 
   it('merges overlapping spans into one shade', () => {

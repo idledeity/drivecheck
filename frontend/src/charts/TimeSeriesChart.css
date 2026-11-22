@@ -10,7 +10,10 @@
   display: block;
   width: 100%;
   overflow: visible;
-  touch-action: pan-y;
+  /* The chart never takes a drag on touch (they all scroll the page); only
+     the grips do (ChartGrips). No double-tap zoom, so a second tap just
+     moves the reading. */
+  touch-action: manipulation;
 }
 .tsc-svg:focus { outline: none; }
 .tsc-svg:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 2px; }
@@ -34,6 +37,29 @@
 .tsc-grid      { stroke: var(--chart-grid); }
 .tsc-baseline  { stroke: var(--bd); }
 .tsc-crosshair { stroke: var(--t4); pointer-events: none; }
+
+/* Touch scrubbing (ChartGrips): invisible hit areas. The grip is a
+   finger-wide strip down the placed crosshair (drawn heavier meanwhile);
+   the axis strip lies over the time labels, leaving vertical swipes to the
+   page. A mouse hovers instead, so neither is there for one. */
+.tsc-crosshair.grip { stroke: var(--t3); stroke-width: 2; }
+.chart-grip {
+  position: absolute;
+  z-index: 2;
+  width: 44px;
+  transform: translateX(-50%);
+  touch-action: none;
+}
+.chart-axis-scrub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  touch-action: pan-y;
+}
+@media (hover: hover) and (pointer: fine) {
+  .chart-grip, .chart-axis-scrub { display: none; }
+}
 
 .tsc-line {
   fill: none;
@@ -98,6 +124,7 @@
    size container, so the chips drop the maker when it's tight. */
 .tsc-tip.below {
   position: static;
+  pointer-events: auto;   /* the jobs summary opens its list from here */
   width: auto;
   max-width: none;
   margin-top: 6px;
@@ -124,6 +151,9 @@
 .tsc-tip-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .tsc-tip-name { color: var(--t4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsc-tip-value { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tsc-tip-empty { color: var(--t5); font-weight: 400; }
+/* A marker on a row (narrow charts): the chart's hollow diamond, in its accent. */
+.tsc-tip-mark { color: var(--cy); font-weight: 400; font-size: 11px; line-height: 1; margin-right: 8px; }   /* line-height: the ◇ (a fallback font) would grow the row */
 .tsc-tip-extra {
   color: var(--t4);
   font-size: 11px;
@@ -136,3 +166,17 @@
 .jobs-during { display: grid; gap: 3px; }
 .jobs-during-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .jobs-during-name { color: var(--t3); }
+.jobs-during-none { color: var(--t5); }
+/* Under a narrow chart the one job stays on one line: the name ellipsizes. */
+.tsc-tip.below .jobs-during-row { flex-wrap: nowrap; min-width: 0; }
+.tsc-tip.below .jobs-during-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "N jobs ›" under a narrow chart: opens the list (JobsDuring). */
+.jobs-during-summary {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--t3);
+  cursor: pointer;
+}
+.jobs-during-summary:hover { color: var(--t1); }

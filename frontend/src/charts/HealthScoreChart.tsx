@@ -63,9 +63,9 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
         return status ? `${v} · ${status}` : `${v}`
       }}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? t => {
+      tooltipExtra={showJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
-        return jobs.length ? <JobsDuring jobs={jobs} /> : null
+        return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}
     />
   )

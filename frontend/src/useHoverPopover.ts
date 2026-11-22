@@ -148,6 +148,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
 
   /** Handlers for the element that opens `key`'s popover. */
   const trigger = (key: K) => ({
+    "data-popover-trigger": "",
     onMouseEnter: arm(key, true),
     onMouseLeave: disarm,
     onMouseMove: arm(key, false),
@@ -161,6 +162,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
   // browser's (which is wanted in here, to copy text).
   const popoverProps = {
     ref: popoverRef,
+    "data-popover": "",
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
     onContextMenu: (e: React.MouseEvent) => e.stopPropagation(),
     onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
@@ -199,8 +201,10 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
 
   // Click outside or scroll closes it; a position:fixed popover would
   // otherwise drift away from its trigger. Triggers and the popover stop
-  // their own clicks, so only a click elsewhere gets here. Scrolling the
-  // popover's own content is fine.
+  // their own clicks, so only a click elsewhere gets here. Scrolling any
+  // popover's own content is fine: this one's, or one opened from inside it
+  // (portalled elsewhere in the DOM, e.g. a chart's job list in a card's
+  // trend popover).
   useEffect(() => {
     if (!open) return
     const onOutside = () => {
@@ -210,13 +214,26 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
       setOpenState(null)
     }
     const onScroll = (e: Event) => {
-      if (e.target instanceof Node && popoverRef.current?.contains(e.target)) return
+      if (e.target instanceof Element && e.target.closest("[data-popover]")) return
       onOutside()
     }
+    // A popover opened from inside another: a click elsewhere in that outer
+    // popover never reaches document (popovers stop their clicks), so catch
+    // it on the way down instead. Only an outer one counts — opened earlier,
+    // so earlier in the DOM (portals append) — not one opened from this
+    // one, whose clicks are this popover's own. Triggers toggle on their own.
+    const onInOther = (e: MouseEvent) => {
+      const own = popoverRef.current
+      if (!own || !(e.target instanceof Element) || e.target.closest("[data-popover-trigger]")) return
+      const inside = e.target.closest("[data-popover]")
+      if (inside && inside !== own && inside.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING) onOutside()
+    }
     document.addEventListener("click", onOutside)
+    document.addEventListener("click", onInOther, true)
     window.addEventListener("scroll", onScroll, true)
     return () => {
       document.removeEventListener("click", onOutside)
+      document.removeEventListener("click", onInOther, true)
       window.removeEventListener("scroll", onScroll, true)
     }
   }, [open])

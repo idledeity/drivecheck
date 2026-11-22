@@ -10,6 +10,9 @@ export interface ChartHover {
   t: number
   /** Which chart the pointer is in (its useId). */
   source: string
+  /** Placed by touch (a tap, the line's grip or an axis scrub): that
+   *  chart's line can be grabbed, and a tap outside the charts clears it. */
+  touch?: boolean
 }
 
 interface HoverState {
@@ -22,7 +25,7 @@ export const ChartHoverContext = createContext<HoverState | null>(null)
 export function useChartHoverState(): HoverState {
   const [hover, setHoverState] = useState<ChartHover | null>(null)
   const setHover = useCallback((next: ChartHover | null) => {
-    setHoverState(prev => (prev?.t === next?.t && prev?.source === next?.source ? prev : next))
+    setHoverState(prev => (prev?.t === next?.t && prev?.source === next?.source && !prev?.touch === !next?.touch ? prev : next))
   }, [])
   // The same object until the hover changes: it's a context value, and a new
   // object would re-render every chart in the group whenever the parent does
@@ -75,4 +78,44 @@ export function useLeftGutter(id: string, need: number): number {
   useLayoutEffect(() => { report?.(id, need) }, [report, id, need])
   useLayoutEffect(() => () => report?.(id, null), [report, id])
   return group ? Math.max(group.left, need) : need
+}
+
+// ── shared newest time ───────────────────────────────────────────────────────
+// Narrow charts always show readings, at the newest time until one is picked.
+// Charts in a group can disagree on "newest" (a line stops at its newest
+// complete bucket; a counter runs to the range end), so the group reads at
+// the earliest of them: one time across every chart, with data in each.
+
+interface LatestState {
+  /** The earliest newest time any chart in the group reported, or null. */
+  latest: number | null
+  report: (id: string, t: number | null) => void
+}
+
+export const ChartLatestContext = createContext<LatestState | null>(null)
+
+export function useChartLatestState(): LatestState {
+  const [times, setTimes] = useState<Record<string, number>>({})
+  const report = useCallback((id: string, t: number | null) => {
+    setTimes(prev => {
+      if ((prev[id] ?? null) === t) return prev
+      const next = { ...prev }
+      if (t === null) delete next[id]
+      else next[id] = t
+      return next
+    })
+  }, [])
+  const values = Object.values(times)
+  const latest = values.length ? Math.min(...values) : null
+  return useMemo(() => ({ latest, report }), [latest, report])
+}
+
+/** The time a chart reads at when nothing is picked: its own newest `own`,
+ *  or in a ChartHoverSync group, the group's earliest newest. */
+export function useGroupLatest(id: string, own: number | null): number | null {
+  const group = useContext(ChartLatestContext)
+  const report = group?.report
+  useLayoutEffect(() => { report?.(id, own) }, [report, id, own])
+  useLayoutEffect(() => () => report?.(id, null), [report, id])
+  return group?.latest ?? own
 }

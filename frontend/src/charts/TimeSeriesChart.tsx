@@ -1,12 +1,14 @@
-import { useId, useLayoutEffect, useMemo, useRef } from "react"
+import { useCallback, useId, useLayoutEffect, useMemo, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover, useLeftGutter } from "./chartHover"
+import { useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
 import { seriesPaths, valueAt, nearest } from "./chartGeometry"
 import type { ChartSeries } from "./chartGeometry"
 import LineKey from "./LineKey"
+import { useTapOutside, useTouchTap } from "./chartTouch"
+import { AxisScrub, LineGrip } from "./ChartGrips"
 import "./TimeSeriesChart.css"
 
 export type { ChartPoint, ChartSeries } from "./chartGeometry"
@@ -60,8 +62,10 @@ interface Props {
   gapMs?: number
   /** A series to bring forward: drawn on top, the others dimmed. */
   highlight?: string | null
-  /** Extra tooltip lines for the hovered time, after the series rows. */
-  tooltipExtra?: (t: number) => ReactNode
+  /** Extra tooltip lines for the hovered time, after the series rows.
+   *  Compact under a narrow chart: keep it to a fixed height there (one
+   *  line), since it's in the page flow and scrubbing mustn't resize it. */
+  tooltipExtra?: (t: number, opts: { compact: boolean }) => ReactNode
   formatTime?: (t: number) => string
   className?: string
 }
@@ -78,7 +82,9 @@ const TICK_GAP = 6
 // line of data. Overlapping spans simply merge into one bar.
 const RAIL = { gap: 3, height: 2 }
 // Below this chart width the tooltip would cover most of the plot (and run
-// off a phone screen), so the readings show under the chart instead.
+// off a phone screen), so the readings show under the chart instead —
+// always, at the newest reading until a time is picked, so every chart in a
+// group reads at one time and the page doesn't jump as they come and go.
 const TIP_BELOW_WIDTH = 520
 
 export default function TimeSeriesChart(props: Props) {
@@ -91,6 +97,7 @@ export default function TimeSeriesChart(props: Props) {
   const id = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const width = useWidth(wrapRef)
   const { hover, setHover } = useChartHover()
 
@@ -190,13 +197,24 @@ export default function TimeSeriesChart(props: Props) {
   // Keyboard focus starts on the newest point: the bucket at `end` is still
   // filling, so it rarely has any data yet.
   const latest = () => allTimes.length ? allTimes[allTimes.length - 1] : snap(end)
-  const hoverAt = (t: number | null) => setHover(t === null ? null : { t, source: id })
-  // Pointer x → time. The rendered width can briefly differ from the measured
+  const hoverAt = (t: number | null, touch = false) => setHover(t === null ? null : { t, source: id, touch })
+  // Client x → time. The rendered width can briefly differ from the measured
   // one (mid-resize), so scale client px to the SVG's own px first.
-  const pointerT = (e: PointerEvent<SVGSVGElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    return toT(((e.clientX - r.left) / (r.width || width)) * width)
+  const clientT = (clientX: number) => {
+    const r = svgRef.current!.getBoundingClientRect()
+    return toT(((clientX - r.left) / (r.width || width)) * width)
   }
+  // Mouse and pen hover; touch only taps (see chartTouch).
+  const tap = useTouchTap(e => hoverAt(snap(clientT(e.clientX)), true))
+  const onPointer = (e: PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType !== "touch") hoverAt(snap(clientT(e.clientX)))
+  }
+  // A reading placed by touch: its line can be grabbed in every chart that
+  // draws it, and a tap outside the charts clears it (watched by the chart
+  // that placed it).
+  const gripped = !!hover?.touch
+  const clearHover = useCallback(() => setHover(null), [setHover])
+  useTapOutside(gripped && hover.source === id, clearHover)
   const onKeyDown = (e: KeyboardEvent<SVGSVGElement>) => {
     if (e.key === "Escape") return hoverAt(null)
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
@@ -207,19 +225,30 @@ export default function TimeSeriesChart(props: Props) {
 
   // A synced chart may be handed a time outside this chart's range; ignore it.
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
-  // Each series' value at the hovered time; series with nothing there (a
-  // missing bucket, or before a step series starts) are left out. A step
-  // series reads as it stands at the bucket's end: a change inside the
-  // bucket shows (where its marker sits), and a series that starts inside
-  // it isn't "No data".
-  const readings = hoverT === null ? [] : series
-    .map(s => ({ s, v: valueAt(s, s.shape === "step" && snapMs ? Math.min(hoverT + snapMs, end) - 1 : hoverT, snapMs) }))
-    .filter((r): r is { s: ChartSeries; v: number } => r.v !== null)
-  // Every chart in a sync group draws the crosshair; only the hovered one
-  // draws the tooltip.
-  const showTip = hoverT !== null && hover?.source === id
-  const hx = hoverT === null ? 0 : x(hoverT)
   const tipBelow = width < TIP_BELOW_WIDTH
+  // The time the readings are for: the hovered one, or on a narrow chart
+  // (readings always shown) the newest — the group's, so all charts agree.
+  const newest = useGroupLatest(id, snap(end))
+  const tipT = hoverT ?? (tipBelow && newest !== null && newest >= start ? newest : null)
+  // Each series' value at the hovered time, null where it has nothing (a
+  // missing bucket, or before a step series starts). A step series reads as
+  // it stands at the bucket's end: a change inside the bucket shows (where
+  // its marker sits), and a series that starts inside it isn't "No data".
+  const allReadings = tipT === null ? [] : series
+    .map(s => ({ s, v: valueAt(s, s.shape === "step" && snapMs ? Math.min(tipT + snapMs, end) - 1 : tipT, snapMs) }))
+  const readings = allReadings.filter((r): r is { s: ChartSeries; v: number } => r.v !== null)
+  // The floating tooltip lists only series with a value. Under a narrow
+  // chart, in the page flow, every series keeps its row ("—" when empty) so
+  // the readings' height holds while scrubbing; highest first either way,
+  // so rows line up with the lines' vertical order.
+  const tipRows = (tipBelow ? allReadings : readings).toSorted((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity))
+  // Markers in the hovered bucket (or at the hovered point).
+  const tipMarks = tipT === null ? [] : markers.filter(({ m }) => bucketOf(m.t) === bucketOf(tipT))
+  // Every chart in a sync group draws the crosshair; only the hovered one
+  // draws the floating tooltip. Narrow charts all show their readings.
+  const isSource = hoverT !== null && hover?.source === id
+  const showTip = tipT !== null && (tipBelow || isSource)
+  const hx = hoverT === null ? 0 : x(hoverT)
 
   // A floating tooltip sits right of the crosshair, or left of it where it
   // would run past the chart's right edge, and is kept inside the chart
@@ -237,6 +266,7 @@ export default function TimeSeriesChart(props: Props) {
     <div
       ref={wrapRef}
       className={`tsc${props.className ? ` ${props.className}` : ""}`}
+      data-chart=""
       // Leaving the chart's whole block clears the reading, not just leaving
       // the plot: readings shown under a narrow chart must stay while the
       // pointer moves down to read them. A lifted finger "leaves" too, which
@@ -254,11 +284,22 @@ export default function TimeSeriesChart(props: Props) {
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label={ariaLabel}
+        ref={svgRef}
         tabIndex={0}
-        onPointerMove={e => hoverAt(snap(pointerT(e)))}
-        onPointerDown={e => hoverAt(snap(pointerT(e)))}   // a tap on touch screens
+        onPointerMove={e => { tap.move(e); onPointer(e) }}
+        onPointerDown={e => { tap.down(e); onPointer(e) }}
+        onPointerUp={tap.up}
+        onPointerCancel={tap.cancel}
         onFocus={() => { if (!hover) hoverAt(latest()) }}   // keyboard users get a reading straight away
-        onBlur={() => hoverAt(null)}
+        // Only the chart that set the reading clears it: tapping another
+        // chart in the group blurs this one after that chart placed its own.
+        // Focus moving into the readings (the jobs summary) keeps it, and a
+        // tapped reading is cleared by a tap outside the charts instead
+        // (useTapOutside): a tap on the readings blurs the plot too.
+        onBlur={e => {
+          if (hover?.source !== id || hover.touch) return
+          if (!(e.relatedTarget instanceof Node && wrapRef.current?.contains(e.relatedTarget))) hoverAt(null)
+        }}
         onKeyDown={onKeyDown}
       >
         {props.bands?.map((b, i) => {
@@ -330,7 +371,8 @@ export default function TimeSeriesChart(props: Props) {
 
         {hoverT !== null && (
           <g className="tsc-hover">
-            <line className="tsc-crosshair" x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
+            {/* Heavier while it can be grabbed (a tapped reading, on touch). */}
+            <line className={`tsc-crosshair${gripped ? " grip" : ""}`} x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
             {readings.map(r => (
               <circle key={r.s.id} className="tsc-dot" cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
             ))}
@@ -342,14 +384,17 @@ export default function TimeSeriesChart(props: Props) {
           crosshair (placed above), or on a narrow chart sits under it in the
           page flow, full width. Rows are label then value, on one grid so
           the values line up in a column. */}
+      {/* Touch scrubbing: the placed crosshair itself, or along the time axis. */}
+      {gripped && hoverT !== null && <LineGrip x={hx} top={M.top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), true)} />}
+      <AxisScrub top={M.top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), true)} />
+
       {showTip && (
-        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role="status">
-          <div className="tsc-tip-time">{formatTime(hoverT)}</div>
-          {readings.length === 0 && <div className="tsc-tip-none">No data</div>}
-          {readings.length > 0 && (
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : ""}`} role={isSource ? "status" : undefined}>
+          <div className="tsc-tip-time">{formatTime(tipT)}</div>
+          {tipRows.length === 0 && <div className="tsc-tip-none">No data</div>}
+          {tipRows.length > 0 && (
             <div className="tsc-tip-rows">
-              {/* Highest first, so rows line up with the lines' vertical order. */}
-              {[...readings].sort((a, b) => b.v - a.v).map(r => (
+              {tipRows.map(r => (
                 <div key={r.s.id} className="tsc-tip-row">
                   <span className="tsc-tip-label">
                     {r.s.tipLabel ?? <>
@@ -357,21 +402,23 @@ export default function TimeSeriesChart(props: Props) {
                       <span className="tsc-tip-name">{r.s.label}</span>
                     </>}
                   </span>
-                  <span className="tsc-tip-value">{formatValue(r.v, r.s, hoverT)}</span>
+                  <span className="tsc-tip-value">
+                    {/* Under a narrow chart a marker tags its series' row
+                        rather than adding a line (the change log under the
+                        chart has the detail). */}
+                    {tipBelow && tipMarks.some(({ m }) => m.series === r.s.id) && <span className="tsc-tip-mark">◇ first</span>}
+                    {r.v === null ? <span className="tsc-tip-empty">—</span> : formatValue(r.v, r.s, tipT)}
+                  </span>
                 </div>
               ))}
             </div>
           )}
-          {(() => {
-            // Markers in the hovered bucket (or at the hovered point).
-            const hit = markers.filter(({ m }) => bucketOf(m.t) === bucketOf(hoverT))
-            return hit.length > 0 && (
-              <div className="tsc-tip-extra tsc-tip-marks">
-                {hit.map(({ m }) => <div key={`${m.series}-${m.t}`}><span className="tsc-mark-key" aria-hidden>◇</span> {m.label}</div>)}
-              </div>
-            )
-          })()}
-          {props.tooltipExtra && <TipExtra>{props.tooltipExtra(hoverT)}</TipExtra>}
+          {!tipBelow && tipMarks.length > 0 && (
+            <div className="tsc-tip-extra tsc-tip-marks">
+              {tipMarks.map(({ m }) => <div key={`${m.series}-${m.t}`}><span className="tsc-mark-key" aria-hidden>◇</span> {m.label}</div>)}
+            </div>
+          )}
+          {props.tooltipExtra && <TipExtra>{props.tooltipExtra(tipT, { compact: tipBelow })}</TipExtra>}
         </div>
       )}
     </div>

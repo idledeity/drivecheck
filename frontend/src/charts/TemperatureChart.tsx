@@ -49,9 +49,9 @@ function TemperatureChart({ data, drives, showJobs = true, highlight = null, hei
       formatY={v => `${v}°`}
       formatValue={v => `${v.toFixed(1)} °C`}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? t => {
+      tooltipExtra={showJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
-        return jobs.length ? <JobsDuring jobs={jobs} /> : null
+        return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}
     />
   )
