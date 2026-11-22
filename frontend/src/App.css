@@ -13,16 +13,22 @@
 
 .grid-controls {
   display: flex;
+  flex-wrap: wrap;          /* never past the page edge, whatever the labels */
+  justify-content: flex-end;
   align-items: center;
   gap: 2px;
+  min-width: 0;
   margin-left: auto;
 }
 
-/* Below this width, drop button labels and keep the toolbar to one row of icons. */
-@media (max-width: 640px) {
+/* Below this width the labelled toolbar (~710px, plus the name and page
+   padding) no longer fits on one line: drop the labels, keep the icons. */
+@media (max-width: 860px) {
   .gc-btn span {
     display: none;
   }
+}
+@media (max-width: 640px) {
   .gc-btn {
     padding: 4px;
   }
@@ -226,7 +232,8 @@
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  /* 310px columns, or the full width where the screen is narrower. */
+  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
   gap: 10px;
   -webkit-user-select: none;
   user-select: none;
