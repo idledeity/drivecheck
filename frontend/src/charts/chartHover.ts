@@ -52,6 +52,16 @@ export function useChartHover(): HoverState {
   return shared ?? local
 }
 
+// ── readings below ───────────────────────────────────────────────────────────
+// A group can ask for every chart's readings under it, in the page flow, at
+// any width (as narrow charts always do): on a page of charts, a tooltip
+// floating over one hides its lines, and only one chart's shows at a time.
+
+export const ChartReadingsBelowContext = createContext(false)
+
+/** Whether this chart's group wants readings under every chart. */
+export const useReadingsBelow = () => useContext(ChartReadingsBelowContext)
+
 // ── shared left gutter ───────────────────────────────────────────────────────
 // Each chart sizes its left margin to its own y tick labels. Charts under one
 // ChartHoverSync share a time axis, so they all take the widest margin any of

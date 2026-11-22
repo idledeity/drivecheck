@@ -61,6 +61,16 @@ describe('TimeSeriesChart', () => {
     expect(screen.getAllByRole('status')).toHaveLength(1)
   })
 
+  it('shows every chart\'s readings under it, at the newest time, when the group asks for that', () => {
+    const { container } = render(<ChartHoverSync readingsBelow>{chart()}{chart({ ariaLabel: 'Second' })}</ChartHoverSync>)
+    expect(container.querySelectorAll('.tsc-tip.below')).toHaveLength(2)
+    expect(container.querySelectorAll('.tsc-tip:not(.below)')).toHaveLength(0)
+    fireEvent.pointerMove(svgs()[0], { clientX: 300, pointerType: 'mouse' })
+    const times = [...container.querySelectorAll('.tsc-tip-time')].map(e => e.textContent)
+    expect(times[0]).toBe(times[1])                       // both at the hovered time
+    expect(container.querySelectorAll('.tsc-tip.below')).toHaveLength(2)
+  })
+
   it('keeps hover to itself outside a ChartHoverSync', () => {
     const { container } = render(<>{chart()}{chart({ ariaLabel: 'Second' })}</>)
     fireEvent.focus(svgs()[0])

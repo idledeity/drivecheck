@@ -140,6 +140,26 @@
    rest lets clicks through to the chart under it, which unpin. */
 .tsc-tip.pinned button { pointer-events: auto; }
 .tsc-tip-time { color: var(--t4); font-size: 11px; margin-bottom: 4px; }
+/* Readings under a wide chart (a group that asks for them, e.g. Trends):
+   newspaper columns, highest first down each one, so many drives take a
+   few rows. The chips go short (name and serial tail; the rest is in their
+   title) so a row fits a column. */
+@container drive-chips (min-width: 520px) {
+  .tsc-tip.below .tsc-tip-rows { display: block; column-width: 250px; column-gap: 28px; }
+  .tsc-tip.below .tsc-tip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    break-inside: avoid;
+    padding-bottom: 3px;
+  }
+  .tsc-tip.below .tsc-tip-label { flex: 1 1 auto; }
+  .tsc-tip.below .drive-chip-maker,
+  .tsc-tip.below .drive-chip-meta,
+  .tsc-tip.below .drive-chip-serial-full { display: none; }
+  .tsc-tip.below .drive-chip-serial-tail { display: inline; }
+}
 .tsc-tip-none { color: var(--t5); }
 /* One grid for all rows, so every value starts on the same line. The label
    column gives way first: chip names ellipsize before values wrap. */

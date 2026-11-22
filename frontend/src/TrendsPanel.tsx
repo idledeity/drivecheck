@@ -106,8 +106,11 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   })
 
   return (
-    // One hover group for the filter row too, so it can show (and clear) a pinned time.
-    <ChartHoverSync>
+    // One hover group for the filter row too, so it can show (and clear) a
+    // pinned time. Readings go under each chart, never floating over it: on
+    // a page of charts a tooltip hides lines, and every chart's readings at
+    // one time are what's worth seeing.
+    <ChartHoverSync readingsBelow>
     <div ref={trendsRef} className={`trends${pinned ? " pinned" : ""}`}>
       <div className="filter-row">
         <Control label="Range">

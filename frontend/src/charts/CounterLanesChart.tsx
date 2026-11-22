@@ -1,6 +1,6 @@
 import { memo, useCallback, useId, useLayoutEffect, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { onReadings, useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
+import { onReadings, useChartHover, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { timeTicks } from "./scales"
@@ -149,7 +149,8 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
   // A time from another chart in the group lands in whichever bar holds it.
   const hoverBucket = hoverT === null ? null : view === "rate" ? snap(hoverT) : hoverT
-  const tipBelow = width < TIP_BELOW_WIDTH
+  const readingsBelow = useReadingsBelow()
+  const tipBelow = width < TIP_BELOW_WIDTH || readingsBelow
   // Narrow charts always show their readings: the hovered bucket's, else the newest.
   // The group's newest time (see TimeSeriesChart), in the bucket holding it.
   // Reported in the data's own buckets, not Rate's wide bars, which would

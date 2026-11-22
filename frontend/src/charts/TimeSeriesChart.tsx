@@ -1,6 +1,6 @@
 import { useCallback, useId, useLayoutEffect, useMemo, useRef } from "react"
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { useChartHover, useGroupLatest, useLeftGutter } from "./chartHover"
+import { useChartHover, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
@@ -233,7 +233,8 @@ export default function TimeSeriesChart(props: Props) {
 
   // A synced chart may be handed a time outside this chart's range; ignore it.
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
-  const tipBelow = width < TIP_BELOW_WIDTH
+  const readingsBelow = useReadingsBelow()
+  const tipBelow = width < TIP_BELOW_WIDTH || readingsBelow
   // The time the readings are for: the hovered one, or on a narrow chart
   // (readings always shown) the newest — the group's, so all charts agree.
   const newest = useGroupLatest(id, snap(end))
