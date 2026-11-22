@@ -6,13 +6,10 @@
 }
 /* Pinned (Pin filters): at most a screen tall, so the filter row stays put
    while the charts scroll in their own box beneath it. */
-.trends.pinned { max-height: calc(100dvh - 16px); }
+.trends.pinned { max-height: calc(100dvh - var(--trends-below, 0px)); }
 .trends > .filter-row { flex: none; }
 
-.trends-drives { flex: 1 1 320px; }
-/* Range and Show jobs line up with the first row of drive chips, not the
-   middle of a block that wraps to several rows. */
-.trends > .filter-row { align-items: flex-start; }
+.trends-drives { flex: 1 1 100%; }
 .trends-key { flex: none; }
 
 /* A plain button around a DriveChip: the chip is the whole visual. */
@@ -34,8 +31,7 @@
    matches what's drawn. */
 .trends-drive[aria-pressed="false"] .drive-chip { border-style: dashed; opacity: 0.45; }
 
-/* Stacked, so the pair fits the corner Show jobs had on its own. */
-.trends-checks { display: flex; flex-direction: column; gap: 6px; margin-left: auto; }
+.trends-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-left: auto; }
 .trends-jobs { color: var(--t3); cursor: pointer; }
 .trends-jobs input, .trends-pin input { accent-color: var(--cy); margin: 0; }
 .trends-pin { color: var(--t3); cursor: pointer; }
@@ -73,7 +69,7 @@
   justify-content: flex-end;
   gap: 2px 10px;
 }
-.trends-callout-item { display: inline-flex; align-items: center; gap: 6px; }
+.trends-callout-item { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 6px; min-width: 0; }
 
 /* A footnote's label on its own line, so the chips below read as one list
    rather than the first one belonging to the label. */
@@ -94,5 +90,5 @@
 }
 
 @media (max-width: 640px) {
-  .trends-checks { margin-left: 0; flex-direction: row; gap: 8px 16px; }
+  .trends-checks { margin-left: 0; }
 }

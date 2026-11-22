@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import type { RefObject } from "react"
 import type { Drive } from "./types"
 import { Control, Segmented } from "./Controls"
 import DriveChip from "./DriveChip"
@@ -42,6 +43,8 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showJobs, setShowJobs] = useState(true)
   const [pinned, setPinned] = usePinnedFilters()
+  const trendsRef = useRef<HTMLDivElement>(null)
+  usePageBelow(trendsRef, pinned)
   // The counters' Events and Rate views compare a recent window against the
   // rest of the range (or the window before it); one setting for every card,
   // so the same words mean the same thing in each.
@@ -101,32 +104,12 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   })
 
   return (
-    <div className={`trends${pinned ? " pinned" : ""}`}>
+    <div ref={trendsRef} className={`trends${pinned ? " pinned" : ""}`}>
       <div className="filter-row">
         <Control label="Range">
           <Segmented label="Range" idPrefix="trends-range" value={range} onChange={setRange}
             options={HISTORY_RANGES.map(r => ({ value: r, label: r }))} />
         </Control>
-        {/* Doubles as the charts' legend: each drive's chip leads with its line
-            key. Shown even for one drive, so the charts always say whose they
-            are. Inside a .drive-chip-list, so the chips shorten the serial
-            (then drop the maker) when the row is narrow, as elsewhere. */}
-        <div className="drive-chip-list trends-drives" role="group" aria-label="Drives shown">
-          {all.map(d => (
-            <button
-              key={d.guid}
-              className="trends-drive"
-              aria-pressed={shown.includes(d)}
-              onClick={() => toggle(d.guid)}
-              onPointerEnter={e => { if (e.pointerType === "mouse") setHovered(d.guid) }}
-              onPointerLeave={() => setHovered(null)}
-              onFocus={() => setHovered(d.guid)}
-              onBlur={() => setHovered(null)}
-            >
-              <DriveChip drive={drives.find(x => x.guid === d.guid)} lead={<LineKey {...d.style} />} />
-            </button>
-          ))}
-        </div>
         <Control label="Recent" htmlFor="trends-recent">
           <select id="trends-recent" className="ctl-select" value={recentShown} onChange={e => setRecent(e.target.value as RecentWindow)}
             title="The window counter status lines and shading speak of">
@@ -152,6 +135,26 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} />
             Pin filters
           </label>
+        </div>
+        {/* Doubles as the charts' legend: each drive's chip leads with its line
+            key. Shown even for one drive, so the charts always say whose they
+            are. Short chips on a full-width row of their own, so many drives
+            wrap a few to a line rather than one per line. */}
+        <div className="drive-chip-list trends-drives" role="group" aria-label="Drives shown">
+          {all.map(d => (
+            <button
+              key={d.guid}
+              className="trends-drive"
+              aria-pressed={shown.includes(d)}
+              onClick={() => toggle(d.guid)}
+              onPointerEnter={e => { if (e.pointerType === "mouse") setHovered(d.guid) }}
+              onPointerLeave={() => setHovered(null)}
+              onFocus={() => setHovered(d.guid)}
+              onBlur={() => setHovered(null)}
+            >
+              <DriveChip drive={drives.find(x => x.guid === d.guid)} lead={<LineKey {...d.style} />} serial="tail" short />
+            </button>
+          ))}
         </div>
       </div>
 
@@ -213,6 +216,33 @@ function usePinnedFilters(): [boolean, (on: boolean) => void] {
     setPinned(on)
     try { localStorage.setItem(PIN_KEY, on ? "1" : "0") } catch { /* not remembered */ }
   }]
+}
+
+/** Pinned, the panel is a screen tall less whatever the page has below it
+ *  (its containers' bottom padding, borders and margins), so scrolled to the
+ *  end of the page the filter row's top lands at the top of the screen rather
+ *  than past it. Measured, since those paddings change with the layout. */
+function usePageBelow(ref: RefObject<HTMLDivElement | null>, on: boolean) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!on || !el) return
+    const measure = () => {
+      let below = 0
+      for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+        const cs = getComputedStyle(n)
+        if (n !== el) below += parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth)
+        below += parseFloat(cs.marginBottom)
+        // Anything after it in the same container sits below it too.
+        for (let sib = n.nextElementSibling; sib; sib = sib.nextElementSibling) {
+          below += sib.getBoundingClientRect().height
+        }
+      }
+      el.style.setProperty("--trends-below", `${below}px`)
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [ref, on])
 }
 
 function HottestCallout({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {

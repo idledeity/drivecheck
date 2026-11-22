@@ -22,6 +22,9 @@ interface Props {
   // No pill (border, fill, padding): for dense lists like a chart tooltip,
   // where a stack of outlined pills is more frame than content.
   thin?: boolean
+  // Name and serial tail only (maker and capacity stay in the hover title):
+  // for a row of many chips, e.g. the Trends legend.
+  short?: boolean
 }
 
 // Compact identity pill for a drive: a dot in its health color, manufacturer,
@@ -29,7 +32,7 @@ interface Props {
 // shortens the serial to its last four characters when space is tight, then
 // drops the manufacturer (DriveChip.css). The full details are always in the
 // hover title.
-export default function DriveChip({ drive, blocked = false, serial = "auto", lead, thin = false }: Props) {
+export default function DriveChip({ drive, blocked = false, serial = "auto", lead, thin = false, short = false }: Props) {
   const cls = `drive-chip${thin ? " thin" : ""}`
   if (!drive) {
     return (
@@ -44,7 +47,7 @@ export default function DriveChip({ drive, blocked = false, serial = "auto", lea
   // Same maker as the drive card shows; skipped when the name already starts
   // with it ("WDC WD40EFRX").
   const maker = drive.white_label ?? drive.manufacturer_short
-  const showMaker = maker && !name.toLowerCase().startsWith(maker.toLowerCase())
+  const showMaker = !short && maker && !name.toLowerCase().startsWith(maker.toLowerCase())
   const capacity = drive.capacity_bytes === null ? null : formatCapacity(drive.capacity_bytes)
   const health = drive.health_status
     ? `${drive.health_status}${drive.health_pct === null ? "" : ` ${drive.health_pct}`}`
@@ -64,7 +67,7 @@ export default function DriveChip({ drive, blocked = false, serial = "auto", lea
       )}
       {showMaker && <span className="drive-chip-maker">{maker}</span>}
       <span className="drive-chip-name">{name}</span>
-      {capacity && <span className="drive-chip-meta">{capacity}</span>}
+      {capacity && !short && <span className="drive-chip-meta">{capacity}</span>}
       {drive.serial && (
         <span className={`drive-chip-serial${serial === "tail" ? " tail-only" : ""}`}>
           <IconBarcode size={11} aria-hidden="true" />
