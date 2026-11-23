@@ -3,9 +3,9 @@ import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
 import { onReadings, readingRow, useChartHover, useChartPick, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
-import { timeTicks } from "./scales"
+import { clockLabel, timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
-import { bucketLabel, jobSpans, signalPoints } from "./historySeries"
+import { bucketLabel, jobAt, jobSpans, signalPoints } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { ChartPoint } from "./chartGeometry"
 import type { DriveHistoryData } from "./useDriveHistory"
@@ -39,6 +39,8 @@ import "./CounterLanesChart.css"
 const M = { right: 6 }
 const LANE_H = { events: 22, rate: 30 }
 const AXIS_H = 18
+// In Events, a pointer this close (px) to a change lands on it.
+const SNAP_PX = 10
 // Markers closer than this (px) merge into one.
 const MERGE_PX = 7
 // A marker's "+N" label needs this much room before the next marker.
@@ -114,6 +116,25 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     const k = view === "rate" ? Math.floor((t - start) / bucket) : Math.round((t - start) / bucket)
     return Math.min(lastBucket, Math.max(start, start + k * bucket))
   }
+  // Events: the buckets holding a change, any lane's, oldest first. The
+  // pointer lands on one when near its marker (rounding to the nearest
+  // bucket would often miss it), and the arrow keys step between them.
+  const changeBuckets = view === "events"
+    ? [...new Set(lanes.flatMap(l => counterChanges(l.points))
+        .filter(c => c.t >= start && c.t <= end)
+        .map(c => Math.min(lastBucket, start + Math.floor((c.t - start) / bucket) * bucket)))].sort((a, b) => a - b)
+    : []
+  const changeTimes = view === "events"
+    ? lanes.flatMap(l => counterChanges(l.points)).map(c => c.t).filter(t => t >= start && t <= end)
+    : []
+  // Client x → the bucket to show: the one holding the nearest change when
+  // the pointer is near it, else the nearest bucket.
+  const place = (clientX: number) => {
+    const t = clientT(clientX), px = x(t)
+    let best: number | null = null
+    for (const c of changeTimes) if (Math.abs(x(c) - px) <= SNAP_PX && (best === null || Math.abs(x(c) - px) < Math.abs(x(best) - px))) best = c
+    return best === null ? snap(t) : Math.min(lastBucket, start + Math.floor((best - start) / bucket) * bucket)
+  }
   const hoverAt = (t: number | null, flags: HoverFlags = {}) => setHover(t === null ? null : { t, source: id, ...flags })
   const clientT = (clientX: number) => {
     const r = wrapRef.current!.getBoundingClientRect()
@@ -124,15 +145,15 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   // on the readings is just reading them.
   const pinned = !!hover?.pinned
   const tap = useTouchTap(e => {
-    if (!onReadings(e.target)) hoverAt(snap(clientT(e.clientX)), { touch: true })
+    if (!onReadings(e.target)) hoverAt(place(e.clientX), { touch: true })
   })
   const onPointer = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== "touch" && !pinned && !onReadings(e.target)) hoverAt(snap(clientT(e.clientX)))
+    if (e.pointerType !== "touch" && !pinned && !onReadings(e.target)) hoverAt(place(e.clientX))
   }
   const onPress = (e: PointerEvent<HTMLDivElement>) => {
     tap.down(e)
     if (e.pointerType === "touch" || e.button !== 0 || onReadings(e.target)) return
-    hoverAt(snap(clientT(e.clientX)), { pinned: !pinned })
+    hoverAt(place(e.clientX), { pinned: !pinned })
   }
   // A reading placed by touch: its line can be grabbed in every chart that
   // draws it, and a tap outside the charts clears it (watched by the chart
@@ -144,7 +165,14 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     if (e.key === "Escape") return hoverAt(null)
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
     e.preventDefault()
-    hoverAt(snap((hover?.t ?? lastBucket) + (e.key === "ArrowRight" ? bucket : -bucket)), { pinned })
+    const from = hover?.t ?? lastBucket
+    if (changeBuckets.length) {
+      // Events: to the next (or previous) change; past the last one, stay.
+      const to = e.key === "ArrowRight" ? changeBuckets.find(b => b > from) : changeBuckets.findLast(b => b < from)
+      if (to !== undefined) hoverAt(to, { pinned })
+      return
+    }
+    hoverAt(snap(from + (e.key === "ArrowRight" ? bucket : -bucket)), { pinned })
   }
   const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
   // A time from another chart in the group lands in whichever bar holds it.
@@ -207,7 +235,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
               {l.status && <span className="clc-status"><LaneStatusText lane={l.status} windowLabel={windows.label} end={end} format={format} /></span>}
             </div>
             <div className="clc-strip-wrap">
-              {gripped && hoverBucket !== null && <LineGrip x={gripX} top={0} height={laneH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
+              {gripped && hoverBucket !== null && <LineGrip x={gripX} top={0} height={laneH} onDrag={cx => hoverAt(place(cx), { touch: true })} />}
               <svg className={`clc-strip${dim}`} width={width} height={laneH} viewBox={`0 0 ${width} ${laneH}`} aria-hidden="true">
                 <defs>
                   <pattern id={`${uid}-h${i}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -231,7 +259,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
       })}
 
       <div className="clc-axis-wrap">
-        <AxisScrub top={0} height={AXIS_H} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
+        <AxisScrub top={0} height={AXIS_H} onTime={cx => hoverAt(place(cx), { touch: true })} />
         <svg className="clc-axis" width={width} height={AXIS_H} viewBox={`0 0 ${width} ${AXIS_H}`} aria-hidden="true">
           {xTicks.map(tk => {
             const tx = x(tk.t)
@@ -250,7 +278,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{bucketLabel(tipBucket, bucket)}</div>
           <TipRows lanes={lanes} absent={drives.filter(d => !lanes.some(l => l.drive.guid === d.guid))}
-            view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} highlight={highlight} />
+            view={view} t={tipBucket} bucket={bucket} end={end} format={format} keepEmpty={tipBelow} highlight={highlight} data={data} />
         </div>
       )}
     </div>
@@ -378,15 +406,17 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
  *  change in it (Events), or the bar's change (Rate). keepEmpty (under a
  *  narrow chart, in the page flow): a drive with nothing there keeps its row
  *  as "—", so the readings' height holds while scrubbing. */
-function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highlight }: {
+function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highlight, data }: {
   lanes: Lane[]
   /** Drives that don't report the counter: no lane, but a row here. */
   absent: ChartDrive[]
   view: "events" | "rate"; t: number; bucket: number; end: number; format: CounterFormat; keepEmpty: boolean
   highlight: string | null
+  /** For the job running at a change. */
+  data: DriveHistoryData
 }) {
   const pick = useChartPick()
-  const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null }[] => {
+  const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null; detail?: ReactNode }[] => {
     const empty = keepEmpty ? [{ drive: l.drive, text: null }] : []
     const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${format.value(Math.abs(d))}`
     if (view === "rate") {
@@ -397,9 +427,18 @@ function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highl
     const e = Math.min(end, t + bucket)
     const to = stepValue(l.points, e >= end ? end : e - 1)
     if (to === null) return empty
+    const changes = counterChanges(l.points).filter(c => c.t >= t && (c.t < e || (e >= end && c.t <= end)))
     const delta = netChange(counterChanges(l.points), t, e, end)
     const text = `${format.value(to)}${delta ? ` (${signed(delta)})` : ""}`
-    return [{ drive: l.drive, text }]
+    // When it changed (the bucket header has the date), and what the drive
+    // was doing then. Several changes in one bucket: how many, and the last.
+    const last = changes.at(-1)
+    const job = last ? jobAt(data, l.drive.guid, last.t) : null
+    const detail = last && <span className="clc-tip-detail">
+      {changes.length > 1 ? `${changes.length} changes, last ` : "at "}{clockLabel(last.t)}
+      {job && <span className="clc-tip-job"> · {job}</span>}
+    </span>
+    return [{ drive: l.drive, text, detail }]
   })
   if (!rows.length && !absent.length) return <div className="tsc-tip-none">No data</div>
   return (
@@ -409,7 +448,7 @@ function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highl
         return (
           <div key={r.drive.guid} className={`tsc-tip-row${row.cls}`} {...row.props}>
             <span className="tsc-tip-label"><ChartDriveChip drive={r.drive} /></span>
-            <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}</span>
+            <span className="tsc-tip-value">{r.text ?? <span className="tsc-tip-empty">—</span>}{r.detail}</span>
           </div>
         )
       })}

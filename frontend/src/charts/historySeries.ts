@@ -3,6 +3,7 @@ import type { ChartPoint, ChartSpan, ChartThreshold } from "./TimeSeriesChart"
 import type { SeriesStyle } from "./drivePalette"
 import type { DriveHistoryData, HistoryJob } from "./useDriveHistory"
 import { clockLabel } from "./scales"
+import { counterChanges } from "./counterTrends"
 
 // Shared glue between drive history data and the charts: who's charted, in
 // what color, and the jobs shaded behind every chart.
@@ -46,6 +47,24 @@ export function jobsDuring(data: DriveHistoryData, drives: ChartDrive[], t: numb
   return data.jobs
     .filter((j: HistoryJob) => byGuid.has(j.drive_guid) && j.start < bucketEnd && (j.end ?? Infinity) >= t)
     .map(j => ({ id: j.id, name: j.operation_name, drive: byGuid.get(j.drive_guid)! }))
+}
+
+/** The job one drive was running at t, if any (the latest started, should
+ *  two overlap). */
+export function jobAt(data: DriveHistoryData, guid: string, t: number): string | null {
+  return data.jobs.findLast(j => j.drive_guid === guid && j.start <= t && (j.end ?? Infinity) >= t)?.operation_name ?? null
+}
+
+export interface CounterEvent { drive: ChartDrive; t: number; delta: number; value: number; job: string | null }
+
+/** Every change of a counter in the range, newest first, each with the job
+ *  its drive was running then: the Events view's change list. */
+export function counterEvents(data: DriveHistoryData, drives: ChartDrive[], signal: string): CounterEvent[] {
+  return drives
+    .flatMap(d => counterChanges(signalPoints(data, d.guid, signal))
+      .filter(c => c.t >= data.start && c.t <= data.end)
+      .map(c => ({ drive: d, ...c, job: jobAt(data, d.guid, c.t) })))
+    .sort((a, b) => b.t - a.t)
 }
 
 /** The vitals value of one drive at bucket start t (null if it has none). */

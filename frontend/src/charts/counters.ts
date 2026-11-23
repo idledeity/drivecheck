@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { ChartThreshold } from "./TimeSeriesChart"
-import type { CounterView } from "./counterTrends"
+import type { Baseline, CounterView, RecentWindow } from "./counterTrends"
 import { rateLabel } from "./counterTrends"
 import { formatBytes } from "../format"
 import { formatTick } from "./scales"
@@ -59,11 +59,12 @@ export function counterSubtitle(signal: string, beyond: ChartThreshold[]): strin
 }
 
 /** How one counter card is viewed: Total (the default — the count itself
- *  matters most for health), Events or Rate, and whether the running total
- *  is drawn faintly behind the last two. */
-export interface CounterViewState { view: CounterView; showTotal: boolean }
+ *  matters most for health), Events or Rate, whether the running total is
+ *  drawn faintly behind the last two, and (Trends only; a popover follows
+ *  the range) the recent window they shade and what Rate compares it with. */
+export interface CounterViewState { view: CounterView; showTotal: boolean; recent: RecentWindow; baseline: Baseline }
 
-const DEFAULT_VIEW: CounterViewState = { view: "total", showTotal: false }
+const DEFAULT_VIEW: CounterViewState = { view: "total", showTotal: false, recent: "auto", baseline: "rest" }
 
 /** Each counter's last view, kept for this session (module state: it survives
  *  switching tabs or closing a popover, not a reload). Health > Trends and the

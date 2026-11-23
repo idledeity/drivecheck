@@ -63,3 +63,30 @@
 .counter-view-ctl { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 10px; }
 .counter-view-ctl .ctl-check { color: var(--t3); font-size: 11.5px; cursor: pointer; }
 .counter-view-ctl .seg-btn { padding: 1px 7px; font-size: 11px; }
+
+/* A dropdown inside a sentence (a counter card's subtitle): reads as the
+   word it sets, underlined, with a small caret; the native menu opens on
+   click. */
+.inline-select {
+  appearance: none;
+  font: inherit;
+  color: var(--t2);
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23888'/%3E%3C/svg%3E") no-repeat right 1px center;
+  border: 0;
+  border-bottom: 1px dashed var(--t5);
+  border-radius: 0;
+  padding: 0 11px 0 0;
+  margin: 0;
+  cursor: pointer;
+}
+.inline-select:hover { color: var(--t1); border-bottom-color: var(--t3); }
+.inline-select:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 2px; }
+.inline-select option { color: var(--t1); background: var(--bi); }
+
+/* Events readings: when a change happened and what its drive was running,
+   after the count. Under a narrow chart the job is left out so a row fits
+   one line (the change list under the card has it). */
+.clc-tip-detail { margin-left: 8px; color: var(--t4); font-weight: 400; font-size: 11px; }
+@container drive-chips (max-width: 519px) {
+  .clc-tip-job { display: none; }
+}

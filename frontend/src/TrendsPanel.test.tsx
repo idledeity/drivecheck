@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TrendsPanel from './TrendsPanel'
+import { trendsCounterViews } from './charts/counters'
 import { fetchJsonResponse, makeDrive } from './test/fixtures'
 
 beforeEach(() => { vi.stubGlobal('fetch', vi.fn()) })
@@ -273,6 +274,62 @@ describe('TrendsPanel', () => {
     expect(lanes).toHaveTextContent(/6 · unchanged in range/)
     expect(realloc).toHaveTextContent('Each change, sized by its jump · shaded: last 4h')
     expect(within(realloc).getByLabelText('Show total')).not.toBeChecked()
+  })
+
+  it('picks each counter card\'s recent window in its own subtitle, not the filter row', async () => {
+    trendsCounterViews.clear()
+    const h = { ...withSignals(), start: '2026-11-12T12:10:00' }              // a full 24h, so shorter windows fit
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(h))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
+    expect(screen.queryByLabelText('Recent window')).toBeNull()                 // Total view: nothing to pick
+    const realloc = card('Reallocated sectors')
+    fireEvent.click(within(realloc).getByRole('button', { name: 'Events' }))
+    const recent = within(realloc).getByLabelText('Recent window')
+    expect(recent).toHaveValue('auto')
+    expect(within(realloc).queryByLabelText('Compare with')).toBeNull()         // only Rate compares
+    fireEvent.change(recent, { target: { value: '1h' } })                       // d1's change at 12:04 is still in it
+    expect(realloc).toHaveTextContent(/3 · \+3 in last 1h/)
+    expect(screen.getAllByLabelText('Recent window')).toHaveLength(1)           // the other cards keep theirs
+    const cycles = card('Load/unload cycles')
+    fireEvent.click(within(cycles).getByRole('button', { name: 'Rate' }))
+    expect(within(cycles).getByLabelText('Recent window')).toHaveValue('auto')
+    expect(within(cycles).getByLabelText('Compare with')).toHaveValue('rest')
+  })
+
+  it('in Events, steps between changes with the arrow keys and says when each was, and during what job', async () => {
+    trendsCounterViews.clear()
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
+    const realloc = card('Reallocated sectors')
+    fireEvent.click(within(realloc).getByRole('button', { name: 'Events' }))
+    const lanes = within(realloc).getByRole('group', { name: /changes per drive/ })
+    fireEvent.focus(lanes)
+    fireEvent.keyDown(lanes, { key: 'ArrowLeft' })                              // straight to the one change
+    const d1Row = () => [...realloc.querySelectorAll('.tsc-tip-row')].find(r => /Exos/.test(r.textContent ?? ''))!
+    expect(d1Row()).toHaveTextContent(/3 \(\+3\)at 12:04 · Bad Block Scan/)
+    fireEvent.keyDown(lanes, { key: 'ArrowLeft' })                              // none earlier: stays
+    expect(d1Row()).toHaveTextContent(/at 12:04/)
+  })
+
+  it('lists an Events card\'s changes under it, collapsed, and a row pins its time', async () => {
+    trendsCounterViews.clear()
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(withSignals()))
+    render(<TrendsPanel drives={allDrives} selectedGuids={['d1', 'd2', 'd3']} />)
+    await waitFor(() => expect(lines('Reallocated sectors over time')).toHaveLength(2))
+    const realloc = card('Reallocated sectors')
+    expect(within(realloc).queryByRole('button', { name: /change in range/ })).toBeNull()   // Total view: no list
+    fireEvent.click(within(realloc).getByRole('button', { name: 'Events' }))
+    const toggle = within(realloc).getByRole('button', { name: /1 change in range/ })
+    expect(within(realloc).queryByRole('list', { name: 'Changes in range' })).toBeNull()
+    fireEvent.click(toggle)
+    const list = within(realloc).getByRole('list', { name: 'Changes in range' })
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent(/12:04.*Exos.*\+3 → 3.*Bad Block Scan/)
+    fireEvent.click(within(rows[0]).getByRole('button'))
+    expect(screen.getByText(/Pinned .*12:04/)).toBeInTheDocument()
   })
 
   it('switches a wear counter to its Rate view, with bars and a rate status', async () => {
