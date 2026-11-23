@@ -31,12 +31,53 @@ export function chartDrive(guid: string, drive: Drive | undefined, style: Series
   }
 }
 
-/** Jobs of the charted drives as shaded spans (neutral: the tooltip names the drive). */
+/** Jobs of the charted drives as spans, each tagged with its drive and the
+ *  drive's color, in drive order (then by start): the order of the charts'
+ *  per-drive job rows. */
 export function jobSpans(data: DriveHistoryData, drives: ChartDrive[]): ChartSpan[] {
-  const byGuid = new Map(drives.map(d => [d.guid, d]))
-  return data.jobs
-    .filter(j => byGuid.has(j.drive_guid))
-    .map(j => ({ id: j.id, start: j.start, end: j.end, label: j.operation_name }))
+  return drives.flatMap(d => data.jobs
+    .filter(j => j.drive_guid === d.guid)
+    .toSorted((a, b) => a.start - b.start)
+    .map(j => ({ id: j.id, start: j.start, end: j.end, label: j.operation_name, series: d.guid, color: d.style.color })))
+}
+
+export interface TimeSpan { start: number; end: number }
+
+/** Where there's no data: per drive, the stretches with no vitals reading
+ *  (collector stopped, drive absent, or not seen yet), and `all`, where no
+ *  charted drive has one. Vitals are read every few seconds into buckets of
+ *  a minute or more, so a missing bucket really is no reading. Counters and
+ *  the health score are stored only as changes and can't show a gap of
+ *  their own, so every chart uses these.
+ *
+ *  A gap is found the way a line breaks (TimeSeriesChart): readings more
+ *  than 1.5 buckets apart. Not by matching readings to start + k·bucket:
+ *  times arrive as local wall-clock strings, so across a DST change every
+ *  later bucket is an hour off that grid.
+ *
+ *  Measured up to the end of the newest bucket any drive has (later ones are
+ *  still being rolled up). A drive's gap running into that edge counts only
+ *  from two buckets, so a drive a bucket behind in the rollup isn't "missing". */
+export function dataGaps(data: DriveHistoryData, drives: ChartDrive[]): { all: TimeSpan[]; bySeries: Record<string, TimeSpan[]> } {
+  const { start, end, bucketMs } = data
+  const times = drives.map(d => (data.drives[d.guid]?.vitals.t ?? []).filter(t => t >= start && t < end).toSorted((a, b) => a - b))
+  const newest = Math.max(-Infinity, ...times.map(ts => ts.at(-1) ?? -Infinity))
+  const horizon = Number.isFinite(newest) ? Math.min(end, newest + bucketMs) : end
+  const gapsIn = (ts: number[]): TimeSpan[] => {
+    if (!ts.length) return horizon > start ? [{ start, end: horizon }] : []
+    const out: TimeSpan[] = []
+    if (ts[0] - start >= bucketMs / 2) out.push({ start, end: ts[0] })
+    for (let i = 1; i < ts.length; i++) {
+      if (ts[i] - ts[i - 1] > 1.5 * bucketMs) out.push({ start: ts[i - 1] + bucketMs, end: ts[i] })
+    }
+    const lastEnd = ts[ts.length - 1] + bucketMs
+    if (horizon - lastEnd >= 2 * bucketMs) out.push({ start: lastEnd, end: horizon })
+    return out
+  }
+  const bySeries: Record<string, TimeSpan[]> = {}
+  drives.forEach((d, i) => { bySeries[d.guid] = gapsIn(times[i]) })
+  const union = [...new Set(times.flat())].sort((a, b) => a - b)
+  return { all: drives.length ? gapsIn(union) : [], bySeries }
 }
 
 /** Each charted drive's job running at any point in the bucket starting at

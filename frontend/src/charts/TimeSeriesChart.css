@@ -101,7 +101,12 @@
 .tsc-threshold.tone-crit text { fill: var(--re); }
 
 .tsc-span { fill: rgba(200, 204, 214, 0.055); }
-.tsc-span-edge { fill: var(--t5); }
+/* The highlighted drive's jobs, in its color (the fill attribute). */
+.tsc-span.tinted { fill-opacity: 0.1; }
+.tsc-span-edge { fill: var(--t5); transition: opacity 0.12s; }
+.tsc-span-edge.dim { opacity: 0.25; }
+/* No data: hatched, as the counter lanes hatch before a first record. */
+.tsc-hatch { stroke: var(--chart-gap); stroke-width: 2; }
 
 .tsc-tip {
   position: absolute;

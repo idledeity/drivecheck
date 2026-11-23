@@ -37,7 +37,7 @@
 .clc-axis text { font-family: system-ui, -apple-system, sans-serif; }
 
 /* Before the counter was first recorded. */
-.clc-hatch { stroke: var(--chart-grid); stroke-width: 2; }
+.clc-hatch { stroke: var(--chart-gap); stroke-width: 2; }
 /* The recent window the status lines compare. */
 .clc-recent { fill: var(--cy); fill-opacity: 0.05; }
 

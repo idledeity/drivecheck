@@ -323,6 +323,34 @@ describe('TimeSeriesChart', () => {
     }
   })
 
+  it('gives each series\' spans a rail row in its color, and shades only the highlighted one\'s, tinted', () => {
+    const spans = [
+      { id: 'j1', start: START + 2 * MIN, end: START + 4 * MIN, series: 'a', color: 'var(--s1)' },
+      { id: 'j2', start: START + 3 * MIN, end: START + 6 * MIN, series: 'b', color: 'var(--s2)' },
+    ]
+    const { container, rerender } = render(chart({ spans }))
+    const railFills = () => [...container.querySelectorAll('.tsc-span-edge')].map(e => (e as SVGElement).style.fill)
+    const shades = () => [...container.querySelectorAll('.tsc-span')].map(e => (e as SVGElement).style.fill || 'neutral')
+    const railYs = [...container.querySelectorAll('.tsc-span-edge')].map(e => Number(e.getAttribute('y')))
+    expect(railFills()).toEqual(['var(--s1)', 'var(--s2)'])
+    expect(railYs[0]).toBeLessThan(railYs[1])                                   // a's row above b's: never overlapping
+    expect(shades()).toEqual(['neutral'])                                       // overlapping jobs merge into one neutral shade
+    expect(container.querySelector('svg')).toHaveAttribute('height', String(180 + 4))   // one extra row: the chart grows, not the plot shrinks
+    rerender(chart({ spans, highlight: 'b' }))
+    expect(shades()).toEqual(['var(--s2)'])
+    expect([...container.querySelectorAll('.tsc-span-edge')].map(e => e.classList.contains('dim'))).toEqual([true, false])
+  })
+
+  it('hatches where no series has data, or the highlighted one\'s own gaps', () => {
+    const gaps = { all: [{ start: START + 5 * MIN, end: START + 6 * MIN }], bySeries: { a: [], b: [{ start: START + 5 * MIN, end: START + 6 * MIN }, { start: START + 8 * MIN, end: START + 9 * MIN }] } }
+    const { container, rerender } = render(chart({ gaps }))
+    expect(container.querySelectorAll('.tsc-gap')).toHaveLength(1)
+    rerender(chart({ gaps, highlight: 'b' }))
+    expect(container.querySelectorAll('.tsc-gap')).toHaveLength(2)
+    rerender(chart({ gaps, highlight: 'a' }))
+    expect(container.querySelectorAll('.tsc-gap')).toHaveLength(0)
+  })
+
   it('lists several jobs in a popover from the narrow readings\' summary', () => {
     const drive = { guid: 'a', label: 'Exos FF02', style: { color: 'var(--s1)' } } as unknown as ChartDrive
     render(<JobsDuring compact jobs={[{ id: 'j1', name: 'badblocks', drive }, { id: 'j2', name: 'SMART long', drive }]} />)

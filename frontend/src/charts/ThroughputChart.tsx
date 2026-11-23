@@ -3,7 +3,7 @@ import TimeSeriesChart from "./TimeSeriesChart"
 import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
 import type { ChartSeries } from "./TimeSeriesChart"
-import { bucketLabel, jobSpans, jobsDuring, vitalAt } from "./historySeries"
+import { bucketLabel, dataGaps, jobSpans, jobsDuring, vitalAt } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 import { formatThroughput } from "../format"
@@ -44,6 +44,7 @@ function ThroughputChart({ data, drives, showJobs = true, highlight = null, heig
       // a few KB/s of background reads filling the chart.
       yInclude={[1e6]}
       spans={showJobs ? jobSpans(data, drives) : undefined}
+      gaps={dataGaps(data, drives)}
       formatY={v => `${+(v / 1e6).toFixed(1)}`}
       formatValue={(v, s, t) => {
         if (v < 1e3) return "idle"

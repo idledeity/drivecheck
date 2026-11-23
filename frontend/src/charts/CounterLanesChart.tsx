@@ -5,7 +5,7 @@ import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { clockLabel, timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
-import { bucketLabel, jobAt, jobSpans, signalPoints } from "./historySeries"
+import { bucketLabel, dataGaps, jobAt, jobSpans, signalPoints } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
 import type { ChartPoint } from "./chartGeometry"
 import type { DriveHistoryData } from "./useDriveHistory"
@@ -34,7 +34,9 @@ import "./CounterLanesChart.css"
 // running above or below its usual shows against it.
 //
 // Both shade the recent window the status lines speak of, and hatch the part
-// of the range before a drive's counter was first recorded.
+// of the range before a drive's counter was first recorded and wherever the
+// drive has no data (see dataGaps). A lane is one drive's, so it shades only
+// that drive's jobs, in its color.
 
 const M = { right: 6 }
 const LANE_H = { events: 22, rate: 30 }
@@ -103,10 +105,14 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   // Square-root: a drive at a few a day still shows beside one at hundreds.
   const yMax = Math.max(1, ...lanes.flatMap(l => l.buckets.map(b => b.delta ?? 0)))
 
-  const jobs = showJobs ? mergeBoxes(jobSpans(data, drives).flatMap(sp => {
+  const toBoxes = (spans: { start: number; end: number | null }[], minW: number) => mergeBoxes(spans.flatMap(sp => {
     const a = Math.max(ML, x(Math.max(sp.start, start))), b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < ML || a > ML + plotW ? [] : [{ x: a, w: Math.max(2, b - a) }]
-  })) : []
+    return b < ML || a > ML + plotW ? [] : [{ x: a, w: Math.max(minW, b - a) }]
+  }))
+  const spans = showJobs ? jobSpans(data, drives) : []
+  const jobsOf = (guid: string) => toBoxes(spans.filter(sp => sp.series === guid), 2)
+  const gaps = dataGaps(data, drives).bySeries
+  const gapsOf = (guid: string) => toBoxes(gaps[guid] ?? [], 1)
   const recentX = Math.max(ML, x(windows.recentStart))
 
   // ── hover ───────────────────────────────────────────────────────────────
@@ -243,7 +249,8 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
                   </pattern>
                 </defs>
                 {first > start && <rect x={ML} y={0} width={Math.max(0, x(first) - ML)} height={laneH} fill={`url(#${uid}-h${i})`} />}
-                {jobs.map((b, j) => <rect key={j} className="tsc-span" x={b.x} y={0} width={b.w} height={laneH} />)}
+                {gapsOf(l.drive.guid).map((b, j) => <rect key={`gap-${j}`} x={b.x} y={0} width={b.w} height={laneH} fill={`url(#${uid}-h${i})`} />)}
+                {jobsOf(l.drive.guid).map((b, j) => <rect key={`job-${j}`} className="tsc-span tinted" x={b.x} y={0} width={b.w} height={laneH} style={{ fill: color }} />)}
                 <rect className="clc-recent" x={recentX} y={0} width={Math.max(0, ML + plotW - recentX)} height={laneH} />
                 {view === "events"
                   ? <EventMarks lane={l} x={x} start={start} end={end} plotEnd={ML + plotW} h={laneH} color={color} format={format} />

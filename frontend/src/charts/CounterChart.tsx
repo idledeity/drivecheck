@@ -3,7 +3,7 @@ import TimeSeriesChart from "./TimeSeriesChart"
 import ChartDriveChip from "./ChartDriveChip"
 import type { ChartSeries } from "./TimeSeriesChart"
 import { firstReadingMarkers } from "./healthChanges"
-import { bucketLabel, counterThresholds, jobSpans, signalPoints } from "./historySeries"
+import { bucketLabel, counterThresholds, dataGaps, jobSpans, signalPoints } from "./historySeries"
 import { counterFormat } from "./counters"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
@@ -76,6 +76,7 @@ function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs =
       yInclude={include}
       thresholds={thresholds}
       spans={showJobs ? jobSpans(data, drives) : undefined}
+      gaps={dataGaps(data, drives)}
       markers={firstReadingMarkers(data, drives, signal)}
       formatY={counterFormat(signal).axis}
       formatValue={(v, s) => <CounterReading v={v} base={baseOf(s)} format={counterFormat(signal).value} />}

@@ -25,10 +25,15 @@ export type Tone = "ok" | "aging" | "warn" | "crit" | "critical"
 export interface ChartThreshold { value: number; label: string; tone: "warn" | "crit" }
 export interface ChartBand { from: number; to: number; tone: Tone; label?: string }
 /** A shaded stretch of time, e.g. a job; end null runs to the chart's end.
- *  Spans are deliberately colorless: with several drives charted, a drive's
- *  color on overlapping spans just shows whichever was drawn last. Which job
- *  (and drive) it was is the tooltip's job, via tooltipExtra. */
-export interface ChartSpan { id: string; start: number; end: number | null; label?: string }
+ *  Spans of a series (a drive's jobs) get a row of their own in the rail
+ *  above the plot, in its color: rows never overlap, where colored shading
+ *  would blend into a color no drive has. The shading over the plot stays
+ *  neutral, except while a series is highlighted: then only its spans are
+ *  shaded, in its color. Which job it was is the tooltip's job (tooltipExtra). */
+export interface ChartSpan { id: string; start: number; end: number | null; label?: string; series?: string; color?: string }
+/** Where a chart has no data, hatched over the plot: `all` (no series has
+ *  any) normally, or the highlighted series' own stretches. */
+export interface ChartGaps { all: { start: number; end: number }[]; bySeries: Record<string, { start: number; end: number }[]> }
 /** A moment of note on one series — e.g. a drive's first reading of a signal,
  *  which isn't a change. Drawn as a hollow diamond on the line; the tooltip
  *  names the ones in the hovered bucket. */
@@ -55,6 +60,7 @@ interface Props {
   thresholds?: ChartThreshold[]
   bands?: ChartBand[]
   spans?: ChartSpan[]
+  gaps?: ChartGaps
   markers?: ChartMarker[]
   /** The crosshair snaps to start + k·snapMs (the bucket starts). Without it,
    *  it snaps to the nearest point of any series. */
@@ -84,10 +90,13 @@ interface Props {
 const M = { top: 10, right: 6, bottom: 22 }
 // Gap between a y tick label and the plot.
 const TICK_GAP = 6
-// Spans (jobs) are also marked in a thin neutral rail just above the plot —
-// not on its top edge, where a span covering the whole range would read as a
-// line of data. Overlapping spans simply merge into one bar.
-const RAIL = { gap: 3, height: 2 }
+// Spans (jobs) are also marked in a thin rail just above the plot — not on its
+// top edge, where a span covering the whole range would read as a line of
+// data: one row per series with spans (a drive's jobs, in its color), top to
+// bottom in span order. Overlapping spans in a row merge into one bar; a
+// short one is still `min` px wide. The chart grows by the extra rows, so
+// the plot keeps its height.
+const RAIL = { gap: 3, height: 3, row: 4, min: 3 }
 // Below this chart width the tooltip would cover most of the plot (and run
 // off a phone screen), so the readings show under the chart instead —
 // always, at the newest reading until a time is picked, so every chart in a
@@ -102,11 +111,19 @@ export default function TimeSeriesChart(props: Props) {
   // Identifies this chart as the hover source, so in a ChartHoverSync group
   // only the chart under the pointer shows its tooltip.
   const id = useId()
+  const hatchId = `${id.replace(/[^a-zA-Z0-9_-]/g, "")}-hatch`
   const wrapRef = useRef<HTMLDivElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const width = useWidth(wrapRef)
   const { hover, setHover } = useChartHover()
+
+  // The rail's rows: one per series with spans (spans without one share a
+  // row), in the order their spans come.
+  const railRows = [...new Set((props.spans ?? []).map(sp => sp.series ?? ""))]
+  // The plot's top edge: below the rail's rows. Extra rows add height.
+  const top = M.top + Math.max(0, railRows.length - 1) * RAIL.row
+  const svgH = height + top - M.top
 
   // Recomputed each render: a few hundred points per series is cheap, and
   // hover re-renders only move the crosshair's inputs.
@@ -123,8 +140,8 @@ export default function TimeSeriesChart(props: Props) {
   // y: value → px. SVG's y grows downwards, so the domain's low end maps to
   // the plot's bottom edge. Values outside a fixed yMin/yMax are clamped to
   // the edge rather than drawn outside the plot.
-  const rawY = yScale(props.yScale ?? "linear", domain.lo, domain.hi, M.top + plotH, M.top)
-  const y = (v: number) => Math.min(M.top + plotH, Math.max(M.top, rawY(v)))
+  const rawY = yScale(props.yScale ?? "linear", domain.lo, domain.hi, top + plotH, top)
+  const y = (v: number) => Math.min(top + plotH, Math.max(top, rawY(v)))
   // Roughly one x tick per 60px of plot width.
   const layout = { ...domain, xTicks: timeTicks(start, end, Math.max(2, Math.floor(plotW / 60))) }
 
@@ -137,14 +154,19 @@ export default function TimeSeriesChart(props: Props) {
   }
 
   // Spans (jobs) clipped to the plot; ones wholly outside the range are
-  // dropped, and a very short one still gets 2px so it stays visible.
+  // dropped, and a very short one still gets minW px so it stays visible.
   // Overlapping spans are merged first: the shade is translucent, so stacked
   // copies would add up to a bright streak wherever several jobs overlap.
-  const spanBoxes = mergeSpans((props.spans ?? []).flatMap(sp => {
+  const boxes = (spans: Pick<ChartSpan, "id" | "start" | "end">[], minW: number) => mergeSpans(spans.flatMap(sp => {
     const a = Math.max(ML, x(Math.max(sp.start, start)))
     const b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, x: a, w: Math.max(2, b - a) }]
+    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, x: a, w: Math.max(minW, b - a) }]
   }))
+  const allSpans = props.spans ?? []
+  const rail = railRows.map((row, i) => {
+    const spans = allSpans.filter(sp => (sp.series ?? "") === row)
+    return { row, color: spans[0]?.color, y: top - RAIL.gap - RAIL.height - (railRows.length - 1 - i) * RAIL.row, boxes: boxes(spans, RAIL.min) }
+  })
 
   // A missing bucket between two points means no readings (drive absent,
   // collector stopped), so the line breaks there instead of bridging it. Half
@@ -152,6 +174,14 @@ export default function TimeSeriesChart(props: Props) {
   const gapMs = props.gapMs ?? (snapMs ? snapMs * 1.5 : Infinity)
   // A highlighted series is drawn last, so it's on top of any it overlaps.
   const hl = props.highlight ?? null
+  // Over the plot: every span, neutral — or while a series is highlighted
+  // and has spans of its own, only those, in its color.
+  const hlSpans = hl ? allSpans.filter(sp => sp.series === hl) : []
+  const shade = hl && allSpans.some(sp => sp.series !== undefined)
+    ? { boxes: boxes(hlSpans, 2), color: hlSpans[0]?.color }
+    : { boxes: boxes(allSpans, 2), color: undefined }
+  // Hatched: where no series has data, or the highlighted one's own gaps.
+  const gapBoxes = boxes(((hl ? props.gaps?.bySeries[hl] : props.gaps?.all) ?? []).map((g, i) => ({ id: `gap-${i}`, ...g })), 1)
   const pick = useChartPick()
   const paths = series
     .map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
@@ -299,8 +329,8 @@ export default function TimeSeriesChart(props: Props) {
       <svg
         className="tsc-svg"
         width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
+        height={svgH}
+        viewBox={`0 0 ${width} ${svgH}`}
         role="img"
         aria-label={ariaLabel}
         ref={svgRef}
@@ -322,20 +352,30 @@ export default function TimeSeriesChart(props: Props) {
         }}
         onKeyDown={onKeyDown}
       >
+        <defs>
+          <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line className="tsc-hatch" x1="0" y1="0" x2="0" y2="6" />
+          </pattern>
+        </defs>
         {props.bands?.map((b, i) => {
-          const top = y(Math.max(b.from, b.to)), bottom = y(Math.min(b.from, b.to))
+          const bTop = y(Math.max(b.from, b.to)), bottom = y(Math.min(b.from, b.to))
           return (
             <g key={`band-${i}`}>
-              <rect className={`tsc-band tone-${b.tone}`} x={ML} y={top} width={plotW} height={Math.max(0, bottom - top)} />
-              {b.label && plotW > 360 && bottom - top >= 14 && (
-                <text className="tsc-band-label" x={ML + 4} y={top + 11}>{b.label}</text>
+              <rect className={`tsc-band tone-${b.tone}`} x={ML} y={bTop} width={plotW} height={Math.max(0, bottom - bTop)} />
+              {b.label && plotW > 360 && bottom - bTop >= 14 && (
+                <text className="tsc-band-label" x={ML + 4} y={bTop + 11}>{b.label}</text>
               )}
             </g>
           )
         })}
 
-        {spanBoxes.map(sp => (
-          <rect key={`span-${sp.id}`} className="tsc-span" x={sp.x} y={M.top} width={sp.w} height={plotH} />
+        {gapBoxes.map(g => (
+          <rect key={g.id} className="tsc-gap" x={g.x} y={top} width={g.w} height={plotH} fill={`url(#${hatchId})`} />
+        ))}
+
+        {shade.boxes.map(sp => (
+          <rect key={`span-${sp.id}`} className={`tsc-span${shade.color ? " tinted" : ""}`} x={sp.x} y={top} width={sp.w} height={plotH}
+            style={shade.color ? { fill: shade.color } : undefined} />
         ))}
 
         {layout.ticks.map((v, i) => (
@@ -351,16 +391,16 @@ export default function TimeSeriesChart(props: Props) {
           if (tx < ML + 14 || tx > ML + plotW - 14) return null
           return (
             <g key={`x-${tk.t}`}>
-              <line className="tsc-baseline" x1={tx} x2={tx} y1={M.top + plotH} y2={M.top + plotH + 4} />
-              <text className="tsc-tick" x={tx} y={height - 6} textAnchor="middle">{tk.label}</text>
+              <line className="tsc-baseline" x1={tx} x2={tx} y1={top + plotH} y2={top + plotH + 4} />
+              <text className="tsc-tick" x={tx} y={svgH - 6} textAnchor="middle">{tk.label}</text>
             </g>
           )
         })}
 
-        {spanBoxes.map(sp => (
-          <rect key={`edge-${sp.id}`} className="tsc-span-edge" x={sp.x} y={M.top - RAIL.gap - RAIL.height}
-            width={sp.w} height={RAIL.height} rx={1} />
-        ))}
+        {rail.map(r => r.boxes.map(sp => (
+          <rect key={`edge-${r.row}-${sp.id}`} className={`tsc-span-edge${r.color ? " tinted" : ""}${hl && r.row && r.row !== hl ? " dim" : ""}`}
+            x={sp.x} y={r.y} width={sp.w} height={RAIL.height} rx={1} style={r.color ? { fill: r.color } : undefined} />
+        )))}
 
         {props.thresholds?.map(th => {
           const ty = y(th.value)
@@ -392,7 +432,7 @@ export default function TimeSeriesChart(props: Props) {
         {hoverT !== null && (
           <g className="tsc-hover">
             {/* Heavier while it can be grabbed (a tapped reading, on touch) or is pinned. */}
-            <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={M.top} y2={M.top + plotH} />
+            <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={top} y2={top + plotH} />
             {readings.toSorted((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl)).map(r => (
               <circle key={r.s.id} className={`tsc-dot${dim(r.s)}`} cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
             ))}
@@ -405,8 +445,8 @@ export default function TimeSeriesChart(props: Props) {
           page flow, full width. Rows are label then value, on one grid so
           the values line up in a column. */}
       {/* Touch scrubbing: the placed crosshair itself, or along the time axis. */}
-      {gripped && hoverT !== null && <LineGrip x={hx} top={M.top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
-      <AxisScrub top={M.top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
+      {gripped && hoverT !== null && <LineGrip x={hx} top={top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
+      <AxisScrub top={top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
 
       {showTip && (
         <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
