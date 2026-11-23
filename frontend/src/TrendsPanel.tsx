@@ -1,4 +1,4 @@
-import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { RefObject } from "react"
 import { IconPinFilled, IconX } from "@tabler/icons-react"
 import type { Drive } from "./types"
@@ -52,7 +52,22 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   // A drive picked from the readings under any chart: highlighted in every
   // chart until its row is clicked again (another row moves the highlight).
   const [picked, setPicked] = useState<string | null>(null)
-  const pick = useCallback((guid: string) => setPicked(p => (p === guid ? null : guid)), [])
+  // The drive whose readings row the mouse is over: previewed, unless a
+  // drive is pinned. Leaving is a moment late, so crossing the gap between
+  // a row's name and value (or into the next row) doesn't flicker.
+  const [rowHovered, setRowHovered] = useState<string | null>(null)
+  const leaveTimer = useRef<number | undefined>(undefined)
+  const hoverRow = useCallback((guid: string | null) => {
+    window.clearTimeout(leaveTimer.current)
+    if (guid !== null) setRowHovered(guid)
+    else leaveTimer.current = window.setTimeout(() => setRowHovered(null), 80)
+  }, [])
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), [])
+  const pickState = useMemo(() => ({
+    picked,
+    pick: (guid: string) => setPicked(p => (p === guid ? null : guid)),
+    hover: hoverRow,
+  }), [picked, hoverRow])
   // Fetch every selected drive, hidden or not, so toggling a chip is instant.
   const { data, stale, error } = useDriveHistory(selectedGuids, range)
 
@@ -83,9 +98,10 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
     return visible.length ? visible : all
   }, [all, hidden])
 
-  // Hovering a drive's chip previews it over the picked one.
+  // Hovering a drive's chip previews it over the picked one; hovering a
+  // readings row previews it only while nothing is picked.
   const isShown = (g: string | null) => g !== null && shown.some(d => d.guid === g)
-  const highlight = isShown(hovered) ? hovered : isShown(picked) ? picked : null
+  const highlight = isShown(hovered) ? hovered : isShown(picked) ? picked : isShown(rowHovered) ? rowHovered : null
 
   if (selectedGuids.length === 0) {
     return <p className="health-empty">Select one or more drives to view their trends.</p>
@@ -153,7 +169,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       {!data && !error && <p className="health-empty">Loading history…</p>}
 
       {data && (
-          <ChartPickContext.Provider value={pick}>
+          <ChartPickContext.Provider value={pickState}>
           <div className="trends-charts">
             <ChartCard
               title="Temperature"

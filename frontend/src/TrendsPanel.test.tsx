@@ -116,6 +116,25 @@ describe('TrendsPanel', () => {
     expect(row(/Exos X16/)).not.toHaveClass('dim')
   })
 
+  it('previews a drive while the mouse is over its readings row, unless one is picked', async () => {
+    vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
+    renderPanel()
+    await waitFor(() => expect(lines('Temperature over time')).toHaveLength(2))
+    const dimmedStrokes = () => [...lines('Temperature over time')].filter(l => l.classList.contains('dim')).map(l => l.getAttribute('stroke'))
+    const row = (name: RegExp) => within(card('Temperature')).getByRole('button', { name })
+    fireEvent.pointerEnter(row(/Ultrastar/), { pointerType: 'touch' })        // a tap isn't a hover
+    expect(dimmedStrokes()).toEqual([])
+    fireEvent.pointerEnter(row(/Ultrastar/), { pointerType: 'mouse' })
+    expect(dimmedStrokes()).toEqual(['var(--s1)'])
+    expect(row(/Ultrastar/)).toHaveAttribute('aria-pressed', 'false')          // previewed, not picked
+    fireEvent.pointerLeave(row(/Ultrastar/), { pointerType: 'mouse' })
+    await waitFor(() => expect(dimmedStrokes()).toEqual([]))                    // a moment after leaving
+
+    fireEvent.click(row(/Exos X16/))                                            // picked: hovering others changes nothing
+    fireEvent.pointerEnter(row(/Ultrastar/), { pointerType: 'mouse' })
+    expect(dimmedStrokes()).toEqual(['var(--s2)'])
+  })
+
   it('drops the highlight when the highlighted drive is hidden', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse(history()))
     renderPanel()

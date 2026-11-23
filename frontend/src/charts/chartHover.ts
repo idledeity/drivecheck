@@ -143,29 +143,42 @@ export function useGroupLatest(id: string, own: number | null): number | null {
 }
 
 // ── picking a drive from the readings ────────────────────────────────────────
-// A page of charts (Trends) can let a click on a readings row highlight that
-// series across every chart; it holds which one is picked and passes the
-// result back in as each chart's highlight. Without a provider (e.g. a lone
-// chart in a drive-card popover) rows aren't clickable.
+// A page of charts (Trends) can let readings rows highlight their series
+// across every chart: hovering a row previews it, a click pins it (until
+// clicked again). The page holds both and passes the result back in as each
+// chart's highlight. Without a provider (e.g. a lone chart in a drive-card
+// popover) rows do neither.
 
-/** Pick (or, if it's already picked, unpick) a series by id. */
-export const ChartPickContext = createContext<((id: string) => void) | null>(null)
+export interface ChartPick {
+  /** The series pinned by a click, if any. */
+  picked: string | null
+  /** Pin a series, or unpin it if it's the pinned one. */
+  pick: (id: string) => void
+  /** The series whose row the mouse is over, or null as it leaves. */
+  hover: (id: string | null) => void
+}
+
+export const ChartPickContext = createContext<ChartPick | null>(null)
 
 export const useChartPick = () => useContext(ChartPickContext)
 
 /** A readings row's extra class (" dim" while another series is
  *  highlighted, " pickable" where rows pick) and, where the page lets rows
- *  pick, the props that make it a toggle for its series. */
-export function readingRow(pick: ((id: string) => void) | null, id: string, highlight: string | null) {
+ *  pick, the props that make it a toggle for its series that previews it
+ *  on mouse hover. Touch only taps: a tap would "hover" too, and the
+ *  preview would linger after the finger lifts. */
+export function readingRow(pick: ChartPick | null, id: string, highlight: string | null) {
   const cls = (highlight !== null && highlight !== id ? " dim" : "") + (pick ? " pickable" : "")
   const props = pick ? {
     role: "button",
     tabIndex: 0,
-    "aria-pressed": highlight === id,
-    onClick: () => pick(id),
+    "aria-pressed": pick.picked === id,
+    onClick: () => pick.pick(id),
     onKeyDown: (e: { key: string; preventDefault: () => void }) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(id) }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick.pick(id) }
     },
+    onPointerEnter: (e: { pointerType: string }) => { if (e.pointerType === "mouse") pick.hover(id) },
+    onPointerLeave: (e: { pointerType: string }) => { if (e.pointerType === "mouse") pick.hover(null) },
   } : {}
   return { cls, props }
 }
