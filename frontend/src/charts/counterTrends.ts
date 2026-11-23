@@ -1,3 +1,4 @@
+import { numeric } from "./chartGeometry"
 import type { ChartPoint } from "./chartGeometry"
 import type { HistoryRange } from "./useDriveHistory"
 
@@ -70,8 +71,6 @@ export function counterWindows(start: number, end: number, range: HistoryRange, 
 }
 
 // ── facts ────────────────────────────────────────────────────────────────────
-
-const numeric = (points: ChartPoint[]) => points.filter((p): p is { t: number; v: number } => p.v !== null)
 
 /** The value in force at t (the latest point at or before it), or null before the first. */
 export function stepValue(points: ChartPoint[], t: number): number | null {

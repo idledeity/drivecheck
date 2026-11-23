@@ -1,5 +1,7 @@
 import { useContext, useState } from "react"
 import { IconChevronRight } from "@tabler/icons-react"
+import { canHover } from "../useHoverPopover"
+import { useStoredFlag } from "../useStoredFlag"
 import { ChartHoverContext, ChartLatestContext } from "./chartHover"
 import ChartDriveChip from "./ChartDriveChip"
 import JobsDuring from "./JobsDuring"
@@ -8,6 +10,7 @@ import type { ChartDrive, JobDuring } from "./historySeries"
 import { clockLabel } from "./scales"
 import type { DriveHistoryData } from "./useDriveHistory"
 
+// Whether the desktop list is folded open, remembered in this browser.
 const OPEN_KEY = "trends.jobsOpen"
 
 /** The jobs running at the charts' time, listed once for the whole Trends
@@ -22,8 +25,8 @@ const OPEN_KEY = "trends.jobsOpen"
 export default function TrendsJobs({ data, drives }: { data: DriveHistoryData; drives: ChartDrive[] }) {
   const hover = useContext(ChartHoverContext)?.hover ?? null
   const latest = useContext(ChartLatestContext)?.latest ?? null
-  const [desktop] = useState(() => window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? false)
-  const [open, setOpen] = useOpen()
+  const [desktop] = useState(canHover)
+  const [open, setOpen] = useStoredFlag(OPEN_KEY, false)
 
   const t = hover?.t ?? latest
   if (t === null || t < data.start) return null
@@ -76,16 +79,4 @@ function JobLine({ job }: { job: JobDuring }) {
       </span>
     </span>
   )
-}
-
-/** Whether the list is folded open; remembered in this browser, where
- *  storage allows. */
-function useOpen(): [boolean, (on: boolean) => void] {
-  const [open, setOpen] = useState(() => {
-    try { return localStorage.getItem(OPEN_KEY) === "1" } catch { return false }
-  })
-  return [open, on => {
-    setOpen(on)
-    try { localStorage.setItem(OPEN_KEY, on ? "1" : "0") } catch { /* not remembered */ }
-  }]
 }

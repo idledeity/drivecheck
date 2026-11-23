@@ -17,7 +17,7 @@ import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
 import { useEdgeFade } from "./useEdgeFade"
-import { useHoverPopover } from "./useHoverPopover"
+import { canHover, useHoverPopover } from "./useHoverPopover"
 import { useJobTiming } from "./useJobTiming"
 import { useLongPress } from "./useLongPress"
 import Serial from "./Serial"
@@ -80,11 +80,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
   const [tzMsgFadeRef, tzMsgFaded] = useEdgeFade<HTMLSpanElement>()
   const [fsFadeRef, fsFaded] = useEdgeFade<HTMLDivElement>()
 
-  // (hover: hover) is true for a device whose *primary* pointer can actually
-  // hover (a mouse) — false for touch, even on a touchscreen laptop with a
-  // mouse attached, if touch is what's currently driving. Read once at
-  // mount; doesn't need to react to input switching mid-session for this.
-  const [supportsHover] = useState(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches)
+  const [supportsHover] = useState(canHover)
 
   // "task" shows the active job's full details, "queued" lists every queued
   // job for this drive, "complete" its unseen results and "health" its health

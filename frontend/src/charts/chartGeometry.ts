@@ -5,6 +5,12 @@ import type { ReactNode } from "react"
 
 export interface ChartPoint { t: number; v: number | null }
 
+/** The points that have a value (a null is a gap). */
+export const numeric = (points: ChartPoint[]) => points.filter((p): p is { t: number; v: number } => p.v !== null)
+
+/** The start of the bucket holding t, on the grid start + k·bucketMs. */
+export const bucketStart = (t: number, start: number, bucketMs: number) => start + Math.floor((t - start) / bucketMs) * bucketMs
+
 export interface ChartSeries {
   id: string
   label: string

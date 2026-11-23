@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from "react"
 import ChartDriveChip from "./ChartDriveChip"
+import { bucketStart } from "./chartGeometry"
 import { useChartHover } from "./chartHover"
 import { counterFormat } from "./counters"
 import { counterEvents } from "./historySeries"
@@ -28,11 +29,8 @@ function CounterEventLog({ data, drives, signal, highlight = null, limit = 10 }:
   const { setHover } = useChartHover()
   // Nothing moved: the card's header already says so.
   if (!events.length) return null
-  const { value } = counterFormat(signal)
-  const signed = (d: number) => `${d > 0 ? "+" : "−"}${value(Math.abs(d))}`
+  const format = counterFormat(signal)
   const shown = showAll ? events : events.slice(0, limit)
-  // The bucket holding t, as every chart in the group snaps to.
-  const bucketOf = (t: number) => data.start + Math.floor((t - data.start) / data.bucketMs) * data.bucketMs
   const many = drives.length > 1
   return (
     <div className="hcl cel">
@@ -45,10 +43,10 @@ function CounterEventLog({ data, drives, signal, highlight = null, limit = 10 }:
           {shown.map(ev => (
             <li key={`${ev.drive.guid}-${ev.t}`} className={`hcl-entry${highlight && ev.drive.guid !== highlight ? " dim" : ""}`}>
               <button type="button" className={`cel-main${many ? "" : " one-drive"}`} title="Show the readings at this time on every chart"
-                onClick={() => setHover({ t: bucketOf(ev.t), source: "counter-event-log", pinned: true })}>
+                onClick={() => setHover({ t: bucketStart(ev.t, data.start, data.bucketMs), source: "counter-event-log", pinned: true })}>
                 <span className="cel-when">{momentLabel(ev.t)}</span>
                 {many && <ChartDriveChip drive={ev.drive} />}
-                <span className="cel-change"><b>{signed(ev.delta)}</b> → {value(ev.value)}</span>
+                <span className="cel-change"><b>{format.signed(ev.delta)}</b> → {format.value(ev.value)}</span>
                 <span className="cel-job">{ev.job ?? ""}</span>
               </button>
             </li>

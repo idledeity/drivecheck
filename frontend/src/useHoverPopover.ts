@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
+/** Whether the primary pointer can hover (a mouse), not touch: false on a
+ *  touchscreen laptop while touch is driving, even with a mouse attached.
+ *  Read once where it's used; switching input mid-session needn't react. */
+export const canHover = () => window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? false
+
 /** Where an open popover sits: at the pointer, clamped inside the viewport. */
 export type PopoverPos = { top: number; left: number }
 

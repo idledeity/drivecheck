@@ -3,18 +3,18 @@ import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
 import { onReadings, readingRow, useChartHover, useChartPick, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
 import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
-import { clockLabel, timeTicks } from "./scales"
+import { clockLabel, dateLabel, timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
 import { bucketLabel, dataGaps, jobAt, jobSpans, signalPoints } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
-import { widen } from "./chartGeometry"
+import { bucketStart, numeric, widen } from "./chartGeometry"
 import type { ChartPoint } from "./chartGeometry"
 import type { DriveHistoryData } from "./useDriveHistory"
 import {
   RATE_BUCKET, ageLabel, baselineSpread, counterChanges, eventStatus, firstRecord, rateBuckets,
   netChange, rateStatus, ratioLabel, settledSince, stepValue,
 } from "./counterTrends"
-import type { CounterWindows, EventStatus, RateBucket, RateStatus } from "./counterTrends"
+import type { CounterChange, CounterWindows, EventStatus, RateBucket, RateStatus } from "./counterTrends"
 import { counterFormat } from "./counters"
 import type { CounterFormat } from "./counters"
 import { useTapOutside, useTouchTap } from "./chartTouch"
@@ -55,6 +55,7 @@ export type LaneStatus = { kind: "event"; status: EventStatus } | { kind: "wear"
 interface Lane {
   drive: ChartDrive
   points: ChartPoint[]
+  changes: CounterChange[]
   status: LaneStatus | null
   buckets: RateBucket[]
 }
@@ -100,7 +101,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     const status: LaneStatus | null = kind === "event"
       ? wrapStatus("event", eventStatus(points, start, end, windows))
       : wrapStatus("wear", rateStatus(points, start, end, windows, RATE_BUCKET[data.range].ms))
-    return [{ drive: d, points, status, buckets: view === "rate" ? rateBuckets(points, start, end, bucket) : [] }]
+    return [{ drive: d, points, changes: counterChanges(points), status, buckets: view === "rate" ? rateBuckets(points, start, end, bucket) : [] }]
   })
   // Rate bars share one scale across lanes, so heights compare between drives.
   // Square-root: a drive at a few a day still shows beside one at hundreds.
@@ -121,27 +122,22 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   // the chart's own buckets for Events, the bars for Rate.
   const lastBucket = start + Math.max(0, Math.ceil((end - start) / bucket) - 1) * bucket
   const snap = (t: number) => {
-    const k = Math.floor((t - start) / bucket)
-    return Math.min(lastBucket, Math.max(start, start + k * bucket))
+    return Math.min(lastBucket, Math.max(start, bucketStart(t, start, bucket)))
   }
   // Events: the buckets holding a change, any lane's, oldest first. The
   // pointer lands on one when near its marker (the bucket under the
   // pointer would often miss it), and the arrow keys step between them.
-  const changeBuckets = view === "events"
-    ? [...new Set(lanes.flatMap(l => counterChanges(l.points))
-        .filter(c => c.t >= start && c.t <= end)
-        .map(c => Math.min(lastBucket, start + Math.floor((c.t - start) / bucket) * bucket)))].sort((a, b) => a - b)
-    : []
   const changeTimes = view === "events"
-    ? lanes.flatMap(l => counterChanges(l.points)).map(c => c.t).filter(t => t >= start && t <= end)
+    ? lanes.flatMap(l => l.changes).map(c => c.t).filter(t => t >= start && t <= end)
     : []
+  const changeBuckets = [...new Set(changeTimes.map(t => Math.min(lastBucket, bucketStart(t, start, bucket))))].sort((a, b) => a - b)
   // Client x → the bucket to show: the one holding the nearest change when
   // the pointer is near it, else the bucket under the pointer.
   const place = (clientX: number) => {
     const t = clientT(clientX), px = x(t)
     let best: number | null = null
     for (const c of changeTimes) if (Math.abs(x(c) - px) <= SNAP_PX && (best === null || Math.abs(x(c) - px) < Math.abs(x(best) - px))) best = c
-    return best === null ? snap(t) : Math.min(lastBucket, start + Math.floor((best - start) / bucket) * bucket)
+    return best === null ? snap(t) : Math.min(lastBucket, bucketStart(best, start, bucket))
   }
   const hoverAt = (t: number | null, flags: HoverFlags = {}) => setHover(t === null ? null : { t, source: id, ...flags })
   const clientT = (clientX: number) => {
@@ -308,13 +304,13 @@ export function LaneStatusText({ lane, windowLabel, end, format = counterFormat(
     const s = lane.status
     const value = <b>{format.value(s.value)}</b>
     if (s.kind === "recent") {
-      const moved = [s.up && `+${format.value(s.up)}`, s.down && `−${format.value(s.down)}`].filter(Boolean).join(" ")
+      const moved = [s.up && format.signed(s.up), s.down && format.signed(-s.down)].filter(Boolean).join(" ")
       return <>{value} · <span className="clc-warn">{moved} in last {windowLabel}</span></>
     }
     if (s.kind === "last") {
-      return <>{value} · <span className="clc-muted">last {s.delta > 0 ? "+" : "−"}{format.value(Math.abs(s.delta))} · {ageLabel(end - s.t)} ago</span></>
+      return <>{value} · <span className="clc-muted">last {format.signed(s.delta)} · {ageLabel(end - s.t)} ago</span></>
     }
-    const what = s.value === 0 ? "0 throughout" : s.since !== null ? `unchanged since ${new Date(s.since).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "unchanged in range"
+    const what = s.value === 0 ? "0 throughout" : s.since !== null ? `unchanged since ${dateLabel(s.since)}` : "unchanged in range"
     return s.value === 0 ? <span className="clc-muted">{what}</span> : <>{value} · <span className="clc-muted">{what}</span></>
   }
   const s = lane.status
@@ -341,7 +337,7 @@ function EventMarks({ lane, x, start, end, plotEnd, h, color, format }: {
   const first = firstRecord(lane.points)!
   const since = lane.status?.kind === "event" ? settledSince(lane.status.status, lane.points, start) : null
   const groups: MarkGroup[] = []
-  for (const c of counterChanges(lane.points)) {
+  for (const c of lane.changes) {
     if (c.t <= start) continue
     const px = x(c.t), g = groups.at(-1)
     if (g && px - g.x1 < MERGE_PX && Math.sign(c.delta) === Math.sign(g.delta)) {
@@ -403,7 +399,7 @@ function TotalBackdrop({ points, x, start, plotEnd, h, log }: {
   points: ChartPoint[]; x: (t: number) => number; start: number; plotEnd: number; h: number; log: boolean
 }) {
   const f = log ? Math.log1p : (v: number) => v
-  const pts = points.filter((p): p is { t: number; v: number } => p.v !== null)
+  const pts = numeric(points)
   const vals = pts.map(p => f(p.v)), lo = Math.min(...vals), hi = Math.max(...vals)
   const y = (v: number) => (hi === lo ? h / 2 : h - 3 - ((f(v) - lo) / (hi - lo)) * (h - 6))
   let d = ""
@@ -427,18 +423,17 @@ function TipRows({ lanes, absent, view, t, bucket, end, format, keepEmpty, highl
   const pick = useChartPick()
   const rows = lanes.flatMap((l): { drive: ChartDrive; text: string | null; detail?: ReactNode }[] => {
     const empty = keepEmpty ? [{ drive: l.drive, text: null }] : []
-    const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${format.value(Math.abs(d))}`
     if (view === "rate") {
       const b = l.buckets.find(q => q.start === t)
-      return b && b.delta !== null ? [{ drive: l.drive, text: signed(b.delta) }] : empty
+      return b && b.delta !== null ? [{ drive: l.drive, text: format.signed(b.delta) }] : empty
     }
     // The count as the bucket closes, and what changed within it.
     const e = Math.min(end, t + bucket)
     const to = stepValue(l.points, e >= end ? end : e - 1)
     if (to === null) return empty
-    const changes = counterChanges(l.points).filter(c => c.t >= t && (c.t < e || (e >= end && c.t <= end)))
-    const delta = netChange(counterChanges(l.points), t, e, end)
-    const text = `${format.value(to)}${delta ? ` (${signed(delta)})` : ""}`
+    const changes = l.changes.filter(c => c.t >= t && (c.t < e || (e >= end && c.t <= end)))
+    const delta = netChange(l.changes, t, e, end)
+    const text = `${format.value(to)}${delta ? ` (${format.signed(delta)})` : ""}`
     // When it changed (the bucket header has the date), and what the drive
     // was doing then. Several changes in one bucket: how many, and the last.
     const last = changes.at(-1)

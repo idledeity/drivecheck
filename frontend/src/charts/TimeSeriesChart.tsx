@@ -5,7 +5,7 @@ import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
-import { seriesPaths, valueAt, nearest, widen } from "./chartGeometry"
+import { bucketStart, numeric, seriesPaths, valueAt, nearest, widen } from "./chartGeometry"
 import type { ChartSeries } from "./chartGeometry"
 import LineKey from "./LineKey"
 import { useTapOutside, useTouchTap } from "./chartTouch"
@@ -192,7 +192,7 @@ export default function TimeSeriesChart(props: Props) {
 
   // Markers sit on their series' line: a step series at the marker's own
   // time; a line (one point per bucket) at the start of the bucket holding it.
-  const bucketOf = (t: number) => (snapMs ? start + Math.floor((t - start) / snapMs) * snapMs : t)
+  const bucketOf = (t: number) => (snapMs ? bucketStart(t, start, snapMs) : t)
   const markers = (props.markers ?? []).flatMap(m => {
     const s = series.find(x => x.id === m.series)
     if (!s || m.t < start || m.t > end) return []
@@ -225,9 +225,9 @@ export default function TimeSeriesChart(props: Props) {
   // with the pointer right on a job's tick in the rail.
   const snap = (t: number): number | null => {
     if (snapMs) {
-      const lastBucket = start + Math.floor((end - start) / snapMs) * snapMs
+      const lastBucket = bucketStart(end, start, snapMs)
       const last = lineEnd > start ? Math.min(lineEnd, lastBucket) : lastBucket
-      return Math.min(last, Math.max(start, start + Math.floor((t - start) / snapMs) * snapMs))
+      return Math.min(last, Math.max(start, bucketStart(t, start, snapMs)))
     }
     return nearest(allTimes, t)
   }
@@ -523,7 +523,7 @@ function tickTextWidth(text: string): number {
  *  data plus yInclude, rounded out to clean ticks (about one per 36px), unless
  *  yMin / yMax pin an end — then ticks beyond that end are dropped. */
 function yDomain(props: Props, plotH: number): { ticks: number[]; lo: number; hi: number } {
-  const values = props.series.flatMap(s => s.points.map(p => p.v)).filter((v): v is number => v !== null)
+  const values = props.series.flatMap(s => numeric(s.points).map(p => p.v))
   const forced = [...(props.yInclude ?? [])]
   const all = [...values, ...forced]
   if (props.yScale === "log1p") {

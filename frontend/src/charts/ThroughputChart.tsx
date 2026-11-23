@@ -1,9 +1,7 @@
 import { memo } from "react"
 import TimeSeriesChart from "./TimeSeriesChart"
-import ChartDriveChip from "./ChartDriveChip"
-import JobsDuring from "./JobsDuring"
-import type { ChartSeries } from "./TimeSeriesChart"
-import { bucketLabel, dataGaps, jobSpans, jobsDuring, vitalAt } from "./historySeries"
+import { vitalAt } from "./historySeries"
+import { driveSeries, historyChartProps } from "./historyChart"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 import { formatThroughput } from "../format"
@@ -22,32 +20,22 @@ function ThroughputChart({ data, drives, showJobs = true, listJobs = true, highl
   highlight?: string | null
   height?: number
 }) {
-  const series: ChartSeries[] = drives.map(d => {
+  const series = drives.map(d => {
     const v = data.drives[d.guid]?.vitals
-    return {
-      id: d.guid,
-      label: d.label,
-      ...d.style,
-      tipLabel: <ChartDriveChip drive={d} />,
-      points: v ? v.t.map((t, i) => ({ t, v: (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0) })) : [],
-    }
+    return driveSeries(d, v ? v.t.map((t, i) => ({ t, v: (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0) })) : [])
   })
 
   return (
     <TimeSeriesChart
+      {...historyChartProps(data, drives, { showJobs, listJobs })}
       ariaLabel="Disk throughput over time"
       series={series}
       highlight={highlight}
-      start={data.start}
-      end={data.end}
-      snapMs={data.bucketMs}
       height={height}
       yMin={0}
       // At least 1 MB/s tall, so idle drives sit on the baseline instead of
       // a few KB/s of background reads filling the chart.
       yInclude={[1e6]}
-      spans={showJobs ? jobSpans(data, drives) : undefined}
-      gaps={dataGaps(data, drives)}
       formatY={v => `${+(v / 1e6).toFixed(1)}`}
       formatValue={(v, s, t) => {
         if (v < 1e3) return "idle"
@@ -58,11 +46,6 @@ function ThroughputChart({ data, drives, showJobs = true, listJobs = true, highl
         if (read < v * 0.1) return `${formatThroughput(v)} write`
         return `${formatThroughput(read)} read · ${formatThroughput(write)} write`
       }}
-      formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
-        const jobs = jobsDuring(data, drives, t)
-        return <JobsDuring jobs={jobs} compact={compact} />
-      } : undefined}
     />
   )
 }

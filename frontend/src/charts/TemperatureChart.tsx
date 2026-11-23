@@ -1,10 +1,8 @@
 import { memo } from "react"
 import TimeSeriesChart from "./TimeSeriesChart"
-import ChartDriveChip from "./ChartDriveChip"
-import JobsDuring from "./JobsDuring"
-import type { ChartSeries } from "./TimeSeriesChart"
 import { firstReadingMarkers } from "./healthChanges"
-import { bucketLabel, dataGaps, jobSpans, jobsDuring, roundTemp } from "./historySeries"
+import { roundTemp } from "./historySeries"
+import { driveSeries, historyChartProps } from "./historyChart"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 
@@ -23,40 +21,25 @@ function TemperatureChart({ data, drives, showJobs = true, listJobs = true, high
   height?: number
 }) {
   const warn = data.thresholds.signals.temp?.warn_gte ?? null
-  const series: ChartSeries[] = drives.map(d => {
+  const series = drives.map(d => {
     const v = data.drives[d.guid]?.vitals
-    return {
-      id: d.guid,
-      label: d.label,
-      ...d.style,
-      tipLabel: <ChartDriveChip drive={d} />,
-      points: v ? v.t.map((t, i) => ({ t, v: roundTemp(v.temp_avg[i]) })) : [],
-    }
+    return driveSeries(d, v ? v.t.map((t, i) => ({ t, v: roundTemp(v.temp_avg[i]) })) : [])
   })
 
   return (
     <TimeSeriesChart
+      {...historyChartProps(data, drives, { showJobs, listJobs })}
       ariaLabel="Temperature over time"
       series={series}
       highlight={highlight}
-      start={data.start}
-      end={data.end}
-      snapMs={data.bucketMs}
       height={height}
       // Keep the warning line in view (with a little headroom) even while
       // every drive runs well below it, so "how close" reads at a glance.
       yInclude={warn === null ? undefined : [warn + 2]}
       thresholds={warn === null ? undefined : [{ value: warn, label: `${warn} °C warning`, tone: "warn" }]}
-      spans={showJobs ? jobSpans(data, drives) : undefined}
-      gaps={dataGaps(data, drives)}
       markers={firstReadingMarkers(data, drives, "temp")}
       formatY={v => `${v}°`}
       formatValue={v => `${v.toFixed(1)} °C`}
-      formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
-        const jobs = jobsDuring(data, drives, t)
-        return <JobsDuring jobs={jobs} compact={compact} />
-      } : undefined}
     />
   )
 }

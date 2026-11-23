@@ -35,6 +35,8 @@ export interface CounterFormat {
   /** A y-axis tick. */
   axis: (v: number) => string
   rate: (perDay: number) => string
+  /** A change, signed: "+3", "−1.2 GB" (0 unsigned). */
+  signed: (delta: number) => string
   /** A rate above usual is only more use, not a warning. */
   workload: boolean
 }
@@ -42,9 +44,10 @@ export interface CounterFormat {
 const signedBytes = (v: number) => `${v < 0 ? "−" : ""}${formatBytes(Math.abs(v))}`
 
 export function counterFormat(signal: string): CounterFormat {
-  return BYTE_COUNTERS.has(signal)
+  const f = BYTE_COUNTERS.has(signal)
     ? { value: signedBytes, axis: signedBytes, rate: signedBytes, workload: true }
-    : { value: v => v.toLocaleString(), axis: formatTick, rate: rateLabel, workload: false }
+    : { value: (v: number) => v.toLocaleString(), axis: formatTick, rate: rateLabel, workload: false }
+  return { ...f, signed: d => `${d > 0 ? "+" : d < 0 ? "−" : ""}${f.value(Math.abs(d))}` }
 }
 
 export const counterScale = (signal: string): "linear" | "log1p" => (WEAR_COUNTERS.has(signal) ? "linear" : "log1p")

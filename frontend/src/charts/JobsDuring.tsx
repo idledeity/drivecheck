@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
-import { useHoverPopover } from "../useHoverPopover"
+import { canHover, useHoverPopover } from "../useHoverPopover"
 import ChartDriveChip from "./ChartDriveChip"
 import type { ChartDrive } from "./historySeries"
 
@@ -36,7 +36,7 @@ function JobRow({ job }: { job: Job }) {
 }
 
 function JobsSummary({ jobs }: { jobs: Job[] }) {
-  const [supportsHover] = useState(() => window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? false)
+  const [supportsHover] = useState(canHover)
   const pop = useHoverPopover<"jobs">({ supportsHover, delayMs: HOVER_DELAY_MS })
   return (
     <>

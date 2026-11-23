@@ -1,8 +1,9 @@
 import type { Drive } from "../types"
 import type { ChartPoint, ChartSpan, ChartThreshold } from "./TimeSeriesChart"
 import type { SeriesStyle } from "./drivePalette"
-import type { DriveHistoryData, HistoryJob } from "./useDriveHistory"
-import { clockLabel } from "./scales"
+import type { DriveHistoryData, VitalsHistory } from "./useDriveHistory"
+import { numeric } from "./chartGeometry"
+import { clockLabel, dateLabel } from "./scales"
 import { counterChanges } from "./counterTrends"
 
 // Shared glue between drive history data and the charts: who's charted, in
@@ -19,6 +20,10 @@ export interface ChartDrive {
    *  latest poll; chips here only show identity. */
   drive?: Drive
 }
+
+/** A drive's naming fields as one string. Charts are memoized on it: the
+ *  drive list is replaced on every 2s poll, but only these fields show. */
+export const driveNameKey = (d: Drive) => `${d.label ?? ""}|${d.model ?? ""}|${d.device}|${d.serial ?? ""}`
 
 export function chartDrive(guid: string, drive: Drive | undefined, style: SeriesStyle): ChartDrive {
   const name = drive ? drive.label ?? drive.model ?? drive.device : "Unknown drive"
@@ -86,7 +91,7 @@ export function jobsDuring(data: DriveHistoryData, drives: ChartDrive[], t: numb
   const byGuid = new Map(drives.map(d => [d.guid, d]))
   const bucketEnd = t + data.bucketMs
   return data.jobs
-    .filter((j: HistoryJob) => byGuid.has(j.drive_guid) && j.start < bucketEnd && (j.end ?? Infinity) >= t)
+    .filter(j => byGuid.has(j.drive_guid) && j.start < bucketEnd && (j.end ?? Infinity) >= t)
     .map(j => ({ id: j.id, name: j.operation_name, drive: byGuid.get(j.drive_guid)!, start: j.start, end: j.end, status: j.status }))
 }
 
@@ -118,34 +123,39 @@ export function vitalAt(data: DriveHistoryData, guid: string, field: "temp_min" 
 
 /** "Nov 12, 14:05–14:10": a bucket as a span of time, for tooltip headers. */
 export function bucketLabel(t: number, bucketMs: number): string {
-  const day = new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-  return `${day}, ${clockLabel(t)}–${clockLabel(t + bucketMs)}`
+  return `${dateLabel(t)}, ${clockLabel(t)}–${clockLabel(t + bucketMs)}`
 }
 
-/** The highest bucket maximum of any charted drive: the temperature callout. */
-export function hottest(data: DriveHistoryData, drives: ChartDrive[]): { value: number; drive: ChartDrive; t: number } | null {
-  let best: { value: number; drive: ChartDrive; t: number } | null = null
-  for (const d of drives) {
-    const v = data.drives[d.guid]?.vitals
-    v?.temp_max.forEach((value, i) => {
-      if (value !== null && (!best || value > best.value)) best = { value, drive: d, t: v.t[i] }
-    })
-  }
-  return best
+/** "minute", "5 min", "6 h": a bucket's width, as chart subtitles say it
+ *  ("average per 5 min"). */
+export function bucketText(bucketMs: number): string {
+  const MIN = 60e3
+  if (bucketMs === MIN) return "minute"
+  return bucketMs < 60 * MIN ? `${bucketMs / MIN} min` : `${bucketMs / (60 * MIN)} h`
 }
 
-/** The busiest bucket (read + write) of any charted drive: the throughput callout. */
-export function peakThroughput(data: DriveHistoryData, drives: ChartDrive[]): { value: number; drive: ChartDrive; t: number } | null {
-  let best: { value: number; drive: ChartDrive; t: number } | null = null
+export interface VitalPeak { value: number; drive: ChartDrive; t: number }
+
+/** The highest value of any charted drive's buckets, as `at` reads bucket i. */
+function peakVital(data: DriveHistoryData, drives: ChartDrive[], at: (v: VitalsHistory, i: number) => number | null): VitalPeak | null {
+  let best: VitalPeak | null = null
   for (const d of drives) {
     const v = data.drives[d.guid]?.vitals
     v?.t.forEach((t, i) => {
-      const value = (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0)
-      if (!best || value > best.value) best = { value, drive: d, t }
+      const value = at(v, i)
+      if (value !== null && (!best || value > best.value)) best = { value, drive: d, t }
     })
   }
   return best
 }
+
+/** The highest bucket maximum of any charted drive: the temperature callout. */
+export const hottest = (data: DriveHistoryData, drives: ChartDrive[]) =>
+  peakVital(data, drives, (v, i) => v.temp_max[i])
+
+/** The busiest bucket (read + write) of any charted drive: the throughput callout. */
+export const peakThroughput = (data: DriveHistoryData, drives: ChartDrive[]) =>
+  peakVital(data, drives, (v, i) => (v.read_bps[i] ?? 0) + (v.write_bps[i] ?? 0))
 
 /** A bucket's average temperature to the nearest 0.5 °C. Drives report whole
  *  degrees, so one sitting near a boundary flips between two readings
@@ -177,7 +187,7 @@ export function healthStatusAt(data: DriveHistoryData, guid: string, t: number):
 /** First and last numeric values of a step series within the range, or null
  *  when it has none. */
 function firstLast(points: ChartPoint[]): { from: number; to: number } | null {
-  const vals = points.flatMap(p => (p.v === null ? [] : [p.v]))
+  const vals = numeric(points).map(p => p.v)
   return vals.length ? { from: vals[0], to: vals[vals.length - 1] } : null
 }
 
@@ -226,7 +236,7 @@ export function counterThresholds(data: DriveHistoryData, drives: ChartDrive[], 
   const all: ChartThreshold[] = []
   if (limits?.warn_gte != null) all.push({ value: limits.warn_gte, label: `warning ≥ ${limits.warn_gte.toLocaleString()}`, tone: "warn" })
   if (limits?.crit_gte != null) all.push({ value: limits.crit_gte, label: `critical ≥ ${limits.crit_gte.toLocaleString()}`, tone: "crit" })
-  const max = Math.max(0, ...drives.flatMap(d => signalPoints(data, d.guid, signal).flatMap(p => (p.v === null ? [] : [p.v]))))
+  const max = Math.max(0, ...drives.flatMap(d => numeric(signalPoints(data, d.guid, signal)).map(p => p.v)))
   const reach = Math.max(10, max * 10)
   return { inView: all.filter(th => th.value <= reach), beyond: all.filter(th => th.value > reach) }
 }

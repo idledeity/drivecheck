@@ -20,19 +20,15 @@ import { RATE_BUCKET, counterWindows, windowFits } from "./charts/counterTrends"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
 import TrendsJobs from "./charts/TrendsJobs"
-import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
+import { bucketText, chartDrive, counterSummary, counterThresholds, driveNameKey, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
 import { momentLabel } from "./charts/scales"
-import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
+import { RANGE_OPTIONS, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
+import { useStoredFlag } from "./useStoredFlag"
 import { SIGNALS } from "./signals"
 import "./TrendsPanel.css"
-
-// Bucket width per range, as the chart subtitles say it ("average per 5 min").
-const BUCKET_TEXT: Record<HistoryRange, string> = {
-  "1h": "minute", "8h": "2 min", "24h": "5 min", "7d": "30 min", "30d": "2 h", "90d": "6 h",
-}
 
 /**
  * Health > Trends: the selected drives' recorded history on one time axis.
@@ -44,7 +40,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   const [range, setRange] = useState<HistoryRange>("24h")
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [showJobs, setShowJobs] = useState(true)
-  const [pinned, setPinned] = usePinnedFilters()
+  const [pinned, setPinned] = useStoredFlag(PIN_KEY, true)
   const trendsRef = useRef<HTMLDivElement>(null)
   usePageBelow(trendsRef, pinned)
   // The drive whose legend chip is hovered or focused: its line comes forward
@@ -78,7 +74,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
   // history itself changes — every 1 to 5 minutes.
   const names = selectedGuids.map(g => {
     const d = drives.find(x => x.guid === g)
-    return d ? `${d.label ?? ""}|${d.model ?? ""}|${d.device}|${d.serial ?? ""}` : ""
+    return d ? driveNameKey(d) : ""
   }).join("\n")
   const guidsKey = selectedGuids.join(",")
   // Colors come from each drive's place among all drives (first seen first),
@@ -131,7 +127,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
       <div className="filter-row">
         <Control label="Range">
           <Segmented label="Range" idPrefix="trends-range" value={range} onChange={setRange}
-            options={HISTORY_RANGES.map(r => ({ value: r, label: r }))} />
+            options={RANGE_OPTIONS} />
         </Control>
         <PinnedTime />
         <div className="trends-checks">
@@ -147,7 +143,9 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
         {/* Doubles as the charts' legend: each drive's chip leads with its line
             key. Shown even for one drive, so the charts always say whose they
             are. Short chips on a full-width row of their own, so many drives
-            wrap a few to a line rather than one per line. */}
+            wrap a few to a line rather than one per line. The live drive
+            record, not d.drive: the chip's title shows its health, which
+            d.drive (memoized on names) can lag. */}
         <div className="drive-chip-list trends-drives" role="group" aria-label="Drives shown">
           {all.map(d => (
             <button
@@ -175,7 +173,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
           <div className="trends-charts">
             <ChartCard
               title="Temperature"
-              subtitle={`°C, average per ${BUCKET_TEXT[data.range]}, to the nearest 0.5`}
+              subtitle={`°C, average per ${bucketText(data.bucketMs)}, to the nearest 0.5`}
               callout={<HottestCallout data={data} drives={shown} />}
               stale={stale}
             >
@@ -183,7 +181,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             </ChartCard>
             <ChartCard
               title="Throughput"
-              subtitle={`MB/s read + write, average per ${BUCKET_TEXT[data.range]}`}
+              subtitle={`MB/s read + write, average per ${bucketText(data.bucketMs)}`}
               callout={<PeakCallout data={data} drives={shown} />}
               stale={stale}
             >
@@ -227,20 +225,9 @@ function PinnedTime() {
   )
 }
 
-const PIN_KEY = "trends.pinFilters"
-
 /** Whether the filter row stays put over scrolling charts (the default) or
- *  scrolls away with the page. A layout preference, so it's remembered in
- *  this browser; storage can be unavailable, so it only ever falls back. */
-function usePinnedFilters(): [boolean, (on: boolean) => void] {
-  const [pinned, setPinned] = useState(() => {
-    try { return localStorage.getItem(PIN_KEY) !== "0" } catch { return true }
-  })
-  return [pinned, on => {
-    setPinned(on)
-    try { localStorage.setItem(PIN_KEY, on ? "1" : "0") } catch { /* not remembered */ }
-  }]
-}
+ *  scrolls away with the page: a layout preference, remembered in this browser. */
+const PIN_KEY = "trends.pinFilters"
 
 /** Pinned, the panel is a screen tall less whatever the page has below it
  *  (its containers' bottom padding, borders and margins), so scrolled to the

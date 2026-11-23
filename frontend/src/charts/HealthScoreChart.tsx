@@ -1,10 +1,9 @@
 import { memo } from "react"
 import TimeSeriesChart from "./TimeSeriesChart"
-import ChartDriveChip from "./ChartDriveChip"
-import JobsDuring from "./JobsDuring"
-import type { ChartBand, ChartSeries } from "./TimeSeriesChart"
+import type { ChartBand } from "./TimeSeriesChart"
 import { healthChanges, healthMarkers } from "./healthChanges"
-import { bucketLabel, healthPoints, healthStatusAt, dataGaps, jobSpans, jobsDuring } from "./historySeries"
+import { healthPoints, healthStatusAt } from "./historySeries"
+import { absentRows, driveSeries, historyChartProps } from "./historyChart"
 import type { ChartDrive } from "./historySeries"
 import type { DriveHistoryData } from "./useDriveHistory"
 
@@ -24,20 +23,12 @@ function HealthScoreChart({ data, drives, showJobs = true, listJobs = true, high
   height?: number
 }) {
   const { healthy_gte: healthy, aging_gte: aging, degraded_gte: degraded, failing_gte: failing } = data.thresholds.health
-  const series: ChartSeries[] = drives.flatMap(d => {
+  const series = drives.flatMap(d => {
     const points = healthPoints(data, d.guid)
-    return points.some(p => p.v !== null) ? [{
-      id: d.guid,
-      label: d.label,
-      ...d.style,
-      shape: "step" as const,
-      tipLabel: <ChartDriveChip drive={d} />,
-      points,
-    }] : []
+    return points.some(p => p.v !== null) ? [driveSeries(d, points, "step")] : []
   })
   // Drives never scored in the range (e.g. no SMART): a row in the readings.
-  const absent = drives.filter(d => !series.some(s => s.id === d.guid))
-    .map(d => ({ id: d.guid, label: <ChartDriveChip drive={d} />, text: "not scored" }))
+  const absent = absentRows(drives, series, "not scored")
   // Headroom above 100, so a perfect score isn't drawn on the plot's edge.
   const top = 104
   const bands: ChartBand[] = [
@@ -50,12 +41,10 @@ function HealthScoreChart({ data, drives, showJobs = true, listJobs = true, high
 
   return (
     <TimeSeriesChart
+      {...historyChartProps(data, drives, { showJobs, listJobs })}
       ariaLabel="Health score over time"
       series={series}
       highlight={highlight}
-      start={data.start}
-      end={data.end}
-      snapMs={data.bucketMs}
       height={height}
       yMin={0}
       yMax={top}
@@ -63,8 +52,6 @@ function HealthScoreChart({ data, drives, showJobs = true, listJobs = true, high
       // crowd 95's label; the bands say where the top is.)
       yTicks={[0, failing, degraded, aging, healthy]}
       bands={bands}
-      spans={showJobs ? jobSpans(data, drives) : undefined}
-      gaps={dataGaps(data, drives)}
       // Changes from a first reading: not the drive getting worse.
       markers={healthMarkers(healthChanges(data, drives))}
       absent={absent}
@@ -73,11 +60,6 @@ function HealthScoreChart({ data, drives, showJobs = true, listJobs = true, high
         const status = healthStatusAt(data, s.id, Math.min(t + data.bucketMs, data.end) - 1)
         return status ? `${v} · ${status}` : `${v}`
       }}
-      formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
-        const jobs = jobsDuring(data, drives, t)
-        return <JobsDuring jobs={jobs} compact={compact} />
-      } : undefined}
     />
   )
 }

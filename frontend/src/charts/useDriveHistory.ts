@@ -7,6 +7,8 @@ import type { HealthFactor } from "../types"
 
 export const HISTORY_RANGES = ["1h", "8h", "24h", "7d", "30d", "90d"] as const
 export type HistoryRange = typeof HISTORY_RANGES[number]
+/** The ranges as a range picker's options. */
+export const RANGE_OPTIONS = HISTORY_RANGES.map(r => ({ value: r, label: r }))
 
 type SignalValue = number | boolean | null
 

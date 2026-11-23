@@ -7,14 +7,14 @@ import HealthScoreChart, { HealthBandsKey } from "./charts/HealthScoreChart"
 import HealthChangeLog from "./charts/HealthChangeLog"
 import CounterChart from "./charts/CounterChart"
 import type { SeriesStyle } from "./charts/drivePalette"
-import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
+import { chartDrive, counterSummary, counterThresholds, driveNameKey, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
-import { HISTORY_RANGES, useDriveHistory } from "./charts/useDriveHistory"
+import { RANGE_OPTIONS, useDriveHistory } from "./charts/useDriveHistory"
 import type { DriveHistoryData, HistoryRange } from "./charts/useDriveHistory"
 import { formatThroughput } from "./format"
 import { momentLabel } from "./charts/scales"
 import { SIGNALS } from "./signals"
-import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, popoverCounterViews, useCounterView } from "./charts/counters"
+import { COUNTER_SIGNALS, counterFormat, counterKind, counterScale, counterSubtitle, popoverCounterViews, useCounterView } from "./charts/counters"
 import CounterLanesChart from "./charts/CounterLanesChart"
 import CounterViewControls from "./charts/CounterViewControls"
 import { RATE_BUCKET, counterWindows } from "./charts/counterTrends"
@@ -42,7 +42,7 @@ export default function DriveTrendPopover({ drive, style, metric }: { drive: Dri
 
   // Stable while only the live fields change (the card re-renders on every
   // poll): the charts are memoized on it.
-  const name = `${drive.label ?? ""}|${drive.model ?? ""}|${drive.device}|${drive.serial ?? ""}`
+  const name = driveNameKey(drive)
   const drives = useMemo(
     () => [chartDrive(drive.guid, drive, style)],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +63,7 @@ export default function DriveTrendPopover({ drive, style, metric }: { drive: Dri
             staleAfterS={live ? drive.stale_after_s.vitals : drive.stale_after_s.smart} />}
         </span>
         <Segmented label="Range" value={range} onChange={setRange}
-          options={HISTORY_RANGES.map(r => ({ value: r, label: r }))} />
+          options={RANGE_OPTIONS} />
       </div>
       {error && <div className="dtp-note">Couldn't load history: {error}</div>}
       {!data && !error && <div className="dtp-note">Loading…</div>}
@@ -128,7 +128,7 @@ function CounterBody({ data, drives, metric }: { data: DriveHistoryData; drives:
       <span>
         {what}
         {" · "}
-        {change ? <b>{change > 0 ? "+" : "−"}{Math.abs(change).toLocaleString()} in range</b> : "no change in range"}
+        {change ? <b>{counterFormat(metric).signed(change)} in range</b> : "no change in range"}
       </span>
       <CounterViewControls value={view} onChange={setView} label={TITLE[metric]} />
     </div>
