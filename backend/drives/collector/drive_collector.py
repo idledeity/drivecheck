@@ -56,6 +56,7 @@ from dataclasses import asdict, fields, replace
 from datetime import datetime
 
 from settings import cfg
+from system_utils import clock
 from database import db
 from analysis.descriptor_rank import score_descriptor
 from analysis.health import score_health
@@ -348,7 +349,7 @@ class Collector:
             logger.debug("capture_smart: unknown drive %s", guid)
             return None
         if max_age_seconds > 0 and latest is not None:
-            age = datetime.now() - datetime.fromisoformat(latest["captured_at"])
+            age = clock.now() - clock.parse(latest["captured_at"])
             if age.total_seconds() <= max_age_seconds:
                 logger.debug("capture_smart: reusing snapshot %s for %s (%.0fs old)",
                              latest["snapshot_id"], guid, age.total_seconds())
@@ -359,7 +360,7 @@ class Collector:
             summary = self._save_snapshot(state, snapshot)
         except Exception as e:
             logger.warning("SMART capture for %s failed: %s", state.context.descriptor.info_name, e)
-            return {"captured_at": datetime.now().isoformat(), "error": str(e) or type(e).__name__}
+            return {"captured_at": clock.now_iso(), "error": str(e) or type(e).__name__}
         return {**summary, "reused": False}
 
     def last_full_read_at(self, guid: str) -> str | None:
@@ -456,15 +457,15 @@ class Collector:
         if self._prune_due is None:
             last_pruned_at = db.get_last_pruned_at()
             self._prune_due = (
-                datetime.fromisoformat(last_pruned_at).timestamp() + _PRUNE_INTERVAL
+                clock.parse(last_pruned_at).timestamp() + _PRUNE_INTERVAL
                 if last_pruned_at is not None
                 else now + _PRUNE_INTERVAL
             )
 
         if now >= self._prune_due:
-            cutoff = datetime.fromtimestamp(now - self._keep_history_days * 86400).isoformat()
+            cutoff = clock.iso(clock.from_timestamp(now - self._keep_history_days * 86400))
             raw_vitals_cutoff = (
-                datetime.fromtimestamp(now - self._keep_raw_vitals_days * 86400).isoformat()
+                clock.iso(clock.from_timestamp(now - self._keep_raw_vitals_days * 86400))
                 if self._keep_raw_vitals_days is not None else None
             )
             db.prune_history(
@@ -472,7 +473,7 @@ class Collector:
                 keep_job_snapshots=cfg.get("collector.keep_job_snapshots"),
                 raw_vitals_cutoff_iso=raw_vitals_cutoff,
             )
-            db.set_last_pruned_at(datetime.fromtimestamp(now).isoformat())
+            db.set_last_pruned_at(clock.iso(clock.from_timestamp(now)))
             self._prune_due = now + _PRUNE_INTERVAL
 
         if now >= self._rollup_due:
@@ -631,7 +632,7 @@ class Collector:
                 for channel in ("telemetry", "snapshot") if full else ("telemetry",):
                     sched[channel] = max(sched[channel], self._compute_next_due(guid, channel, now))
 
-        captured_at = snapshot.telemetry.last_polled_at.isoformat()
+        captured_at = clock.iso(snapshot.telemetry.last_polled_at)
         db.record_signals(state.context.guid, captured_at, asdict(snapshot.telemetry.signals))
         db.record_heartbeat(state.context.guid, captured_at, snapshot.telemetry.signals.temp)
         return snapshot
@@ -643,7 +644,7 @@ class Collector:
     def _save_snapshot(self, state: DriveState, snapshot: DriveSnapshot) -> dict:
         """Persist a telemetry run's raw report and remember it as the drive's
         latest snapshot (see capture_smart). Returns its summary."""
-        captured_at = snapshot.telemetry.last_polled_at.isoformat()
+        captured_at = clock.iso(snapshot.telemetry.last_polled_at)
         # The signals ride along so the report can be judged on its own when
         # served (analysis.smart_attributes.judge_report) — facts, not judgements.
         report = {**snapshot.extras, "signals": asdict(snapshot.telemetry.signals)}
@@ -692,7 +693,7 @@ class Collector:
             model=traits.model,
             capacity_bytes=traits.capacity_bytes,
             drive_type=traits.drive_type.value if traits.drive_type else None,
-            first_seen=datetime.now().isoformat(),
+            first_seen=clock.now_iso(),
         )
 
     def _rollup_vitals(self, now: float) -> None:
@@ -701,7 +702,7 @@ class Collector:
         drive_vitals_rollup_30m. The first call after start-up continues from the
         newest rolled-up minute — or, on a database with no rollup yet, rolls up
         all raw vitals still kept."""
-        end = datetime.fromtimestamp(now - _ROLLUP_GRACE).replace(second=0, microsecond=0).isoformat()
+        end = clock.iso(clock.from_timestamp(now - _ROLLUP_GRACE).replace(second=0, microsecond=0))
         if self._rollup_from is None:
             last = db.get_last_vitals_rollup_at()
             # Re-roll the newest minute: it may have been rolled from part of
@@ -714,7 +715,7 @@ class Collector:
         # Re-roll each half-hour those minutes fall in, from all of its minutes
         # so far — the current half-hour is replaced again on each roll.
         half_hour = (
-            _floor_to_half_hour(datetime.fromisoformat(self._rollup_from)).isoformat()
+            clock.iso(_floor_to_half_hour(clock.parse(self._rollup_from)))
             if self._rollup_from else None
         )
         db.rollup_vitals_30m(end, start_iso=half_hour)
@@ -722,7 +723,7 @@ class Collector:
 
     def _run_vitals(self, state: DriveState, now: float) -> None:
         """Run the vitals probe chain for a drive and record a vitals row."""
-        vitals = DriveVitals(captured_at=datetime.now())
+        vitals = DriveVitals(captured_at=clock.now())
         for probe in self._vitals_probes:
             vitals = probe.run(vitals, state)
 
@@ -736,7 +737,7 @@ class Collector:
                     vitals.captured_at.timestamp() if busy else self._last_io_at.get(state.context.guid, 0.0)
                 )
 
-        db.record_vitals(state.context.guid, vitals.captured_at.isoformat(), vitals.temp, vitals.temp_source, vitals.io)
+        db.record_vitals(state.context.guid, clock.iso(vitals.captured_at), vitals.temp, vitals.temp_source, vitals.io)
 
     def _reconcile_descriptors(self, descriptors: list[DriveDescriptor], now: float) -> None:
         """Partition scan results into known/unknown, discover new drives, and remove gone ones.
@@ -908,7 +909,7 @@ class Collector:
             model=best_traits.model,
             capacity_bytes=best_traits.capacity_bytes,
             drive_type=best_traits.drive_type.value if best_traits.drive_type else None,
-            first_seen=datetime.now().isoformat(),
+            first_seen=clock.now_iso(),
         )
 
     def _restore_snapshot(self, state: DriveState) -> float | None:
@@ -928,7 +929,7 @@ class Collector:
             # may lack some (left None) or have some since dropped.
             known = {f.name for f in fields(DCSignals)}
             signals = DCSignals(**{k: v for k, v in report["signals"].items() if k in known})
-            captured_at = datetime.fromisoformat(row["captured_at"])
+            captured_at = clock.parse(row["captured_at"])
         except (ValueError, TypeError) as e:
             logger.warning("couldn't restore the saved snapshot for %s, reading it again: %s", guid, e)
             return None

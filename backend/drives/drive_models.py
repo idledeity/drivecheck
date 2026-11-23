@@ -8,6 +8,7 @@ DriveSnapshot incrementally as it passes through the probe chain.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from system_utils import clock
 
 
 class DriveType(Enum):
@@ -283,7 +284,7 @@ class AttributeRow:
 class ProbeRecord:
     """Record of a single probe execution."""
     probe: str                          # e.g. "drivecheck.probes.smartctl_telemetry"
-    captured_at: datetime = field(default_factory=lambda: datetime.now())
+    captured_at: datetime = field(default_factory=clock.now)
     success: bool = True
     errors: list[str] = field(default_factory=list)
 

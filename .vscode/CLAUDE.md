@@ -90,6 +90,13 @@ drives" for ongoing monitoring.
   - Raw `sqlite3` module only — no ORM
   - **WAL mode is required** (`PRAGMA journal_mode=WAL`) — enables concurrent readers alongside
     the collector writer; set once at DB initialization
+  - **All times are UTC** — aware datetimes in memory, ISO strings with a `+00:00` offset in the
+    DB and API, via `system_utils/clock.py` (`clock.now()`, `clock.iso()`, `clock.parse()`).
+    Never `datetime.now()` / `.isoformat()` / `fromisoformat()` directly: naive local times jump
+    an hour at DST. One string format, so stored times sort as text in time order (SQL range
+    filters rely on it). Local time is the browser's job, for display; it sends times as UTC
+    (`format.toServerIso`). Pre-2026-11-22 values inside JSON blobs are naive local —
+    `clock.parse` reads those as local
 - **JSON/HTML report files** written to `data/reports/` on job completion
   - Byproduct of completion, not the source of truth
   - Self-contained HTML report is available as a download link from the UI

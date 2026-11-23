@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -282,7 +282,7 @@ def test_no_snapshots_without_a_capture_function():
 def _saved_running_job(job_id, smart_before):
     db.record_job(Job(
         id=job_id, drive_guid="d1", operation="controllable", category="Test", params={},
-        status=JobStatus.RUNNING, started_at=datetime.now(), smart_before=smart_before,
+        status=JobStatus.RUNNING, started_at=datetime.now(UTC), smart_before=smart_before,
     ), {"pid": 1})
 
 
@@ -402,7 +402,7 @@ def test_cancelling_a_queued_job_renumbers_the_rest():
 
 def test_recovery_restores_the_saved_queue_order():
     # Created in one order, reordered before the restart: the saved positions win.
-    for job_id, created, pos in (("early", datetime(2026, 1, 1), 1), ("late", datetime(2026, 1, 2), 0)):
+    for job_id, created, pos in (("early", datetime(2026, 1, 1, tzinfo=UTC), 1), ("late", datetime(2026, 1, 2, tzinfo=UTC), 0)):
         db.record_job(Job(id=job_id, drive_guid="d1", operation="controllable", category="Test",
                           params={}, created_at=created, queue_position=pos))
     registry = make_registry()

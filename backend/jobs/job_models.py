@@ -10,6 +10,7 @@ job_models <-> operations import cycle).
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from system_utils import clock
 
 
 class JobStatus(Enum):
@@ -33,7 +34,7 @@ class Batch:
     recipe: str           # RECIPES registry key, e.g. "initial_scan"
     params: dict          # the recipe's own params, validated
     stop_on_failure: bool # a step that doesn't complete skips the batch's remaining steps
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=clock.now)
 
 
 @dataclass
@@ -47,7 +48,7 @@ class Job:
     status: JobStatus = JobStatus.QUEUED
     result: dict | None = None
     error: str | None = None
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=clock.now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
     # Condensed SMART snapshots from just before the operation starts and just

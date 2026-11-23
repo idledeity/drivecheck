@@ -20,6 +20,7 @@ from dataclasses import fields
 from analysis.health import health_thresholds, score_signals
 from analysis.stored_facts import many_snapshot_extras
 from database import db
+from system_utils import clock
 from drives.drive_models import DCSignals
 
 logger = logging.getLogger(__name__)
@@ -65,13 +66,15 @@ def build_history(
     now. Buckets are aligned to whole multiples of the bucket width, so the same
     range fetched again a little later lines up with the first fetch.
 
-    Times are ISO strings in the same naive local time the database stores.
+    Times are ISO strings in UTC with an offset, as the database stores them
+    (system_utils.clock); buckets are whole multiples of their width in real
+    time, so they stay evenly spaced across a DST change.
     describe_job(row) can add fields to each job (e.g. its name and outcome,
     which need the operation registry)."""
     span, bucket = RANGES[range_key]
-    now = now or datetime.now()
+    now = now or clock.now()
     start = _floor(now - timedelta(seconds=span), bucket)
-    start_iso, end_iso = start.isoformat(), now.isoformat()
+    start_iso, end_iso = clock.iso(start), clock.iso(now)
     logger.debug("building %s history for %d drive(s) from %s", range_key, len(guids), start_iso)
 
     drives: dict[str, dict] = {
@@ -82,7 +85,7 @@ def build_history(
     # wasn't running — are left out rather than sent as nulls.
     for row in db.get_vitals_buckets(guids, start_iso, end_iso, bucket):
         v = drives[row["drive_guid"]]["vitals"]
-        v["t"].append((start + timedelta(seconds=row["bucket"] * bucket)).isoformat())
+        v["t"].append(clock.iso(start + timedelta(seconds=row["bucket"] * bucket)))
         v["temp_avg"].append(_round(row["temp_avg"], 2))
         v["temp_min"].append(row["temp_min"])
         v["temp_max"].append(row["temp_max"])
@@ -202,16 +205,16 @@ def _bucket_events(rows: list, start: datetime, width: int, end: datetime) -> li
     for i, row in enumerate(rows):
         if row["bucket"] is None:                    # carried in from before the range
             carried = row["last_value"]
-            events.append({"captured_at": start.isoformat(), "signal": row["signal"], "value": carried})
+            events.append({"captured_at": clock.iso(start), "signal": row["signal"], "value": carried})
             continue
         at = start + timedelta(seconds=row["bucket"] * width)
         worst = row["max_value"] if carried is None else max(row["max_value"], carried)
-        events.append({"captured_at": at.isoformat(), "signal": row["signal"], "value": worst})
+        events.append({"captured_at": clock.iso(at), "signal": row["signal"], "value": worst})
         carried = row["last_value"]
         after = at + timedelta(seconds=width)
         next_bucket = rows[i + 1]["bucket"] if i + 1 < len(rows) else None
         if after < end and next_bucket != row["bucket"] + 1 and carried != worst:
-            events.append({"captured_at": after.isoformat(), "signal": row["signal"], "value": carried})
+            events.append({"captured_at": clock.iso(after), "signal": row["signal"], "value": carried})
     return events
 
 
@@ -228,11 +231,11 @@ def _job(row) -> dict:
 
 
 def _floor(dt: datetime, seconds: int) -> datetime:
-    """dt rounded down to a whole multiple of `seconds` since the epoch, with
-    the naive time read as UTC — the same arithmetic as SQLite's strftime('%s')
-    in db.get_vitals_buckets, so bucket indexes line up."""
-    epoch = int((dt - datetime(1970, 1, 1)).total_seconds())
-    return datetime(1970, 1, 1) + timedelta(seconds=epoch - epoch % seconds)
+    """dt rounded down to a whole multiple of `seconds` since the epoch — the
+    same arithmetic as SQLite's unixepoch() in db.get_vitals_buckets, so
+    bucket indexes line up."""
+    epoch = int(dt.timestamp())
+    return clock.from_timestamp(epoch - epoch % seconds)
 
 
 def _round(value: float | None, digits: int = 0) -> float | None:

@@ -32,7 +32,7 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 
 if __name__ == "__main__":
     import uuid
-    from datetime import datetime
+    from system_utils import clock
 
     from drives.collector.probes.scan.smartctl_scan import run as scan_drives
     from drives.collector.probes.traits.smartctl_traits import run as fetch_traits
@@ -42,5 +42,5 @@ if __name__ == "__main__":
         traits = fetch_traits(descriptor)
         context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits)
         state = DriveState(context=context, traits=traits)
-        vitals = run(DriveVitals(captured_at=datetime.now()), state)
+        vitals = run(DriveVitals(captured_at=clock.now()), state)
         print(f"{descriptor.info_name}: temp={vitals.temp} source={vitals.temp_source}")

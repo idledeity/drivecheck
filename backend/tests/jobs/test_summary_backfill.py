@@ -1,6 +1,6 @@
 """Summary logs for jobs that finished before their operation kept one."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -37,7 +37,7 @@ def _setup(isolated_data_dir, monkeypatch):
 def _past_job(n, operation, params, fixture=None, status=JobStatus.COMPLETED, summary=None, guid="g1"):
     job_id = _id(n)
     db.record_job(Job(id=job_id, drive_guid=guid, operation=operation, category="Scan", params=params,
-                      status=status, created_at=datetime(2026, 1, 1, 0, n), summary_log=summary))
+                      status=status, created_at=datetime(2026, 1, 1, 0, n, tzinfo=UTC), summary_log=summary))
     if fixture:
         job_logs.raw_log_path(job_id).write_bytes((FIXTURES / fixture).read_bytes())
     return job_id
@@ -53,7 +53,7 @@ def test_adds_summaries_from_the_raw_logs_of_past_jobs():
 
 
 def test_dd_uses_the_drive_capacity_on_record_for_its_samples():
-    db.upsert_drive_record("g1", "SER", "Model", DD_SIZE, "HDD", datetime(2026, 1, 1).isoformat())
+    db.upsert_drive_record("g1", "SER", "Model", DD_SIZE, "HDD", datetime(2026, 1, 1, tzinfo=UTC).isoformat())
     job_id = _past_job(1, "dd_read", DD_PARAMS, "dd_progress_800mib_complete.log")
     backfill_summary_logs()
     summary = db.get_job_summary_log(job_id).splitlines()

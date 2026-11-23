@@ -1,3 +1,6 @@
+import os
+import time
+
 import pytest
 
 from analysis import stored_facts
@@ -30,3 +33,28 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "data_dir", lambda: tmp_path)
     stored_facts.clear_cache()    # each test's database reuses the same ids
     return tmp_path
+
+
+@pytest.fixture
+def local_zone():
+    """Set the process's local time zone for one test (e.g. "America/Chicago"),
+    for code that reads naive local times — the UTC migration, clock.parse on
+    legacy values. Restored afterwards."""
+    saved = os.environ.get("TZ")
+
+    def set_zone(name: str) -> None:
+        os.environ["TZ"] = name
+        time.tzset()
+
+    yield set_zone
+    if saved is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = saved
+    time.tzset()
+
+
+@pytest.fixture
+def utc_zone(local_zone):
+    """Local time is UTC for this test, so naive times convert to themselves."""
+    local_zone("UTC")

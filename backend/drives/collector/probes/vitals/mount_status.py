@@ -36,7 +36,7 @@ def run(vitals: DriveVitals, state: DriveState) -> DriveVitals:
 
 if __name__ == "__main__":
     import uuid
-    from datetime import datetime
+    from system_utils import clock
 
     from drives.drive_models import DriveContext
     from drives.collector.probes.scan.smartctl_scan import run as scan_drives
@@ -48,5 +48,5 @@ if __name__ == "__main__":
         device = resolve_block_device(traits.serial)
         context = DriveContext(guid=str(uuid.uuid4()), descriptor=descriptor, traits=traits, block_device=device)
         state = DriveState(context=context, traits=traits)
-        run(DriveVitals(captured_at=datetime.now()), state)
+        run(DriveVitals(captured_at=clock.now()), state)
         print(f"{descriptor.info_name} -> {device}: is_mounted={state.attachment.is_mounted}")

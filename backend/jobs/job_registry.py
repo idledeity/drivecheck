@@ -31,9 +31,9 @@ import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from datetime import datetime
 
 from settings import cfg
+from system_utils import clock
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -352,7 +352,7 @@ class JobRegistry:
         progress = instance.get_progress()
         if progress.eta_seconds is None and progress.percent is not None and job and job.started_at:
             if 0 < progress.percent < 100:
-                elapsed = (datetime.now() - job.started_at).total_seconds()
+                elapsed = (clock.now() - job.started_at).total_seconds()
                 estimated = elapsed * (100 - progress.percent) / progress.percent
                 progress = replace(progress, eta_seconds=estimated)
         return progress
@@ -369,7 +369,7 @@ class JobRegistry:
                 job.queue_position = None
                 self._renumber_queue()
                 job.status = JobStatus.CANCELLED
-                job.finished_at = datetime.now()
+                job.finished_at = clock.now()
                 logger.info("job %s cancelled while queued: %s", job.id[:8], job.operation)
                 self._stop_chain_if_failed(job)
             elif job.status == JobStatus.RUNNING:
@@ -435,7 +435,7 @@ class JobRegistry:
             steps = [j for j in self._jobs.values() if j.batch_id == batch_id]
             queued = [j for j in steps if j.status == JobStatus.QUEUED]
             running = [j for j in steps if j.status == JobStatus.RUNNING]
-            now = datetime.now()
+            now = clock.now()
             for job in queued:
                 self._pending.remove(job.id)
                 job.queue_position = None
@@ -476,7 +476,7 @@ class JobRegistry:
             snapshot = self._capture_smart(job.drive_guid, max_age)
         except Exception as e:
             logger.warning("job %s: SMART snapshot %s the run failed: %s", job.id[:8], when, e)
-            return {"captured_at": datetime.now().isoformat(), "error": str(e) or type(e).__name__}
+            return {"captured_at": clock.now_iso(), "error": str(e) or type(e).__name__}
         logger.debug("job %s: SMART snapshot %s the run: %s", job.id[:8], when,
                      "reused" if (snapshot or {}).get("reused") else "taken")
         return snapshot
@@ -552,7 +552,7 @@ class JobRegistry:
         op_cls = OPERATIONS.get(job.operation)
         step_name = op_cls.name if op_cls is not None else job.operation
         reason = f"Not run: step {job.batch_step + 1} ({step_name}) {job.status.value}"
-        now = datetime.now()
+        now = clock.now()
         for later in rest:
             self._pending.remove(later.id)
             later.queue_position = None
@@ -620,7 +620,7 @@ class JobRegistry:
         if reattach_data is None:
             # Fresh dispatch — set started_at now
             job.status = JobStatus.RUNNING
-            job.started_at = datetime.now()
+            job.started_at = clock.now()
             db.record_job(job, self._instances[job.id].get_reattach_data())
         # For recovered RUNNING jobs, status/started_at are already correct from the DB row
         self._executor.submit(self._execute, job, reattach_data)
@@ -663,7 +663,7 @@ class JobRegistry:
             job.status = JobStatus.FAILED
             job.error = str(e)
             logger.warning("job %s failed: %s — %s", job.id[:8], job.operation, e)
-        job.finished_at = datetime.now()
+        job.finished_at = clock.now()
         if (summary := instance.get_summary_log()) is not None:
             job.summary_log = job_logs.limit_summary(summary, job.id)
         if started and not self._shutting_down:
@@ -731,7 +731,7 @@ class JobRegistry:
         job = _job_from_row(row)
         job.status = JobStatus.INTERRUPTED
         job.error = error_message
-        job.finished_at = datetime.now()
+        job.finished_at = clock.now()
         job.queue_position = None
         db.record_job(job)
         return job
@@ -746,8 +746,8 @@ def _job_from_row(row) -> Job:
         category=row["category"],
         params=json.loads(row["params_json"]),
         status=JobStatus(row["status"]),
-        created_at=datetime.fromisoformat(row["created_at"]),
-        started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+        created_at=clock.parse(row["created_at"]),
+        started_at=clock.parse(row["started_at"]) if row["started_at"] else None,
         smart_before=_json_or_none(row["smart_before_json"]),
         batch_id=row["batch_id"],
         batch_step=row["batch_step"],

@@ -127,7 +127,7 @@ def test_capture_smart_reuses_a_recent_snapshot_within_max_age(monkeypatch):
 def test_capture_smart_takes_a_new_one_when_the_latest_is_too_old(monkeypatch):
     collector = _collector_with_drive(monkeypatch)
     first = collector.capture_smart("g1")
-    collector._latest_snapshots["g1"]["captured_at"] = "2020-01-01T00:00:00"
+    collector._latest_snapshots["g1"]["captured_at"] = "2020-01-01T00:00:00+00:00"
     second = collector.capture_smart("g1", max_age_seconds=300)
     assert second["reused"] is False and second["snapshot_id"] != first["snapshot_id"]
     third = collector.capture_smart("g1", max_age_seconds=0)  # 0 never reuses
@@ -312,25 +312,25 @@ def _epoch(iso):
 def test_rollup_vitals_backfills_then_rolls_only_minutes_past_the_grace_period():
     db.init()
     for minute in ("10:00", "10:01", "10:02", "10:03"):
-        _raw_vitals("guid-1", f"2026-01-01T{minute}:30", 30)
+        _raw_vitals("guid-1", f"2026-01-01T{minute}:30+00:00", 30)
     collector = _make_collector()
 
     # 10:03:30 — minute 10:02 ended only 30s ago, so it waits; 10:00 and 10:01 roll.
-    collector._rollup_vitals(_epoch("2026-01-01T10:03:30"))
-    assert _rolled_minutes() == ["2026-01-01T10:00:00", "2026-01-01T10:01:00"]
+    collector._rollup_vitals(_epoch("2026-01-01T10:03:30+00:00"))
+    assert _rolled_minutes() == ["2026-01-01T10:00:00+00:00", "2026-01-01T10:01:00+00:00"]
 
-    collector._rollup_vitals(_epoch("2026-01-01T10:05:00"))
-    assert _rolled_minutes() == [f"2026-01-01T10:0{m}:00" for m in range(4)]
+    collector._rollup_vitals(_epoch("2026-01-01T10:05:00+00:00"))
+    assert _rolled_minutes() == [f"2026-01-01T10:0{m}:00+00:00" for m in range(4)]
 
 
 def test_rollup_vitals_after_a_restart_re_rolls_the_newest_minute():
     db.init()
-    _raw_vitals("guid-1", "2026-01-01T10:00:10", 30)
-    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:00"))
+    _raw_vitals("guid-1", "2026-01-01T10:00:10+00:00", 30)
+    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:00+00:00"))
     # A sample for 10:00 that arrived after that minute was rolled up.
-    _raw_vitals("guid-1", "2026-01-01T10:00:50", 40)
+    _raw_vitals("guid-1", "2026-01-01T10:00:50+00:00", 40)
 
-    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:30"))
+    _make_collector()._rollup_vitals(_epoch("2026-01-01T10:02:30+00:00"))
     with db._connection() as conn:
         assert conn.execute("SELECT temp_n, temp_avg FROM drive_vitals_rollup").fetchall() == [(2, 35.0)]
 
@@ -342,15 +342,15 @@ def _rolled_half_hours():
 
 def test_rollup_vitals_keeps_the_current_half_hour_up_to_date():
     db.init()
-    _raw_vitals("guid-1", "2026-01-01T09:59:30", 30)
-    _raw_vitals("guid-1", "2026-01-01T10:00:30", 30)
+    _raw_vitals("guid-1", "2026-01-01T09:59:30+00:00", 30)
+    _raw_vitals("guid-1", "2026-01-01T10:00:30+00:00", 30)
     collector = _make_collector()
-    collector._rollup_vitals(_epoch("2026-01-01T10:02:00"))
-    assert _rolled_half_hours() == [("2026-01-01T09:30:00", 1), ("2026-01-01T10:00:00", 1)]
+    collector._rollup_vitals(_epoch("2026-01-01T10:02:00+00:00"))
+    assert _rolled_half_hours() == [("2026-01-01T09:30:00+00:00", 1), ("2026-01-01T10:00:00+00:00", 1)]
 
-    _raw_vitals("guid-1", "2026-01-01T10:01:30", 30)
-    collector._rollup_vitals(_epoch("2026-01-01T10:03:00"))
-    assert _rolled_half_hours() == [("2026-01-01T09:30:00", 1), ("2026-01-01T10:00:00", 2)]
+    _raw_vitals("guid-1", "2026-01-01T10:01:30+00:00", 30)
+    collector._rollup_vitals(_epoch("2026-01-01T10:03:00+00:00"))
+    assert _rolled_half_hours() == [("2026-01-01T09:30:00+00:00", 1), ("2026-01-01T10:00:00+00:00", 2)]
 
 
 # --- SMART read tiers: busy-gated attribute reads, full reads, restore ------
@@ -420,15 +420,14 @@ def test_window_zero_reads_on_schedule_even_when_idle(monkeypatch):
 
 
 def test_vitals_mark_a_drive_busy_only_when_it_did_io(monkeypatch):
-    from datetime import datetime
+    from datetime import UTC, datetime
     from drives.drive_models import DriveIOActivity, DriveVitals
     collector, _ = _tiered(monkeypatch)
     state = collector._drive_states["g1"]
     io = {"none": DriveIOActivity(), "idle": DriveIOActivity(0, 0, 0, 0, 0), "busy": DriveIOActivity(5, 0, 4096, 0, 1)}
     def vitals(at, kind):
         collector._vitals_probes = [SimpleNamespace(run=lambda v, _s: replace(v, io=io[kind]))]
-        monkeypatch.setattr("drives.collector.drive_collector.datetime",
-                            SimpleNamespace(now=lambda: datetime.fromtimestamp(at), fromtimestamp=datetime.fromtimestamp))
+        monkeypatch.setattr("system_utils.clock.now", lambda: datetime.fromtimestamp(at, UTC))
         collector._run_vitals(state, at)
     vitals(990.0, "none")  # no rates yet (first reading, or no block device)
     assert "g1" not in collector._last_io_at

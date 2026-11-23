@@ -9,12 +9,12 @@ The DCSignals mapping is documented in drives.drive_models.DCSignals.
 
 import logging
 from dataclasses import asdict
-from datetime import datetime
 
 from drives.collector.probes.telemetry.smartctl_attributes import parse_attributes
 from drives.collector.probes.telemetry.smartctl_self_test_log import observed_self_tests, parse_self_test_log
 from drives.tools import smartctl
 from drives.drive_models import DCSignals, DriveContext, DriveSnapshot, DriveTelemetry, DriveType, ProbeRecord
+from system_utils import clock
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _fill(snapshot: DriveSnapshot, context: DriveContext, data: dict, full: bool
     else:
         signals = _map_ata(data, context.traits.logical_block_size)
 
-    snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=datetime.now())
+    snapshot.telemetry = DriveTelemetry(signals=signals, last_polled_at=clock.now())
     # Facts only: health is scored by the collector after the whole chain, and
     # these rows are judged when served (analysis.smart_attributes).
     snapshot.extras["smart_attributes"] = [asdict(r) for r in parse_attributes(data, drive_type)]

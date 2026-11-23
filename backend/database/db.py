@@ -12,10 +12,9 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 
-from system_utils import paths
+from system_utils import clock, paths
 from drives.drive_models import DriveIOActivity
 from jobs.job_models import Batch, Job
 
@@ -259,6 +258,49 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # Superseded by idx_drive_signals_values (created by _SCHEMA), which also covers value.
         conn.execute("DROP INDEX IF EXISTS idx_drive_signals_lookup")
         conn.execute("PRAGMA user_version = 2")
+    if version < 3:
+        _migrate_times_to_utc(conn)
+        conn.execute("PRAGMA user_version = 3")
+
+
+# Every stored time column. Times were written as naive local wall-clock
+# strings; they're now UTC with an explicit offset (system_utils.clock).
+_TIME_COLUMNS = {
+    "drive_records": ["first_seen"],
+    "drive_signals": ["captured_at"],
+    "drive_raw_snapshots": ["captured_at"],
+    "drive_heartbeats": ["captured_at"],
+    "drive_vitals": ["captured_at"],
+    "drive_vitals_rollup": ["captured_at"],
+    "drive_vitals_rollup_30m": ["captured_at"],
+    "collector_state": ["last_pruned_at"],
+    "jobs": ["created_at", "started_at", "finished_at"],
+    "batches": ["created_at"],
+    "drive_self_tests": ["first_seen_at", "last_seen_at"],
+}
+
+# A naive local "YYYY-MM-DDTHH:MM:SS[.ffffff]" column value as UTC with an
+# offset. SQLite's 'utc' modifier applies the system's time zone rules as of
+# that date (DST included) — the same zone the values were written in, by
+# this process. Fractional seconds are carried over as written. The hour a
+# DST change repeats can't be told apart, so it's read as its first pass.
+_TO_UTC = "strftime('%Y-%m-%dT%H:%M:%S', substr({c}, 1, 19), 'utc') || substr({c}, 20) || '+00:00'"
+
+
+def _migrate_times_to_utc(conn: sqlite3.Connection) -> None:
+    """Rewrite every stored time from naive local to UTC (see _TIME_COLUMNS).
+    Values that already carry an offset are left alone, so a partial run can
+    be repeated. Converted values gain a "+00:00" suffix, so they never equal
+    a not-yet-converted one: rewriting a (drive_guid, captured_at) key can't
+    collide mid-update. Times inside JSON blobs (job SMART summaries, raw
+    reports) stay as written; clock.parse reads a naive one as local."""
+    for table, columns in _TIME_COLUMNS.items():
+        for c in columns:
+            n = conn.execute(
+                f"UPDATE {table} SET {c} = {_TO_UTC.format(c=c)}"
+                f" WHERE {c} IS NOT NULL AND {c} != '' AND {c} NOT LIKE '%+__:__' AND {c} NOT LIKE '%Z'"
+            ).rowcount
+            logger.info("converted %d %s.%s time(s) to UTC", n, table, c)
 
 
 # Rows of drive_signals whose value equals the drive's previous value of that signal.
@@ -537,8 +579,9 @@ def get_raw_snapshots_between(guids: list[str], start_iso: str, end_iso: str) ->
         ).fetchall()
 
 
-# Minute bucket of an ISO captured_at ("2026-11-13T07:52:26.437121" -> "2026-11-13T07:52:00").
-_MINUTE_OF = "substr(captured_at, 1, 16) || ':00'"
+# Minute bucket of a stored (UTC) captured_at, in the same form
+# ("2026-11-13T07:52:26.437121+00:00" -> "2026-11-13T07:52:00+00:00").
+_MINUTE_OF = "substr(captured_at, 1, 16) || ':00+00:00'"
 
 
 def rollup_vitals(end_iso: str, start_iso: str | None = None) -> int:
@@ -568,9 +611,9 @@ def rollup_vitals(end_iso: str, start_iso: str | None = None) -> int:
         return cursor.rowcount
 
 
-# 30-minute bucket of an ISO captured_at, read as UTC like SQLite's unixepoch()
-# ("2026-11-13T07:52:00" -> "2026-11-13T07:30:00").
-_HALF_HOUR_OF = "strftime('%Y-%m-%dT%H:%M:%S', unixepoch(captured_at) / 1800 * 1800, 'unixepoch')"
+# 30-minute bucket of a stored (UTC) captured_at, in the same form
+# ("2026-11-13T07:52:00+00:00" -> "2026-11-13T07:30:00+00:00").
+_HALF_HOUR_OF = "strftime('%Y-%m-%dT%H:%M:%S', unixepoch(captured_at) / 1800 * 1800, 'unixepoch') || '+00:00'"
 
 
 def _weighted(column: str, n: str) -> str:
@@ -922,9 +965,9 @@ def record_job(job: Job, reattach_data: dict | None = None) -> None:
                 json.dumps(job.params), job.status.value,
                 json.dumps(job.result) if job.result is not None else None,
                 job.error,
-                job.created_at.isoformat(),
-                job.started_at.isoformat() if job.started_at else None,
-                job.finished_at.isoformat() if job.finished_at else None,
+                clock.iso(job.created_at),
+                clock.iso(job.started_at) if job.started_at else None,
+                clock.iso(job.finished_at) if job.finished_at else None,
                 json.dumps(reattach_data) if reattach_data is not None else None,
                 json.dumps(job.smart_before) if job.smart_before is not None else None,
                 json.dumps(job.smart_after) if job.smart_after is not None else None,
@@ -945,7 +988,7 @@ def record_batch(batch: Batch) -> None:
             "INSERT OR REPLACE INTO batches (id, drive_guid, recipe, params_json, stop_on_failure, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
             (batch.id, batch.drive_guid, batch.recipe, json.dumps(batch.params), int(batch.stop_on_failure),
-             batch.created_at.isoformat()),
+             clock.iso(batch.created_at)),
         )
 
 
@@ -963,7 +1006,7 @@ def get_batches(batch_ids: list[str]) -> dict[str, Batch]:
             recipe=row["recipe"],
             params=json.loads(row["params_json"]),
             stop_on_failure=bool(row["stop_on_failure"]),
-            created_at=datetime.fromisoformat(row["created_at"]),
+            created_at=clock.parse(row["created_at"]),
         )
         for row in rows
     }

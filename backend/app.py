@@ -16,7 +16,7 @@ from werkzeug.utils import secure_filename
 from settings import cfg
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
-from system_utils import auth, origin_guard, tls
+from system_utils import auth, clock, origin_guard, tls
 from drives.collector.drive_collector import Collector
 from drives.collector import probe_registry
 from operations import job_logs
@@ -214,9 +214,9 @@ def _job_to_dict(job, batches: dict | None = None):
         "summary": _job_summary(job.operation, job.status.value, job.result),
         "settings": _job_settings(job.operation, job.params),
         "error": job.error,
-        "created_at": job.created_at.isoformat(),
-        "started_at": job.started_at.isoformat() if job.started_at else None,
-        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "created_at": clock.iso(job.created_at),
+        "started_at": clock.iso(job.started_at) if job.started_at else None,
+        "finished_at": clock.iso(job.finished_at) if job.finished_at else None,
         "smart": _smart_summary(job.smart_before, job.smart_after),
         "logs": _job_logs(job.id, job.summary_log),
         "queue_position": job.queue_position,
@@ -289,7 +289,7 @@ def drives():
             "signal_flags": health.signal_flags,
             "health_factors": health.factors,
             "health_floor": health.floor,
-            "last_polled_at": polled_at.isoformat() if polled_at else None,
+            "last_polled_at": clock.iso(polled_at) if polled_at else None,
             "last_full_read_at": collector.last_full_read_at(ctx.guid),
             # Coverage, not health: the latest finished self-test of each kind
             # seen in the drive's log, kept past its rollover (analysis.self_tests).
@@ -303,7 +303,7 @@ def drives():
             "vitals": {
                 "temp": vitals.temp,
                 "temp_source": vitals.temp_source,
-                "captured_at": vitals.captured_at.isoformat() if vitals.captured_at else None,
+                "captured_at": clock.iso(vitals.captured_at) if vitals.captured_at else None,
                 "io": {
                     "read_iops": vitals.io.read_iops,
                     "write_iops": vitals.io.write_iops,
@@ -521,7 +521,8 @@ def job_history():
     since = request.args.get("since")
     if since is not None:
         try:
-            since = datetime.fromisoformat(since).isoformat()
+            # As stored (UTC); a time without an offset is the browser's local time.
+            since = clock.iso(clock.parse(since))
         except ValueError:
             return jsonify({"error": "'since' must be an ISO date or time"}), 400
     statuses = _csv_arg("status")
@@ -993,6 +994,7 @@ def export_logs():
     # history, not just the last `n` for display.
     records = log_utils.filter_log_records(lines, None, min_level)
 
+    # A download's file name, for people: local time, not stored anywhere.
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     if fmt == "csv":
         body, mimetype, ext = log_utils.format_as_csv(records), "text/csv", "csv"
