@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { seriesPaths, valueAt } from './chartGeometry'
+import { seriesPaths, valueAt, widen } from './chartGeometry'
 import type { ChartSeries } from './chartGeometry'
 
 // Identity scales, so path coordinates read as the data.
@@ -41,5 +41,14 @@ describe('valueAt', () => {
     expect(valueAt(s, 60, 60)).toBe(2)
     expect(valueAt(s, 120, 60)).toBeNull()   // a missing bucket isn't the neighbour's value
     expect(valueAt(s, 59)).toBeNull()
+  })
+})
+
+describe('widen', () => {
+  it('keeps a box at least minW wide, grown about its middle and kept in bounds', () => {
+    expect(widen(10, 30, 3, 0, 100)).toEqual({ x: 10, w: 20 })
+    expect(widen(50, 51, 3, 0, 100)).toEqual({ x: 49, w: 3 })
+    expect(widen(0, 0.5, 3, 0, 100)).toEqual({ x: 0, w: 3 })
+    expect(widen(99.5, 100, 3, 0, 100)).toEqual({ x: 97, w: 3 })
   })
 })

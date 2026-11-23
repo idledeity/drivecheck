@@ -7,6 +7,7 @@ import { clockLabel, timeTicks } from "./scales"
 import ChartDriveChip from "./ChartDriveChip"
 import { bucketLabel, dataGaps, jobAt, jobSpans, signalPoints } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
+import { widen } from "./chartGeometry"
 import type { ChartPoint } from "./chartGeometry"
 import type { DriveHistoryData } from "./useDriveHistory"
 import {
@@ -107,7 +108,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
 
   const toBoxes = (spans: { start: number; end: number | null }[], minW: number) => mergeBoxes(spans.flatMap(sp => {
     const a = Math.max(ML, x(Math.max(sp.start, start))), b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < ML || a > ML + plotW ? [] : [{ x: a, w: Math.max(minW, b - a) }]
+    return b < ML || a > ML + plotW ? [] : [widen(a, b, minW, ML, ML + plotW)]
   }))
   const spans = showJobs ? jobSpans(data, drives) : []
   const jobsOf = (guid: string) => toBoxes(spans.filter(sp => sp.series === guid), 2)
@@ -116,15 +117,16 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
   const recentX = Math.max(ML, x(windows.recentStart))
 
   // ── hover ───────────────────────────────────────────────────────────────
-  // Snaps to a bucket start: the chart's own buckets for Events, the bars for Rate.
+  // Snaps to the start of the bucket the time falls in (as TimeSeriesChart):
+  // the chart's own buckets for Events, the bars for Rate.
   const lastBucket = start + Math.max(0, Math.ceil((end - start) / bucket) - 1) * bucket
   const snap = (t: number) => {
-    const k = view === "rate" ? Math.floor((t - start) / bucket) : Math.round((t - start) / bucket)
+    const k = Math.floor((t - start) / bucket)
     return Math.min(lastBucket, Math.max(start, start + k * bucket))
   }
   // Events: the buckets holding a change, any lane's, oldest first. The
-  // pointer lands on one when near its marker (rounding to the nearest
-  // bucket would often miss it), and the arrow keys step between them.
+  // pointer lands on one when near its marker (the bucket under the
+  // pointer would often miss it), and the arrow keys step between them.
   const changeBuckets = view === "events"
     ? [...new Set(lanes.flatMap(l => counterChanges(l.points))
         .filter(c => c.t >= start && c.t <= end)
@@ -134,7 +136,7 @@ function CounterLanesChart({ data, drives, signal, label, view, kind, windows, s
     ? lanes.flatMap(l => counterChanges(l.points)).map(c => c.t).filter(t => t >= start && t <= end)
     : []
   // Client x → the bucket to show: the one holding the nearest change when
-  // the pointer is near it, else the nearest bucket.
+  // the pointer is near it, else the bucket under the pointer.
   const place = (clientX: number) => {
     const t = clientT(clientX), px = x(t)
     let best: number | null = null

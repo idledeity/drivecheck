@@ -86,6 +86,21 @@ describe('TimeSeriesChart', () => {
     expect(tip()).not.toHaveTextContent('badblocks')
   })
 
+  it('reads the bucket under the pointer, not the nearest bucket start: a job tick late in a bucket reads as that bucket', () => {
+    const job = { start: START + 4.7 * MIN, end: START + 4.8 * MIN }
+    const { container } = render(chart({
+      spans: [{ id: 'j', ...job, series: 'a' }],
+      tooltipExtra: t => (job.start < t + MIN && job.end >= t ? 'Sleep (debug)' : 'No jobs'),
+    }))
+    const svg = svgs()[0]
+    const w = Number(svg.getAttribute('width'))
+    svg.getBoundingClientRect = () => ({ left: 0, width: w, top: 0, height: 180, right: w, bottom: 180, x: 0, y: 0, toJSON() {} }) as DOMRect
+    const tick = container.querySelector('.tsc-span-edge')!
+    fireEvent.pointerMove(svg, { clientX: Number(tick.getAttribute('x')) + Number(tick.getAttribute('width')) / 2, pointerType: 'mouse' })
+    expect(tip()).toHaveTextContent('Sleep (debug)')
+    expect(tip()).toHaveTextContent('34 °C')          // minute 4, not 5
+  })
+
   it('draws thresholds inside the domain, which yInclude can widen to reach', () => {
     const { container, rerender } = render(chart({ thresholds: [{ value: 45, label: '45 °C warning', tone: 'warn' }] }))
     expect(container.querySelector('.tsc-threshold')).toBeNull()
@@ -115,9 +130,9 @@ describe('TimeSeriesChart', () => {
 
   it('places a reading on a touch tap, grabbable, and keeps it when the finger lifts', () => {
     const { container } = render(chart())
-    fireEvent.pointerDown(svgs()[0], { clientX: 300, pointerType: 'touch' })
+    fireEvent.pointerDown(svgs()[0], { clientX: 320, pointerType: 'touch' })   // in minute 5
     expect(tip()).toBeNull()                                   // a touch down alone does nothing
-    fireEvent.pointerUp(svgs()[0], { clientX: 302, pointerType: 'touch' })
+    fireEvent.pointerUp(svgs()[0], { clientX: 322, pointerType: 'touch' })
     fireEvent.pointerLeave(svgs()[0], { pointerType: 'touch' })
     expect(tip()).toHaveTextContent('35 °C')
     expect(container.querySelectorAll('.chart-grip')).toHaveLength(1)

@@ -5,7 +5,7 @@ import type { HoverFlags } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
-import { seriesPaths, valueAt, nearest } from "./chartGeometry"
+import { seriesPaths, valueAt, nearest, widen } from "./chartGeometry"
 import type { ChartSeries } from "./chartGeometry"
 import LineKey from "./LineKey"
 import { useTapOutside, useTouchTap } from "./chartTouch"
@@ -154,13 +154,15 @@ export default function TimeSeriesChart(props: Props) {
   }
 
   // Spans (jobs) clipped to the plot; ones wholly outside the range are
-  // dropped, and a very short one still gets minW px so it stays visible.
-  // Overlapping spans are merged first: the shade is translucent, so stacked
-  // copies would add up to a bright streak wherever several jobs overlap.
+  // dropped, and a very short one still gets minW px so it stays visible,
+  // centred on it, so the middle of its tick is when it ran (and hovering
+  // there reads its bucket). Overlapping spans are merged first: the shade
+  // is translucent, so stacked copies would add up to a bright streak
+  // wherever several jobs overlap.
   const boxes = (spans: Pick<ChartSpan, "id" | "start" | "end">[], minW: number) => mergeSpans(spans.flatMap(sp => {
     const a = Math.max(ML, x(Math.max(sp.start, start)))
     const b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, x: a, w: Math.max(minW, b - a) }]
+    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, ...widen(a, b, minW, ML, ML + plotW) }]
   }))
   const allSpans = props.spans ?? []
   const rail = railRows.map((row, i) => {
@@ -216,13 +218,16 @@ export default function TimeSeriesChart(props: Props) {
     return last ? [last.t] : []
   }))
   // A raw time (from the pointer or a key) → the data position to show:
-  // the nearest bucket start, kept between the range start and the newest
-  // reading, or else the nearest point time.
+  // the start of the bucket the time falls in, kept between the range start
+  // and the newest reading, or else the nearest point time. Not the nearest
+  // bucket start: a bucket runs forward from its start, so rounding would
+  // read the next bucket over the second half of this one — e.g. "No jobs"
+  // with the pointer right on a job's tick in the rail.
   const snap = (t: number): number | null => {
     if (snapMs) {
       const lastBucket = start + Math.floor((end - start) / snapMs) * snapMs
       const last = lineEnd > start ? Math.min(lineEnd, lastBucket) : lastBucket
-      return Math.min(last, Math.max(start, start + Math.round((t - start) / snapMs) * snapMs))
+      return Math.min(last, Math.max(start, start + Math.floor((t - start) / snapMs) * snapMs))
     }
     return nearest(allTimes, t)
   }

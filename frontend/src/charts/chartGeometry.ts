@@ -127,3 +127,10 @@ export function nearest(sorted: number[], t: number): number | null {
   const i = nearestIndex(sorted, t)
   return i < 0 ? null : sorted[i]
 }
+
+/** The box from px a to b, at least minW wide: a narrower one grows about
+ *  its middle, kept within [lo, hi]. */
+export function widen(a: number, b: number, minW: number, lo: number, hi: number): { x: number; w: number } {
+  if (b - a >= minW) return { x: a, w: b - a }
+  return { x: Math.max(lo, Math.min(hi - minW, (a + b) / 2 - minW / 2)), w: minW }
+}
