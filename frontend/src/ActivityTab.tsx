@@ -5,7 +5,7 @@ import { groupTasks, type TaskItem } from "./taskItems"
 import { TaskRow } from "./BatchRow"
 import { DriveChipHeader } from "./DriveChip"
 import { Control, Segmented } from "./Controls"
-import { formatDuration, toLocalIso } from "./format"
+import { formatDuration, toServerIso } from "./format"
 import "./ActivityTab.css"
 
 interface Props {
@@ -261,7 +261,7 @@ function useRecentFinished(recent: Recent, liveJobs: Job[]): Job[] {
     if (recent === "off") return
     const since = recent === "last" ? null : Date.now() - RECENT_MS[recent]
     let current = true
-    fetch(`/api/jobs/history?limit=500${since === null ? "" : `&since=${encodeURIComponent(toLocalIso(since))}`}`)
+    fetch(`/api/jobs/history?limit=500${since === null ? "" : `&since=${encodeURIComponent(toServerIso(since))}`}`)
       .then(r => r.json())
       .then((rows: Job[]) => { if (current) setStored({ recent, since, jobs: Array.isArray(rows) ? rows : [] }) })
       .catch(() => { if (current) setStored({ recent, since, jobs: [] }) })

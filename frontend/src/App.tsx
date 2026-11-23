@@ -6,7 +6,7 @@ import GridControls from "./GridControls"
 import SettingsOverlay from "./SettingsOverlay"
 import WorkspacePanel from "./WorkspacePanel"
 import { useAuth } from "./authContext"
-import { toLocalIso } from "./format"
+import { toServerIso } from "./format"
 import { useUnseenResults } from "./jobHistory"
 import { JobsContext, type JobsContextValue } from "./jobsContext"
 import ConfirmProvider from "./ConfirmProvider"
@@ -221,9 +221,9 @@ export default function App() {
   const jobsSeenAt = settings?.jobs_seen_at ?? null
   const needsSeenAt = settings !== null && !settings.jobs_seen_at
   useEffect(() => {
-    if (needsSeenAt) patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
+    if (needsSeenAt) patchSettings({ jobs_seen_at: toServerIso(Date.now()) })
   }, [needsSeenAt])
-  const markJobsSeen = () => patchSettings({ jobs_seen_at: toLocalIso(Date.now()) })
+  const markJobsSeen = () => patchSettings({ jobs_seen_at: toServerIso(Date.now()) })
   const unseen = useUnseenResults(jobsSeenAt, jobs)
 
   const runOperation = (guids: string[], operation: string, params: Record<string, unknown>) =>

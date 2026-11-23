@@ -73,11 +73,12 @@ export function dayLabel(t: number, now: number): string {
   })
 }
 
-// A time (ms) as local ISO without an offset ("2026-11-11T19:30:00"), the form
-// the backend stores job timestamps in and expects for filters like `since`.
-export function toLocalIso(t: number): string {
-  const d = new Date(t), p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+// A time (ms) as the backend stores and reads times: ISO 8601 in UTC
+// ("2026-11-12T01:30:00.000Z"), for filters like `since` and saved settings
+// like jobs_seen_at. (Older saved values have no offset: local time, which
+// new Date() still reads correctly.)
+export function toServerIso(t: number): string {
+  return new Date(t).toISOString()
 }
 
 // "test_type" -> "Test type" — for rendering arbitrary job params/result keys

@@ -93,7 +93,7 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement("a")
     a.href     = url
-    a.download = `drivecheck-report-${new Date().toISOString().slice(0, 10)}.txt`
+    a.download = `drivecheck-report-${new Date().toLocaleDateString("sv")}.txt`   // local date, YYYY-MM-DD
     a.click()
     URL.revokeObjectURL(url)
   }

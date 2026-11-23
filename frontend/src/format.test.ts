@@ -8,7 +8,7 @@ import {
   formatTimestamp,
   humanizeKey,
   dayLabel,
-  toLocalIso,
+  toServerIso,
 } from './format'
 
 describe('formatCapacity', () => {
@@ -139,8 +139,8 @@ describe('dayLabel', () => {
   })
 })
 
-describe('toLocalIso', () => {
-  it('formats local time without an offset', () => {
-    expect(toLocalIso(new Date(2026, 0, 2, 3, 4, 5).getTime())).toBe('2026-01-02T03:04:05')
+describe('toServerIso', () => {
+  it('writes UTC with an offset, whatever the local zone', () => {
+    expect(toServerIso(Date.UTC(2026, 0, 2, 3, 4, 5))).toBe('2026-01-02T03:04:05.000Z')
   })
 })

@@ -2,7 +2,7 @@ import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HistoryTab from './HistoryTab'
 import { mergeHistory, useUnseenResults } from './jobHistory'
-import { toLocalIso } from './format'
+import { toServerIso } from './format'
 import { fetchJsonResponse, makeDrive, makeJob } from './test/fixtures'
 import type { Job } from './types'
 
@@ -26,7 +26,7 @@ describe('HistoryTab', () => {
   const ops = () => [...document.querySelectorAll('.queue-op')].map(e => e.textContent)
   const rowFor = (name: string) => [...document.querySelectorAll('.queue-op')].find(e => e.textContent === name)?.closest('.queue-row')
   // 14 x 24 h ago, which crosses the DST change in early November.
-  const since14d = () => toLocalIso(Date.now() - 14 * 24 * 3600e3)
+  const since14d = () => toServerIso(Date.now() - 14 * 24 * 3600e3)
 
   it('fetches the last 14 days across every drive by default', async () => {
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([done({ id: 'j1', drive_guid: 'd2', operation_name: 'Full Read Test' })]))

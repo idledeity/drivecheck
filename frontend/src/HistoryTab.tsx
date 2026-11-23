@@ -5,7 +5,7 @@ import { groupTasks, isActive, itemDuration, itemFinishedAt, itemJobs, itemStatu
 import { TaskRow } from "./BatchRow"
 import { DriveChipHeader } from "./DriveChip"
 import { Control, FilterChip, Segmented } from "./Controls"
-import { dayLabel, toLocalIso } from "./format"
+import { dayLabel, toServerIso } from "./format"
 import "./HistoryTab.css"
 
 interface Props {
@@ -57,7 +57,7 @@ export default function HistoryTab({ drives, selectedGuids, jobs: liveJobs, onCa
 
   useEffect(() => {
     const since = range === "all" ? null : Date.now() - RANGE_MS[range]
-    const url = `/api/jobs/history?limit=${FETCH_LIMIT}${since === null ? "" : `&since=${encodeURIComponent(toLocalIso(since))}`}`
+    const url = `/api/jobs/history?limit=${FETCH_LIMIT}${since === null ? "" : `&since=${encodeURIComponent(toServerIso(since))}`}`
     let current = true
     fetch(url)
       .then(r => r.json())
