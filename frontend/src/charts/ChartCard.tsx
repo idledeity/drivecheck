@@ -3,16 +3,15 @@ import "./ChartCard.css"
 
 /** The frame around one chart in a dashboard: title, a subtitle saying what
  *  is plotted, optional controls (e.g. a view switch) and callout (the
- *  headline number) on the right, the
- *  chart, and an optional footnote under it. While newer data loads, `stale` dims the old chart rather than
- *  blanking it, so the layout never jumps. */
-export default function ChartCard({ title, subtitle, controls, callout, stale = false, footer, children }: {
+ *  headline number) on the right, then the chart. While newer data loads,
+ *  `stale` dims the old chart rather than blanking it, so the layout never
+ *  jumps. */
+export default function ChartCard({ title, subtitle, controls, callout, stale = false, children }: {
   title: string
   subtitle?: ReactNode
   controls?: ReactNode
   callout?: ReactNode
   stale?: boolean
-  footer?: ReactNode
   children?: ReactNode
 }) {
   return (
@@ -30,7 +29,6 @@ export default function ChartCard({ title, subtitle, controls, callout, stale = 
         )}
       </header>
       {children}
-      {footer && <footer className="chart-card-foot">{footer}</footer>}
     </section>
   )
 }

@@ -38,7 +38,7 @@ export function jobSpans(data: DriveHistoryData, drives: ChartDrive[]): ChartSpa
   return drives.flatMap(d => data.jobs
     .filter(j => j.drive_guid === d.guid)
     .toSorted((a, b) => a.start - b.start)
-    .map(j => ({ id: j.id, start: j.start, end: j.end, label: j.operation_name, series: d.guid, color: d.style.color })))
+    .map(j => ({ id: j.id, start: j.start, end: j.end, series: d.guid, color: d.style.color })))
 }
 
 export interface TimeSpan { start: number; end: number }
@@ -51,9 +51,7 @@ export interface TimeSpan { start: number; end: number }
  *  their own, so every chart uses these.
  *
  *  A gap is found the way a line breaks (TimeSeriesChart): readings more
- *  than 1.5 buckets apart. Not by matching readings to start + k·bucket:
- *  times arrive as local wall-clock strings, so across a DST change every
- *  later bucket is an hour off that grid.
+ *  than 1.5 buckets apart.
  *
  *  Measured up to the end of the newest bucket any drive has (later ones are
  *  still being rolled up). A drive's gap running into that edge counts only
@@ -205,19 +203,16 @@ export function counterSummary(data: DriveHistoryData, drives: ChartDrive[], nam
   return { changed, steady, missing, firstRead }
 }
 
-/** The health callout: drives whose score fell over the range (largest fall
- *  first), and the lowest current score. */
+/** The health callout: drives whose score fell over the range, largest
+ *  fall first. */
 export function healthSummary(data: DriveHistoryData, drives: ChartDrive[]) {
   const dropped: DriveChange[] = []
-  let lowest: { value: number; drive: ChartDrive } | null = null
   for (const d of drives) {
     const fl = firstLast(healthPoints(data, d.guid))
-    if (!fl) continue
-    if (fl.to < fl.from) dropped.push({ drive: d, ...fl })
-    if (!lowest || fl.to < lowest.value) lowest = { value: fl.to, drive: d }
+    if (fl && fl.to < fl.from) dropped.push({ drive: d, ...fl })
   }
   dropped.sort((a, b) => (a.to - a.from) - (b.to - b.from))
-  return { dropped, lowest }
+  return { dropped }
 }
 
 /** A counter's warning / critical lines, split by whether the chart should

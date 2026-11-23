@@ -30,7 +30,7 @@ export interface ChartBand { from: number; to: number; tone: Tone; label?: strin
  *  would blend into a color no drive has. The shading over the plot stays
  *  neutral, except while a series is highlighted: then only its spans are
  *  shaded, in its color. Which job it was is the tooltip's job (tooltipExtra). */
-export interface ChartSpan { id: string; start: number; end: number | null; label?: string; series?: string; color?: string }
+export interface ChartSpan { id: string; start: number; end: number | null; series?: string; color?: string }
 /** Where a chart has no data, hatched over the plot: `all` (no series has
  *  any) normally, or the highlighted series' own stretches. */
 export interface ChartGaps { all: { start: number; end: number }[]; bySeries: Record<string, { start: number; end: number }[]> }

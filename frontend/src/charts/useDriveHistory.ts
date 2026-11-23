@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import type { HealthFactor } from "../types"
 
 // GET /api/drives/history — see backend analysis/drive_history.py. Times
-// arrive as naive local ISO strings and are parsed to ms here, once, so charts
-// only ever deal in numbers.
+// arrive as UTC ISO strings and are parsed to ms here, once, so charts only
+// ever deal in numbers.
 
 export const HISTORY_RANGES = ["1h", "8h", "24h", "7d", "30d", "90d"] as const
 export type HistoryRange = typeof HISTORY_RANGES[number]
@@ -118,8 +118,7 @@ export function refreshMs(range: HistoryRange): number {
 /**
  * The history of guids over range, refetched on a timer. While a new range or
  * drive set loads, data stays the previous answer and `stale` is true, so
- * charts can dim instead of emptying. Each result is tagged with what it was
- * fetched for (`data.range`; `forGuids`).
+ * charts can dim instead of emptying.
  */
 export function useDriveHistory(guids: string[], range: HistoryRange) {
   const key = guids.join(",")
@@ -152,11 +151,10 @@ export function useDriveHistory(guids: string[], range: HistoryRange) {
     return () => { current = false; controller.abort(); window.clearInterval(id) }
   }, [key, range])
 
-  if (!key) return { data: null, stale: false, error: null, forGuids: [] as string[] }
+  if (!key) return { data: null, stale: false, error: null }
   return {
     data: state.data,
     stale: state.key !== key || state.range !== range,
     error: state.key === key && state.range === range ? state.error : null,
-    forGuids: state.key ? state.key.split(",") : [],
   }
 }

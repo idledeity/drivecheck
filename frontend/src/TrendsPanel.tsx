@@ -291,7 +291,6 @@ function HealthCallout({ data, drives }: { data: DriveHistoryData; drives: Chart
   return <><b>{dropped.length}</b> of {scored} drives fell</>
 }
 
-
 /** One counter's card, as its running total (the default), each change per
  *  drive, or its rate per drive against the usual. Left out when no charted
  *  drive reports the counter. A counter at 0 throughout still gets its full

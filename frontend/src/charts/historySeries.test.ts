@@ -26,7 +26,7 @@ describe('jobs', () => {
 
   it('shades only the charted drives\' jobs', () => {
     const spans = jobSpans(data([job({ id: 'a' }), job({ id: 'b', drive_guid: 'other' })]), [d1])
-    expect(spans).toEqual([{ id: 'a', start: T0, end: T0 + 10 * MIN, label: 'Bad Block Scan', series: 'd1', color: 'var(--s1)' }])
+    expect(spans).toEqual([{ id: 'a', start: T0, end: T0 + 10 * MIN, series: 'd1', color: 'var(--s1)' }])
   })
 
   it('orders spans by drive, then start, so each drive\'s jobs form one rail row', () => {

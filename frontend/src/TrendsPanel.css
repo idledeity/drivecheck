@@ -10,7 +10,6 @@
 .trends > .filter-row { flex: none; }
 
 .trends-drives { flex: 1 1 100%; }
-.trends-key { flex: none; }
 
 /* A plain button around a DriveChip: the chip is the whole visual. */
 .trends-drive {
@@ -100,8 +99,8 @@
    line of the filter row. */
 .trends-jobs-strip { flex: 1 1 100%; min-width: 0; font-size: 12px; color: var(--t3); }
 .trends-jobs-strip:not(.desktop) { display: flex; align-items: center; gap: 8px; }
-.trends-jobs-strip:not(.desktop) .jobs-during-row { flex-wrap: nowrap; min-width: 0; }
-.trends-jobs-strip:not(.desktop) .jobs-during-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trends-jobs-strip .jobs-during-row { flex-wrap: nowrap; min-width: 0; }
+.trends-jobs-strip .jobs-during-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trends-jobs-time { color: var(--t5); white-space: nowrap; }
 .trends-jobs-head { display: flex; align-items: center; gap: 4px 10px; min-width: 0; }
 .trends-jobs-toggle {
@@ -120,8 +119,6 @@
 .trends-jobs-toggle:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; border-radius: 3px; }
 .trends-jobs-chevron { transition: transform 0.12s; }
 .trends-jobs-strip.open .trends-jobs-chevron { transform: rotate(90deg); }
-.trends-jobs-head .jobs-during-row { flex-wrap: nowrap; min-width: 0; }
-.trends-jobs-head .jobs-during-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Open: a fixed height whatever the count (scrolling past four rows), so
    moving along a chart never resizes the row and shifts the charts. */
 .trends-jobs-list {
@@ -135,8 +132,6 @@
   overflow-y: auto;
 }
 .trends-jobs-list > * { display: flex; align-items: center; min-width: 0; height: 21px; }
-.trends-jobs-list .jobs-during-row { flex-wrap: nowrap; min-width: 0; }
-.trends-jobs-list .jobs-during-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trends-jobs-when { color: var(--t5); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .trends-jobs-status.failed { color: var(--re); }
 .trends-jobs-status.cancelled { color: var(--t4); }

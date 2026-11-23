@@ -13,7 +13,7 @@ export type CounterView = "total" | "events" | "rate"
 
 const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR
 
-/** The recent window as picked in the Trends filter row; "auto" follows the range. */
+/** The recent window as picked in a Trends counter card's subtitle; "auto" follows the range. */
 export const RECENT_WINDOWS = ["auto", "1h", "4h", "24h", "7d", "30d"] as const
 export type RecentWindow = typeof RECENT_WINDOWS[number]
 const WINDOW_MS: Record<Exclude<RecentWindow, "auto">, number> = { "1h": HOUR, "4h": 4 * HOUR, "24h": DAY, "7d": 7 * DAY, "30d": 30 * DAY }

@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useSt
 
 // Shared crosshair for charts on one time axis: hovering one chart moves the
 // crosshair in every chart under the same ChartHoverSync, and only the chart
-// under the pointer shows its tooltip (every chart, while a time is pinned). A chart outside any ChartHoverSync
-// (e.g. alone in a drive-card popover) keeps its hover to itself.
+// under the pointer shows its tooltip (every chart, while a time is pinned).
+// A chart outside any ChartHoverSync (e.g. alone in a drive-card popover)
+// keeps its hover to itself.
 
 export interface ChartHover {
   /** The hovered time (ms), already snapped to a data position. */

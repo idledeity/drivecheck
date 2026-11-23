@@ -77,12 +77,6 @@ function whyChanged(from: HealthPoint | null, to: HealthPoint): HealthChange["wh
   return { factor, text: old.value === factor.value ? `${factor.label} ${factor.value}` : `${factor.label} ${old.value} → ${factor.value}` }
 }
 
-/** The signals behind a change's factors that were first read at its time:
- *  what makes it a first reading rather than the drive getting worse. */
-export function firstReadFactors(change: HealthChange): HealthFactor[] {
-  return change.to.factors.filter(f => f.signal !== null && change.firsts.has(f.signal))
-}
-
 /** Whether a change came from a first reading: the drive's first score, or
  *  the factor that moved it was read for the first time then. */
 export function isFirstReading(change: HealthChange): boolean {

@@ -19,8 +19,9 @@ const MIN_SPAN = 10
  *  near 0 and climbs steadily, so it reads better on a linear scale fitted to
  *  the data (scale="linear"), where drives separate and slopes show. Drives
  *  that don't report the counter get no line. Threshold lines far above the
- *  data are left off (counterThresholds); the chart's frame names them. Small: these are drawn as small multiples,
- *  so the job rail is shown but the tooltip leaves jobs out. */
+ *  data are left off (counterThresholds); the chart's frame names them.
+ *  Small: these are drawn as small multiples, so the job rail is shown but
+ *  the tooltip leaves jobs out. */
 function CounterChart({ data, drives, signal, label, scale = "log1p", showJobs = true, highlight = null, height = 130 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
