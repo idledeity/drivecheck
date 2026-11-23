@@ -17,8 +17,8 @@ export default function ChartCard({ title, subtitle, controls, callout, stale = 
 }) {
   return (
     <section className={`chart-card${stale ? " stale" : ""}`} aria-busy={stale || undefined}>
-      <header className="chart-card-head">
-        <div>
+      <header className={`chart-card-head${controls ? " with-controls" : ""}`}>
+        <div className="chart-card-main">
           <h3 className="chart-card-title">{title}</h3>
           {subtitle && <div className="chart-card-sub">{subtitle}</div>}
         </div>

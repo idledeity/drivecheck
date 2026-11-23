@@ -17,6 +17,14 @@
   margin-bottom: 4px;
 }
 
+/* A card with controls (a counter's view switch) can change its subtitle
+   with them — Rate's is longer than Events'. Left to its natural width, a
+   longer subtitle would push the controls onto their own line, so the
+   header would reshape on every switch. Instead the title block starts
+   from a fixed width and its subtitle wraps: whether the controls sit
+   beside it or below depends only on the card's width. */
+.chart-card-head.with-controls > .chart-card-main { flex: 1 1 14rem; min-width: 0; }
+
 .chart-card-side {
   display: flex;
   flex-direction: column;
