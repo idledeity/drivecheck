@@ -82,12 +82,14 @@ export function dataGaps(data: DriveHistoryData, drives: ChartDrive[]): { all: T
 
 /** Each charted drive's job running at any point in the bucket starting at
  *  t, for the tooltip (see JobsDuring). */
-export function jobsDuring(data: DriveHistoryData, drives: ChartDrive[], t: number): { id: string; name: string; drive: ChartDrive }[] {
+export interface JobDuring { id: string; name: string; drive: ChartDrive; start: number; end: number | null; status: string }
+
+export function jobsDuring(data: DriveHistoryData, drives: ChartDrive[], t: number): JobDuring[] {
   const byGuid = new Map(drives.map(d => [d.guid, d]))
   const bucketEnd = t + data.bucketMs
   return data.jobs
     .filter((j: HistoryJob) => byGuid.has(j.drive_guid) && j.start < bucketEnd && (j.end ?? Infinity) >= t)
-    .map(j => ({ id: j.id, name: j.operation_name, drive: byGuid.get(j.drive_guid)! }))
+    .map(j => ({ id: j.id, name: j.operation_name, drive: byGuid.get(j.drive_guid)!, start: j.start, end: j.end, status: j.status }))
 }
 
 /** The job one drive was running at t, if any (the latest started, should

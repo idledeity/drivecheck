@@ -4,7 +4,8 @@ import type { ChartDrive } from "./historySeries"
 
 /** A charted drive named the way every chart names it in dense places —
  *  tooltip rows, job lines, callouts: a thin chip led by the drive's line key,
- *  serial shortened to its last four characters. */
-export default function ChartDriveChip({ drive }: { drive: ChartDrive }) {
-  return <DriveChip drive={drive.drive} serial="tail" thin lead={<LineKey {...drive.style} />} />
+ *  serial shortened to its last four characters. Short: the model alone,
+ *  as the Trends legend names it. */
+export default function ChartDriveChip({ drive, short = false }: { drive: ChartDrive; short?: boolean }) {
+  return <DriveChip drive={drive.drive} serial="tail" thin short={short} lead={<LineKey {...drive.style} />} />
 }

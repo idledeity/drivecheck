@@ -12,10 +12,13 @@ import type { DriveHistoryData } from "./useDriveHistory"
  *  scoring changes it — over the status bands the score is judged by. The
  *  bands aren't labelled inside the plot, where the names sat on top of the
  *  lines; the chart's frame says which is which (HealthBandsKey). */
-function HealthScoreChart({ data, drives, showJobs = true, highlight = null, height = 150 }: {
+function HealthScoreChart({ data, drives, showJobs = true, listJobs = true, highlight = null, height = 150 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
   showJobs?: boolean
+  /** The jobs running at the hovered time, in the readings. Off where the
+   *  page lists them once for all its charts (Trends' TrendsJobs). */
+  listJobs?: boolean
   /** A drive to bring forward (the others dim), e.g. while its legend chip is hovered. */
   highlight?: string | null
   height?: number
@@ -71,7 +74,7 @@ function HealthScoreChart({ data, drives, showJobs = true, highlight = null, hei
         return status ? `${v} · ${status}` : `${v}`
       }}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? (t, { compact }) => {
+      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
         return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}

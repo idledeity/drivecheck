@@ -19,6 +19,7 @@ import { COUNTER_SIGNALS, counterKind, counterScale, counterSubtitle, trendsCoun
 import { RATE_BUCKET, counterWindows, windowFits } from "./charts/counterTrends"
 import { driveColorOrder, driveStyles } from "./charts/drivePalette"
 import LineKey from "./charts/LineKey"
+import TrendsJobs from "./charts/TrendsJobs"
 import { chartDrive, counterSummary, counterThresholds, healthSummary, hottest, peakThroughput } from "./charts/historySeries"
 import type { ChartDrive } from "./charts/historySeries"
 import { momentLabel } from "./charts/scales"
@@ -163,6 +164,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
             </button>
           ))}
         </div>
+        {data && showJobs && <TrendsJobs data={data} drives={shown} />}
       </div>
 
       {error && <p className="health-empty">Couldn't load history: {error}</p>}
@@ -177,7 +179,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               callout={<HottestCallout data={data} drives={shown} />}
               stale={stale}
             >
-              <TemperatureChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
+              <TemperatureChart data={data} drives={shown} showJobs={showJobs} listJobs={false} highlight={highlight} />
             </ChartCard>
             <ChartCard
               title="Throughput"
@@ -185,7 +187,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               callout={<PeakCallout data={data} drives={shown} />}
               stale={stale}
             >
-              <ThroughputChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
+              <ThroughputChart data={data} drives={shown} showJobs={showJobs} listJobs={false} highlight={highlight} />
             </ChartCard>
             <ChartCard
               title="Health score"
@@ -193,7 +195,7 @@ export default function TrendsPanel({ drives, selectedGuids }: { drives: Drive[]
               callout={<HealthCallout data={data} drives={shown} />}
               stale={stale}
             >
-              <HealthScoreChart data={data} drives={shown} showJobs={showJobs} highlight={highlight} />
+              <HealthScoreChart data={data} drives={shown} showJobs={showJobs} listJobs={false} highlight={highlight} />
               <HealthChangeLog data={data} drives={shown} />
             </ChartCard>
             <div className="trends-counters">

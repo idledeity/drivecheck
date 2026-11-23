@@ -11,10 +11,13 @@ import { formatThroughput } from "../format"
 /** Each drive's disk throughput (read + write) averaged per bucket: one line
  *  per drive rather than separate read and write lines, since with several
  *  drives charted doubled lines are unreadable — the tooltip gives the split. */
-function ThroughputChart({ data, drives, showJobs = true, highlight = null, height = 160 }: {
+function ThroughputChart({ data, drives, showJobs = true, listJobs = true, highlight = null, height = 160 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
   showJobs?: boolean
+  /** The jobs running at the hovered time, in the readings. Off where the
+   *  page lists them once for all its charts (Trends' TrendsJobs). */
+  listJobs?: boolean
   /** A drive to bring forward (the others dim), e.g. while its legend chip is hovered. */
   highlight?: string | null
   height?: number
@@ -56,7 +59,7 @@ function ThroughputChart({ data, drives, showJobs = true, highlight = null, heig
         return `${formatThroughput(read)} read · ${formatThroughput(write)} write`
       }}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? (t, { compact }) => {
+      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
         return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}

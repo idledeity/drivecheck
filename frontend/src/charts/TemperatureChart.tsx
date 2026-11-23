@@ -11,10 +11,13 @@ import type { DriveHistoryData } from "./useDriveHistory"
 /** Each drive's average temperature per bucket, to the nearest 0.5 °C (see
  *  roundTemp), with the warning threshold the health score uses. The tooltip
  *  gives the same average: the bucket's min/max were more noise than help. */
-function TemperatureChart({ data, drives, showJobs = true, highlight = null, height = 200 }: {
+function TemperatureChart({ data, drives, showJobs = true, listJobs = true, highlight = null, height = 200 }: {
   data: DriveHistoryData
   drives: ChartDrive[]
   showJobs?: boolean
+  /** The jobs running at the hovered time, in the readings. Off where the
+   *  page lists them once for all its charts (Trends' TrendsJobs). */
+  listJobs?: boolean
   /** A drive to bring forward (the others dim), e.g. while its legend chip is hovered. */
   highlight?: string | null
   height?: number
@@ -50,7 +53,7 @@ function TemperatureChart({ data, drives, showJobs = true, highlight = null, hei
       formatY={v => `${v}°`}
       formatValue={v => `${v.toFixed(1)} °C`}
       formatTime={t => bucketLabel(t, data.bucketMs)}
-      tooltipExtra={showJobs ? (t, { compact }) => {
+      tooltipExtra={showJobs && listJobs ? (t, { compact }) => {
         const jobs = jobsDuring(data, drives, t)
         return <JobsDuring jobs={jobs} compact={compact} />
       } : undefined}
