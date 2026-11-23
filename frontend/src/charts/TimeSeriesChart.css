@@ -142,7 +142,7 @@
 .tsc-tip.pinned button { pointer-events: auto; }
 .tsc-tip-time { color: var(--t4); font-size: 11px; margin-bottom: 4px; }
 /* Readings under a wide chart (a group that asks for them, e.g. Trends):
-   newspaper columns, highest first down each one, so many drives take a
+   newspaper columns, in drive order down each one, so many drives take a
    few rows. The chips go short (name and serial tail; the rest is in their
    title) so a row fits a column. */
 @container drive-chips (min-width: 520px) {

@@ -255,9 +255,10 @@ export default function TimeSeriesChart(props: Props) {
   const readings = allReadings.filter((r): r is { s: ChartSeries; v: number } => r.v !== null)
   // The floating tooltip lists only series with a value. Under a narrow
   // chart, in the page flow, every series keeps its row ("—" when empty) so
-  // the readings' height holds while scrubbing; highest first either way,
-  // so rows line up with the lines' vertical order.
-  const tipRows = (tipBelow ? allReadings : readings).toSorted((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity))
+  // the readings' height holds while scrubbing. Rows keep the series' own
+  // order (for drives, the legend's) rather than sorting by value, so a
+  // drive's row stays put as the time moves.
+  const tipRows = tipBelow ? allReadings : readings
   // Markers in the hovered bucket (or at the hovered point).
   const tipMarks = tipT === null ? [] : markers.filter(({ m }) => bucketOf(m.t) === bucketOf(tipT))
   // Every chart in a sync group draws the crosshair; only the hovered one

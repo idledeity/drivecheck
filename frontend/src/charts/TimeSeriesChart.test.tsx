@@ -27,11 +27,11 @@ describe('TimeSeriesChart', () => {
     expect(svgs()[0]).toHaveAccessibleName('Temperature')
   })
 
-  it('reads every series at the focused time, highest first, and steps with the arrow keys', () => {
+  it('reads every series at the focused time, in series order (not by value), and steps with the arrow keys', () => {
     render(chart())
     fireEvent.focus(svgs()[0])        // starts on the last bucket
     let rows = within(tip()!).getAllByText(/°C/).map(e => e.textContent)
-    expect(rows).toEqual(['40 °C', '39 °C'])
+    expect(rows).toEqual(['39 °C', '40 °C'])          // a, then b, though b reads higher
 
     for (let i = 0; i < 4; i++) fireEvent.keyDown(svgs()[0], { key: 'ArrowLeft' })   // minute 5: b has no reading
     rows = within(tip()!).getAllByText(/°C/).map(e => e.textContent)
@@ -109,7 +109,8 @@ describe('TimeSeriesChart', () => {
     fireEvent.focus(svgs()[0])
     const row = tip()!.querySelector('.tsc-tip-row')!
     expect([...row.children].map(c => c.className)).toEqual(['tsc-tip-label', 'tsc-tip-value'])
-    expect(row).toHaveTextContent('booop40 °C')
+    expect(row).toHaveTextContent('Exos FF0239 °C')       // a's row comes first
+    expect(tip()!.querySelectorAll('.tsc-tip-row')[1]).toHaveTextContent('booop40 °C')
   })
 
   it('places a reading on a touch tap, grabbable, and keeps it when the finger lifts', () => {
