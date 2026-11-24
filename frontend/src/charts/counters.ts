@@ -3,7 +3,7 @@ import type { ChartThreshold } from "./TimeSeriesChart"
 import type { Baseline, CounterView, RecentWindow } from "./counterTrends"
 import { rateLabel } from "./counterTrends"
 import { formatBytes } from "../format"
-import { formatTick } from "./scales"
+import { formatCount, formatTick } from "./scales"
 
 // The counters charted wherever drive history is (Health > Trends, drive card
 // popovers): error counts first (link errors count since power-on, so they
@@ -46,7 +46,7 @@ const signedBytes = (v: number) => `${v < 0 ? "−" : ""}${formatBytes(Math.abs(
 export function counterFormat(signal: string): CounterFormat {
   const f = BYTE_COUNTERS.has(signal)
     ? { value: signedBytes, axis: signedBytes, rate: signedBytes, workload: true }
-    : { value: (v: number) => v.toLocaleString(), axis: formatTick, rate: rateLabel, workload: false }
+    : { value: formatCount, axis: formatTick, rate: rateLabel, workload: false }
   return { ...f, signed: d => `${d > 0 ? "+" : d < 0 ? "−" : ""}${f.value(Math.abs(d))}` }
 }
 

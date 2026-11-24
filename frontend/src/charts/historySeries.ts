@@ -3,7 +3,7 @@ import type { ChartPoint, ChartSpan, ChartThreshold } from "./TimeSeriesChart"
 import type { SeriesStyle } from "./drivePalette"
 import type { DriveHistoryData, VitalsHistory } from "./useDriveHistory"
 import { numeric } from "./chartGeometry"
-import { clockLabel, dateLabel } from "./scales"
+import { clockLabel, dateLabel, formatCount } from "./scales"
 import { counterChanges } from "./counterTrends"
 
 // Shared glue between drive history data and the charts: who's charted, in
@@ -234,8 +234,8 @@ export function healthSummary(data: DriveHistoryData, drives: ChartDrive[]) {
 export function counterThresholds(data: DriveHistoryData, drives: ChartDrive[], signal: string): { inView: ChartThreshold[]; beyond: ChartThreshold[] } {
   const limits = data.thresholds.signals[signal]
   const all: ChartThreshold[] = []
-  if (limits?.warn_gte != null) all.push({ value: limits.warn_gte, label: `warning ≥ ${limits.warn_gte.toLocaleString()}`, tone: "warn" })
-  if (limits?.crit_gte != null) all.push({ value: limits.crit_gte, label: `critical ≥ ${limits.crit_gte.toLocaleString()}`, tone: "crit" })
+  if (limits?.warn_gte != null) all.push({ value: limits.warn_gte, label: `warning ≥ ${formatCount(limits.warn_gte)}`, tone: "warn" })
+  if (limits?.crit_gte != null) all.push({ value: limits.crit_gte, label: `critical ≥ ${formatCount(limits.crit_gte)}`, tone: "crit" })
   const max = Math.max(0, ...drives.flatMap(d => numeric(signalPoints(data, d.guid, signal)).map(p => p.v)))
   const reach = Math.max(10, max * 10)
   return { inView: all.filter(th => th.value <= reach), beyond: all.filter(th => th.value > reach) }

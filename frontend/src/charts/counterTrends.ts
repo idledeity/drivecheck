@@ -1,4 +1,5 @@
 import { numeric } from "./chartGeometry"
+import { formatCount } from "./scales"
 import type { ChartPoint } from "./chartGeometry"
 import type { HistoryRange } from "./useDriveHistory"
 
@@ -222,7 +223,7 @@ export function ratioLabel(ratio: number): string {
 /** A per-day rate, to a sensible precision: 1,240 · 38 · 4.2 · 0.35. */
 export function rateLabel(perDay: number): string {
   const a = Math.abs(perDay)
-  if (a >= 100) return Math.round(perDay).toLocaleString()
+  if (a >= 100) return formatCount(Math.round(perDay))
   if (a >= 10) return perDay.toFixed(0)
   if (a >= 1) return perDay.toFixed(1)
   return a === 0 ? "0" : perDay.toFixed(2)

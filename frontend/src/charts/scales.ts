@@ -1,6 +1,14 @@
 // Axis arithmetic for the hand-rolled SVG charts: clean y ticks, the
 // log(1 + v) scale the error counters use, and local-time x ticks.
 
+// Formatters made once: toLocaleString / toLocaleDateString build a new
+// one on every call, which at a chart's every tick label and reading, on
+// every step of the cursor, was half the time a hover took.
+const DATE_FMT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
+const TICK_FMT = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
+/** A whole count with digit grouping, as toLocaleString gives it: "1,051". */
+export const formatCount = new Intl.NumberFormat().format
+
 const MINUTE = 60e3
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -55,7 +63,7 @@ export function formatTick(v: number): string {
   const abs = Math.abs(v)
   if (abs >= 1e6) return `${+(v / 1e6).toFixed(1)}M`
   if (abs >= 1e4) return `${+(v / 1e3).toFixed(1)}K`
-  return v.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  return TICK_FMT.format(v)
 }
 
 // Candidate x-tick spacings, smallest first.
@@ -105,7 +113,7 @@ function dayNumber(d: Date): number {
 }
 
 export function dateLabel(t: number): string {
-  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return DATE_FMT.format(t)
 }
 
 export function clockLabel(t: number): string {

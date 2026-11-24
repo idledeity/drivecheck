@@ -5,7 +5,7 @@ import { useChartHover } from "./chartHover"
 import { counterFormat } from "./counters"
 import { counterEvents } from "./historySeries"
 import type { ChartDrive } from "./historySeries"
-import { momentLabel } from "./scales"
+import { formatCount, momentLabel } from "./scales"
 import type { DriveHistoryData } from "./useDriveHistory"
 import "./HealthChangeLog.css"
 import "./CounterEventLog.css"
@@ -35,7 +35,7 @@ function CounterEventLog({ data, drives, signal, highlight = null, limit = 10 }:
   return (
     <div className="hcl cel">
       <button type="button" className={`cel-toggle${open ? " open" : ""}`} aria-expanded={open} onClick={() => setOpen(v => !v)}>
-        <span className="hcl-title">{events.length === 1 ? "1 change" : `${events.length.toLocaleString()} changes`} in range</span>
+        <span className="hcl-title">{events.length === 1 ? "1 change" : `${formatCount(events.length)} changes`} in range</span>
         <span className="hcl-caret" aria-hidden>›</span>
       </button>
       {open && <>
@@ -54,7 +54,7 @@ function CounterEventLog({ data, drives, signal, highlight = null, limit = 10 }:
         </ul>
         {events.length > limit && (
           <button type="button" className="hcl-more" onClick={() => setShowAll(v => !v)}>
-            {showAll ? "Show fewer" : `Show all ${events.length.toLocaleString()}`}
+            {showAll ? "Show fewer" : `Show all ${formatCount(events.length)}`}
           </button>
         )}
       </>}
