@@ -235,21 +235,28 @@
   color: var(--t4);
 }
 
-/* Below this width, the sidebar's fixed 180px was eating most of the row,
-   cramming the form into a sliver — there was actually enough width for
-   the two columns side by side, the op names just needed room to wrap
-   instead of forcing the sidebar wide enough to fit them on one line.
-   .rt-op already has no white-space:nowrap, so shrinking the column is
-   enough to let long names like "SMART Self-Test (Conveyance)" wrap on
-   their own — no markup change needed. */
+/* ── Task select: replaces the sidebar on phones ── */
+.rt-select {
+  display: none;
+  font-size: 13px;
+  color: var(--t1);
+  background: var(--bi);
+  border: 1px solid var(--bd2);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.rt-select:focus-visible { outline: 2px solid var(--cy); outline-offset: 2px; }
+
+/* Phones: even a narrow sidebar left the form a sliver, so the task list
+   becomes a select above the form and the form takes the full width. */
 @media (max-width: 640px) {
   .run-task-form {
-    gap: 12px;
+    flex-direction: column;
+    gap: 14px;
   }
 
-  .rt-sidebar {
-    width: 98px;
-  }
+  .rt-sidebar { display: none; }
+  .rt-select  { display: block; width: 100%; }
 
   .rt-param {
     max-width: none;

@@ -77,6 +77,29 @@ export default function RunTaskForm({ drives, guids, onRun, onRunRecipe }: Props
 
   return (
     <div className="run-task-form">
+      {/* Phones get this instead of the sidebar (RunTaskForm.css), so the form keeps the full width. */}
+      <select
+        className="rt-select"
+        aria-label="Task"
+        value={active ? `${active.kind}:${active.key}` : ""}
+        onChange={e => {
+          const [kind, ...rest] = e.target.value.split(":")
+          setActive({ kind: kind as Active["kind"], key: rest.join(":") })
+        }}
+      >
+        {recipes.length > 0 && (
+          <optgroup label="Recipes">
+            {recipes.map(recipe => <option key={recipe.key} value={`recipe:${recipe.key}`}>{recipe.name}</option>)}
+          </optgroup>
+        )}
+        {categories.map(cat => (
+          <optgroup key={cat} label={cat}>
+            {operations.filter(o => o.category === cat).map(op => (
+              <option key={op.key} value={`operation:${op.key}`}>{op.name}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
       <nav className="rt-sidebar">
         {recipes.length > 0 && (
           <div className="rt-category">

@@ -120,10 +120,22 @@ describe('RunTaskTab', () => {
   it('switches the active operation when another sidebar entry is clicked', async () => {
     vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST, SLEEP_DEBUG], '/api/recipes': [] }))
     render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('Sleep (debug)')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sleep (debug)' })).toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('Sleep (debug)'))
+    await userEvent.click(screen.getByRole('button', { name: 'Sleep (debug)' }))
     expect(screen.getByRole('heading', { name: 'Sleep (debug)' })).toBeInTheDocument()
+  })
+
+  it('switches the active operation from the phone task select', async () => {
+    vi.mocked(fetch).mockImplementation(routeFetch({ '/api/operations': [READ_TEST, SLEEP_DEBUG], '/api/recipes': [] }))
+    render(<RunTaskTab drives={[makeDrive({ guid: 'd1' })]} selected={['d1']} onRun={vi.fn()} onRunRecipe={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Full Read Test' })).toBeInTheDocument())
+
+    const select = screen.getByRole('combobox', { name: 'Task' })
+    expect(select).toHaveValue('operation:dd_read_test')
+    await userEvent.selectOptions(select, 'Sleep (debug)')
+    expect(screen.getByRole('heading', { name: 'Sleep (debug)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sleep (debug)' })).toHaveClass('active')
   })
 
   it('calls onRun with the selected drives, operation key, and current params', async () => {
