@@ -75,3 +75,8 @@ window.getComputedStyle = ((el: Element, pseudo?: string | null) => {
       : typeof k === 'string' ? value(k.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)) : undefined,
   })
 }) as unknown as typeof window.getComputedStyle
+
+// Chart hover follows the pointer once per frame (useChartPointer). Tests
+// fire one event and read the result, so a frame runs straight away.
+globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => { cb(performance.now()); return 0 }
+globalThis.cancelAnimationFrame = () => {}

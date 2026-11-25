@@ -1,14 +1,13 @@
-import { useCallback, useId, useLayoutEffect, useMemo, useRef } from "react"
-import type { KeyboardEvent, PointerEvent, ReactNode } from "react"
-import { readingRow, useChartHover, useChartPick, useGroupLatest, useLeftGutter, useReadingsBelow } from "./chartHover"
-import type { HoverFlags } from "./chartHover"
+import { useId, useMemo, useRef } from "react"
+import type { ReactNode } from "react"
+import { readingRow, useChartPick, useLeftGutter } from "./chartHover"
 import { useWidth } from "./useWidth"
 import { formatTick, log1pTicks, momentLabel, niceTicks, timeTicks, yScale } from "./scales"
 import type { YScale } from "./scales"
 import { bucketStart, numeric, seriesPaths, valueAt, nearest, widen } from "./chartGeometry"
 import type { ChartSeries } from "./chartGeometry"
 import LineKey from "./LineKey"
-import { useTapOutside, useTouchTap } from "./chartTouch"
+import { useChartPointer } from "./useChartPointer"
 import { AxisScrub, LineGrip } from "./ChartGrips"
 import "./TimeSeriesChart.css"
 
@@ -97,11 +96,6 @@ const TICK_GAP = 6
 // short one is still `min` px wide. The chart grows by the extra rows, so
 // the plot keeps its height.
 const RAIL = { gap: 3, height: 3, row: 4, min: 3 }
-// Below this chart width the tooltip would cover most of the plot (and run
-// off a phone screen), so the readings show under the chart instead —
-// always, at the newest reading until a time is picked, so every chart in a
-// group reads at one time and the page doesn't jump as they come and go.
-const TIP_BELOW_WIDTH = 520
 
 export default function TimeSeriesChart(props: Props) {
   const {
@@ -116,107 +110,23 @@ export default function TimeSeriesChart(props: Props) {
   const tipRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const width = useWidth(wrapRef)
-  const { hover, setHover } = useChartHover()
 
-  // The rail's rows: one per series with spans (spans without one share a
-  // row), in the order their spans come.
-  const railRows = [...new Set((props.spans ?? []).map(sp => sp.series ?? ""))]
-  // The plot's top edge: below the rail's rows. Extra rows add height.
-  const top = M.top + Math.max(0, railRows.length - 1) * RAIL.row
-  const svgH = height + top - M.top
-
-  // Recomputed each render: a few hundred points per series is cheap, and
-  // hover re-renders only move the crosshair's inputs.
   const plotH = Math.max(20, height - M.top - M.bottom)
-  const domain = yDomain(props, plotH)
+  const domain = useMemo(() => yDomain(props, plotH), [props, plotH])
   // Left margin: just wide enough for this chart's y tick labels — or, in a
   // ChartHoverSync group, for the widest of any chart's, so every chart's
   // plot starts at the same x and their crosshairs line up.
-  const ML = useLeftGutter(id, TICK_GAP + Math.ceil(Math.max(0, ...domain.ticks.map(v => tickTextWidth(formatY(v))))))
-  const plotW = Math.max(40, width - ML - M.right)
-  // x: time (ms) → px, and toT, its inverse, for turning the pointer into a time.
-  const x = (t: number) => ML + ((t - start) / (end - start || 1)) * plotW
-  const toT = (px: number) => start + ((px - ML) / plotW) * (end - start)
-  // y: value → px. SVG's y grows downwards, so the domain's low end maps to
-  // the plot's bottom edge. Values outside a fixed yMin/yMax are clamped to
-  // the edge rather than drawn outside the plot.
-  const rawY = yScale(props.yScale ?? "linear", domain.lo, domain.hi, top + plotH, top)
-  const y = (v: number) => Math.min(top + plotH, Math.max(top, rawY(v)))
-  // Roughly one x tick per 60px of plot width.
-  const layout = { ...domain, xTicks: timeTicks(start, end, Math.max(2, Math.floor(plotW / 60))) }
-
-  // Tick labels closer than 11px to the last one drawn are skipped (on a short
-  // log axis, 0 and 1 sit almost on top of each other); the gridline stays.
-  const labelled = new Set<number>()
-  let lastLabelY = Infinity
-  for (const v of domain.ticks) {
-    if (lastLabelY - y(v) >= 11) { labelled.add(v); lastLabelY = y(v) }
-  }
-
-  // Spans (jobs) clipped to the plot; ones wholly outside the range are
-  // dropped, and a very short one still gets minW px so it stays visible,
-  // centred on it, so the middle of its tick is when it ran (and hovering
-  // there reads its bucket). Overlapping spans are merged first: the shade
-  // is translucent, so stacked copies would add up to a bright streak
-  // wherever several jobs overlap.
-  const boxes = (spans: Pick<ChartSpan, "id" | "start" | "end">[], minW: number) => mergeSpans(spans.flatMap(sp => {
-    const a = Math.max(ML, x(Math.max(sp.start, start)))
-    const b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
-    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, ...widen(a, b, minW, ML, ML + plotW) }]
-  }))
-  const allSpans = props.spans ?? []
-  const rail = railRows.map((row, i) => {
-    const spans = allSpans.filter(sp => (sp.series ?? "") === row)
-    return { row, color: spans[0]?.color, y: top - RAIL.gap - RAIL.height - (railRows.length - 1 - i) * RAIL.row, boxes: boxes(spans, RAIL.min) }
-  })
-
-  // A missing bucket between two points means no readings (drive absent,
-  // collector stopped), so the line breaks there instead of bridging it. Half
-  // a bucket of slack keeps neighbouring buckets joined.
-  const gapMs = props.gapMs ?? (snapMs ? snapMs * 1.5 : Infinity)
-  // A highlighted series is drawn last, so it's on top of any it overlaps.
-  const hl = props.highlight ?? null
-  // Over the plot: every span, neutral — or while a series is highlighted
-  // and has spans of its own, only those, in its color.
-  const hlSpans = hl ? allSpans.filter(sp => sp.series === hl) : []
-  const shade = hl && allSpans.some(sp => sp.series !== undefined)
-    ? { boxes: boxes(hlSpans, 2), color: hlSpans[0]?.color }
-    : { boxes: boxes(allSpans, 2), color: undefined }
-  // Hatched: where no series has data, or the highlighted one's own gaps.
-  const gapBoxes = boxes(((hl ? props.gaps?.bySeries[hl] : props.gaps?.all) ?? []).map((g, i) => ({ id: `gap-${i}`, ...g })), 1)
+  const need = useMemo(() => TICK_GAP + Math.ceil(Math.max(0, ...domain.ticks.map(v => tickTextWidth(formatY(v))))), [domain, formatY])
+  const ML = useLeftGutter(id, need)
+  // Everything that doesn't move with the cursor, drawn once per data and
+  // size: a hover re-renders only the crosshair, its dots and the readings.
+  // (Hovering re-renders this component, through the shared hover, with the
+  // same props.)
+  const L = useMemo(() => chartLayout(props, width, ML, plotH, domain, hatchId), [props, width, ML, plotH, domain, hatchId])
+  const { x, y, top, plotW, svgH, hl, dim, markers, allTimes, lineEnd, bucketOf } = L
   const pick = useChartPick()
-  const paths = series
-    .map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
-    .sort((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl))
-  const dim = (s: ChartSeries) => (hl && s.id !== hl ? " dim" : "")
-
-  // Markers sit on their series' line: a step series at the marker's own
-  // time; a line (one point per bucket) at the start of the bucket holding it.
-  const bucketOf = (t: number) => (snapMs ? bucketStart(t, start, snapMs) : t)
-  const markers = (props.markers ?? []).flatMap(m => {
-    const s = series.find(x => x.id === m.series)
-    if (!s || m.t < start || m.t > end) return []
-    const at = s.shape === "step" ? m.t : bucketOf(m.t)
-    const v = valueAt(s, at, snapMs)
-    return v === null ? [] : [{ m, s, x: x(at), y: y(v) }]
-  })
 
   // ── hover ───────────────────────────────────────────────────────────────
-  // The hovered time lives in the hover state (shared or local); everything
-  // drawn for it — crosshair, dots, tooltip — is derived from it below.
-
-  // Every time any series has a point at, sorted: the crosshair's stops when
-  // there's no bucket grid to snap to.
-  const allTimes = useMemo(
-    () => [...new Set(series.flatMap(s => s.points.map(p => p.t)))].sort((a, b) => a - b),
-    [series])
-  // Past the newest line point there is nothing to read (the newest buckets
-  // are still being rolled up), so the crosshair stops there. Step series
-  // hold their value to the end, so they don't limit it.
-  const lineEnd = Math.max(-Infinity, ...series.filter(s => s.shape !== "step").flatMap(s => {
-    const last = s.points.findLast(p => p.v !== null)
-    return last ? [last.t] : []
-  }))
   // A raw time (from the pointer or a key) → the data position to show:
   // the start of the bucket the time falls in, kept between the range start
   // and the newest reading, or else the nearest point time. Not the nearest
@@ -231,56 +141,23 @@ export default function TimeSeriesChart(props: Props) {
     }
     return nearest(allTimes, t)
   }
-  // One position left or right of t, for the arrow keys.
-  const step = (t: number, dir: 1 | -1): number | null => {
-    if (snapMs) return snap(t + dir * snapMs)
-    const i = allTimes.indexOf(t) + dir
-    return allTimes[Math.min(allTimes.length - 1, Math.max(0, i))] ?? null
-  }
-  // Keyboard focus starts on the newest point: the bucket at `end` is still
-  // filling, so it rarely has any data yet.
-  const latest = () => allTimes.length ? allTimes[allTimes.length - 1] : snap(end)
-  const hoverAt = (t: number | null, flags: HoverFlags = {}) => setHover(t === null ? null : { t, source: id, ...flags })
-  // Client x → time. The rendered width can briefly differ from the measured
-  // one (mid-resize), so scale client px to the SVG's own px first.
-  const clientT = (clientX: number) => {
-    const r = svgRef.current!.getBoundingClientRect()
-    return toT(((clientX - r.left) / (r.width || width)) * width)
-  }
-  // Mouse and pen hover, and a click pins the time (or unpins it, back to
-  // following the pointer); touch only taps (see chartTouch).
-  const pinned = !!hover?.pinned
-  const tap = useTouchTap(e => hoverAt(snap(clientT(e.clientX)), { touch: true }))
-  const onPointer = (e: PointerEvent<SVGSVGElement>) => {
-    if (e.pointerType !== "touch" && !pinned) hoverAt(snap(clientT(e.clientX)))
-  }
-  const onPress = (e: PointerEvent<SVGSVGElement>) => {
-    tap.down(e)
-    if (e.pointerType === "touch" || e.button !== 0) return
-    hoverAt(snap(clientT(e.clientX)), { pinned: !pinned })
-  }
-  // A reading placed by touch: its line can be grabbed in every chart that
-  // draws it, and a tap outside the charts clears it (watched by the chart
-  // that placed it).
-  const gripped = !!hover?.touch
-  const clearHover = useCallback(() => setHover(null), [setHover])
-  useTapOutside(gripped && hover.source === id, clearHover)
-  const onKeyDown = (e: KeyboardEvent<SVGSVGElement>) => {
-    if (e.key === "Escape") return hoverAt(null)
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
-    e.preventDefault()
-    const from = hover?.t ?? latest()
-    if (from !== null) hoverAt(step(from, e.key === "ArrowRight" ? 1 : -1), { pinned })
-  }
+  const ptr = useChartPointer({
+    id, start, end, width, hostRef: svgRef, wrapRef, tipRef, x,
+    toT: px => start + ((px - ML) / plotW) * (end - start),
+    place: snap,
+    // One position left or right, for the arrow keys.
+    step: (t, dir) => {
+      if (snapMs) return snap(t + dir * snapMs)
+      const i = allTimes.indexOf(t) + dir
+      return allTimes[Math.min(allTimes.length - 1, Math.max(0, i))] ?? null
+    },
+    // Keyboard focus starts on the newest point: the bucket at `end` is
+    // still filling, so it rarely has any data yet.
+    latest: () => allTimes.length ? allTimes[allTimes.length - 1] : snap(end),
+    newest: snap(end),
+  })
+  const { at: hoverT, hx, tipT, tipBelow, pinned, gripped } = ptr
 
-  // A synced chart may be handed a time outside this chart's range; ignore it.
-  const hoverT = hover && hover.t >= start && hover.t <= end ? hover.t : null
-  const readingsBelow = useReadingsBelow()
-  const tipBelow = width < TIP_BELOW_WIDTH || readingsBelow
-  // The time the readings are for: the hovered one, or on a narrow chart
-  // (readings always shown) the newest — the group's, so all charts agree.
-  const newest = useGroupLatest(id, snap(end))
-  const tipT = hoverT ?? (tipBelow && newest !== null && newest >= start ? newest : null)
   // Each series' value at the hovered time, null where it has nothing (a
   // missing bucket, or before a step series starts). A step series reads as
   // it stands at the bucket's end: a change inside the bucket shows (where
@@ -296,41 +173,14 @@ export default function TimeSeriesChart(props: Props) {
   const tipRows = tipBelow ? allReadings : readings
   // Markers in the hovered bucket (or at the hovered point).
   const tipMarks = tipT === null ? [] : markers.filter(({ m }) => bucketOf(m.t) === bucketOf(tipT))
-  // Every chart in a sync group draws the crosshair; only the hovered one
-  // draws the floating tooltip, unless the time is pinned. Narrow charts all
-  // show their readings.
-  const isSource = hoverT !== null && hover?.source === id
-  const showTip = tipT !== null && (tipBelow || isSource || (pinned && hoverT !== null))
-  const hx = hoverT === null ? 0 : x(hoverT)
-
-  // A floating tooltip sits right of the crosshair, or left of it where it
-  // would run past the chart's right edge, and is kept inside the chart
-  // either way. Placed after layout, since that needs the tooltip's width;
-  // still before paint, so it never shows in the wrong place.
-  useLayoutEffect(() => {
-    const tip = tipRef.current
-    if (!tip || tipBelow) return
-    const w = tip.offsetWidth
-    const at = hx + 12 + w <= width ? hx + 12 : hx - 12 - w
-    tip.style.left = `${Math.max(0, Math.min(at, width - w))}px`
-  })
 
   return (
     <div
       ref={wrapRef}
       className={`tsc${props.className ? ` ${props.className}` : ""}`}
       data-chart=""
-      // Leaving the chart's whole block clears the reading, not just leaving
-      // the plot: readings shown under a narrow chart must stay while the
-      // pointer moves down to read them. A lifted finger "leaves" too, which
-      // would clear a tap's reading as soon as it showed; on touch it stays
-      // until focus moves (a tap elsewhere).
-      // A pinned time stays too.
-      onPointerLeave={e => { if (e.pointerType !== "touch" && !pinned) hoverAt(null) }}
+      onPointerLeave={ptr.onPointerLeave}
     >
-      {/* Layers are painted in order, back to front: bands, job shading,
-          grid and axes, job rail, thresholds, areas, lines, end dots, then
-          the hover crosshair on top. */}
       <svg
         className="tsc-svg"
         width={width}
@@ -340,104 +190,13 @@ export default function TimeSeriesChart(props: Props) {
         aria-label={ariaLabel}
         ref={svgRef}
         tabIndex={0}
-        onPointerMove={e => { tap.move(e); onPointer(e) }}
-        onPointerDown={onPress}
-        onPointerUp={tap.up}
-        onPointerCancel={tap.cancel}
-        onFocus={() => { if (!hover) hoverAt(latest()) }}   // keyboard users get a reading straight away
-        // Only the chart that set the reading clears it: tapping another
-        // chart in the group blurs this one after that chart placed its own.
-        // Focus moving into the readings (the jobs summary) keeps it, and a
-        // tapped reading is cleared by a tap outside the charts instead
-        // (useTapOutside): a tap on the readings blurs the plot too. A pinned
-        // time is unpinned only by a click on a chart, or Escape.
-        onBlur={e => {
-          if (hover?.source !== id || hover.touch || pinned) return
-          if (!(e.relatedTarget instanceof Node && wrapRef.current?.contains(e.relatedTarget))) hoverAt(null)
-        }}
-        onKeyDown={onKeyDown}
+        {...ptr.events}
       >
-        <defs>
-          <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line className="tsc-hatch" x1="0" y1="0" x2="0" y2="6" />
-          </pattern>
-        </defs>
-        {props.bands?.map((b, i) => {
-          const bTop = y(Math.max(b.from, b.to)), bottom = y(Math.min(b.from, b.to))
-          return (
-            <g key={`band-${i}`}>
-              <rect className={`tsc-band tone-${b.tone}`} x={ML} y={bTop} width={plotW} height={Math.max(0, bottom - bTop)} />
-              {b.label && plotW > 360 && bottom - bTop >= 14 && (
-                <text className="tsc-band-label" x={ML + 4} y={bTop + 11}>{b.label}</text>
-              )}
-            </g>
-          )
-        })}
-
-        {gapBoxes.map(g => (
-          <rect key={g.id} className="tsc-gap" x={g.x} y={top} width={g.w} height={plotH} fill={`url(#${hatchId})`} />
-        ))}
-
-        {shade.boxes.map(sp => (
-          <rect key={`span-${sp.id}`} className={`tsc-span${shade.color ? " tinted" : ""}`} x={sp.x} y={top} width={sp.w} height={plotH}
-            style={shade.color ? { fill: shade.color } : undefined} />
-        ))}
-
-        {layout.ticks.map((v, i) => (
-          <g key={`y-${v}`}>
-            <line className={i === 0 ? "tsc-baseline" : "tsc-grid"} x1={ML} x2={ML + plotW} y1={y(v)} y2={y(v)} />
-            {labelled.has(v) && <text className="tsc-tick" x={ML - TICK_GAP} y={y(v) + 3.5} textAnchor="end">{formatY(v)}</text>}
-          </g>
-        ))}
-
-        {layout.xTicks.map(tk => {
-          const tx = x(tk.t)
-          // Skip ticks so close to an edge that their label would hang off it.
-          if (tx < ML + 14 || tx > ML + plotW - 14) return null
-          return (
-            <g key={`x-${tk.t}`}>
-              <line className="tsc-baseline" x1={tx} x2={tx} y1={top + plotH} y2={top + plotH + 4} />
-              <text className="tsc-tick" x={tx} y={svgH - 6} textAnchor="middle">{tk.label}</text>
-            </g>
-          )
-        })}
-
-        {rail.map(r => r.boxes.map(sp => (
-          <rect key={`edge-${r.row}-${sp.id}`} className={`tsc-span-edge${r.color ? " tinted" : ""}${hl && r.row && r.row !== hl ? " dim" : ""}`}
-            x={sp.x} y={r.y} width={sp.w} height={RAIL.height} rx={1} style={r.color ? { fill: r.color } : undefined} />
-        )))}
-
-        {props.thresholds?.map(th => {
-          const ty = y(th.value)
-          // Off the y domain: pass the value in yInclude to keep it in view.
-          if (th.value < layout.lo || th.value > layout.hi) return null
-          return (
-            <g key={`th-${th.value}`} className={`tsc-threshold tone-${th.tone}`}>
-              <line x1={ML} x2={ML + plotW} y1={ty} y2={ty} />
-              <text x={ML + 4} y={ty - 4}>{th.label}</text>
-            </g>
-          )
-        })}
-
-        {paths.map(({ s, area }) => area && (
-          <path key={`area-${s.id}`} className={`tsc-area${dim(s)}`} d={area} fill={s.color} />
-        ))}
-        {paths.map(({ s, line }) => (
-          <path key={`line-${s.id}`} className={`tsc-line${dim(s)}`} d={line} stroke={s.color} strokeDasharray={s.dash} />
-        ))}
-        {paths.map(({ s, last }) => last && (
-          <circle key={`end-${s.id}`} className={`tsc-dot${dim(s)}`} cx={last.x} cy={last.y} r={4} fill={s.color} />
-        ))}
-
-        {markers.map(({ m, s, x: mx, y: my }) => (
-          <path key={`mark-${m.series}-${m.t}`} className={`tsc-marker${dim(s)}`}
-            d={`M${mx} ${my - 5}L${mx + 5} ${my}L${mx} ${my + 5}L${mx - 5} ${my}Z`} />
-        ))}
-
+        {L.layers}
         {hoverT !== null && (
           <g className="tsc-hover">
             {/* Heavier while it can be grabbed (a tapped reading, on touch) or is pinned. */}
-            <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={top} y2={top + plotH} />
+            <line className={`tsc-crosshair${gripped || pinned ? " grip" : ""}`} x1={hx} x2={hx} y1={top} y2={top + L.plotH} />
             {readings.toSorted((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl)).map(r => (
               <circle key={r.s.id} className={`tsc-dot${dim(r.s)}`} cx={hx} cy={y(r.v)} r={4} fill={r.s.color} />
             ))}
@@ -445,16 +204,16 @@ export default function TimeSeriesChart(props: Props) {
         )}
       </svg>
 
-      {/* HTML, not SVG, so text wraps and sizes naturally. Floats beside the
-          crosshair (placed above), or on a narrow chart sits under it in the
-          page flow, full width. Rows are label then value, on one grid so
-          the values line up in a column. */}
       {/* Touch scrubbing: the placed crosshair itself, or along the time axis. */}
-      {gripped && hoverT !== null && <LineGrip x={hx} top={top} height={plotH} onDrag={cx => hoverAt(snap(clientT(cx)), { touch: true })} />}
-      <AxisScrub top={top + plotH} height={M.bottom} onTime={cx => hoverAt(snap(clientT(cx)), { touch: true })} />
+      {gripped && hoverT !== null && <LineGrip x={hx} top={top} height={L.plotH} onDrag={ptr.scrubTo} />}
+      <AxisScrub top={top + L.plotH} height={M.bottom} onTime={ptr.scrubTo} />
 
-      {showTip && (
-        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={isSource ? "status" : undefined}>
+      {/* HTML, not SVG, so text wraps and sizes naturally. Floats beside the
+          crosshair (placed by useChartPointer), or on a narrow chart sits
+          under it in the page flow, full width. Rows are label then value,
+          on one grid so the values line up in a column. */}
+      {ptr.showTip && tipT !== null && (
+        <div ref={tipRef} className={`tsc-tip${tipBelow ? " below" : pinned ? " pinned" : ""}`} role={ptr.isSource ? "status" : undefined}>
           <div className="tsc-tip-time">{formatTime(tipT)}</div>
           {tipRows.length === 0 && !props.absent?.length && <div className="tsc-tip-none">No data</div>}
           {(tipRows.length > 0 || !!props.absent?.length) && (
@@ -502,6 +261,177 @@ export default function TimeSeriesChart(props: Props) {
   )
 }
 
+/** The chart's scales and everything drawn that doesn't follow the cursor:
+ *  bands, gaps, job shading and rail, axes, thresholds, lines and markers. */
+function chartLayout(props: Props, width: number, ML: number, plotH: number, domain: YDomainResult, hatchId: string) {
+  const { series, start, end, snapMs, height = 180, formatY = formatTick } = props
+  // The rail's rows: one per series with spans (spans without one share a
+  // row), in the order their spans come.
+  const railRows = [...new Set((props.spans ?? []).map(sp => sp.series ?? ""))]
+  // The plot's top edge: below the rail's rows. Extra rows add height.
+  const top = M.top + Math.max(0, railRows.length - 1) * RAIL.row
+  const svgH = height + top - M.top
+  const plotW = Math.max(40, width - ML - M.right)
+  // x: time (ms) → px.
+  const x = (t: number) => ML + ((t - start) / (end - start || 1)) * plotW
+  // y: value → px. SVG's y grows downwards, so the domain's low end maps to
+  // the plot's bottom edge. Values outside a fixed yMin/yMax are clamped to
+  // the edge rather than drawn outside the plot.
+  const rawY = yScale(props.yScale ?? "linear", domain.lo, domain.hi, top + plotH, top)
+  const y = (v: number) => Math.min(top + plotH, Math.max(top, rawY(v)))
+  // Roughly one x tick per 60px of plot width.
+  const xTicks = timeTicks(start, end, Math.max(2, Math.floor(plotW / 60)))
+
+  // Tick labels closer than 11px to the last one drawn are skipped (on a short
+  // log axis, 0 and 1 sit almost on top of each other); the gridline stays.
+  const labelled = new Set<number>()
+  let lastLabelY = Infinity
+  for (const v of domain.ticks) {
+    if (lastLabelY - y(v) >= 11) { labelled.add(v); lastLabelY = y(v) }
+  }
+
+  // Spans (jobs) clipped to the plot; ones wholly outside the range are
+  // dropped, and a very short one still gets minW px so it stays visible,
+  // centred on it, so the middle of its tick is when it ran (and hovering
+  // there reads its bucket). Overlapping spans are merged first: the shade
+  // is translucent, so stacked copies would add up to a bright streak
+  // wherever several jobs overlap.
+  const boxes = (spans: Pick<ChartSpan, "id" | "start" | "end">[], minW: number) => mergeSpans(spans.flatMap(sp => {
+    const a = Math.max(ML, x(Math.max(sp.start, start)))
+    const b = Math.min(ML + plotW, x(Math.min(sp.end ?? end, end)))
+    return b < ML || a > ML + plotW ? [] : [{ id: sp.id, ...widen(a, b, minW, ML, ML + plotW) }]
+  }))
+  const allSpans = props.spans ?? []
+  const rail = railRows.map((row, i) => {
+    const spans = allSpans.filter(sp => (sp.series ?? "") === row)
+    return { row, color: spans[0]?.color, y: top - RAIL.gap - RAIL.height - (railRows.length - 1 - i) * RAIL.row, boxes: boxes(spans, RAIL.min) }
+  })
+
+  // A missing bucket between two points means no readings (drive absent,
+  // collector stopped), so the line breaks there instead of bridging it. Half
+  // a bucket of slack keeps neighbouring buckets joined.
+  const gapMs = props.gapMs ?? (snapMs ? snapMs * 1.5 : Infinity)
+  // A highlighted series is drawn last, so it's on top of any it overlaps.
+  const hl = props.highlight ?? null
+  // Over the plot: every span, neutral — or while a series is highlighted
+  // and has spans of its own, only those, in its color.
+  const hlSpans = hl ? allSpans.filter(sp => sp.series === hl) : []
+  const shade = hl && allSpans.some(sp => sp.series !== undefined)
+    ? { boxes: boxes(hlSpans, 2), color: hlSpans[0]?.color }
+    : { boxes: boxes(allSpans, 2), color: undefined }
+  // Hatched: where no series has data, or the highlighted one's own gaps.
+  const gapBoxes = boxes(((hl ? props.gaps?.bySeries[hl] : props.gaps?.all) ?? []).map((g, i) => ({ id: `gap-${i}`, ...g })), 1)
+  const paths = series
+    .map(s => ({ s, ...seriesPaths(s, x, y, end, gapMs, domain.lo) }))
+    .sort((p, q) => Number(p.s.id === hl) - Number(q.s.id === hl))
+  const dim = (s: ChartSeries) => (hl && s.id !== hl ? " dim" : "")
+
+  // Markers sit on their series' line: a step series at the marker's own
+  // time; a line (one point per bucket) at the start of the bucket holding it.
+  const bucketOf = (t: number) => (snapMs ? bucketStart(t, start, snapMs) : t)
+  const markers = (props.markers ?? []).flatMap(m => {
+    const s = series.find(x => x.id === m.series)
+    if (!s || m.t < start || m.t > end) return []
+    const at = s.shape === "step" ? m.t : bucketOf(m.t)
+    const v = valueAt(s, at, snapMs)
+    return v === null ? [] : [{ m, s, x: x(at), y: y(v) }]
+  })
+
+  // Every time any series has a point at, sorted: the crosshair's stops when
+  // there's no bucket grid to snap to.
+  const allTimes = [...new Set(series.flatMap(s => s.points.map(p => p.t)))].sort((a, b) => a - b)
+  // Past the newest line point there is nothing to read (the newest buckets
+  // are still being rolled up), so the crosshair stops there. Step series
+  // hold their value to the end, so they don't limit it.
+  const lineEnd = Math.max(-Infinity, ...series.filter(s => s.shape !== "step").flatMap(s => {
+    const last = s.points.findLast(p => p.v !== null)
+    return last ? [last.t] : []
+  }))
+
+  // Painted in order, back to front: bands, job shading, grid and axes, job
+  // rail, thresholds, areas, lines, end dots, markers; the hover goes on top.
+  const layers = <>
+    <defs>
+      <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line className="tsc-hatch" x1="0" y1="0" x2="0" y2="6" />
+      </pattern>
+    </defs>
+    {props.bands?.map((b, i) => {
+      const bTop = y(Math.max(b.from, b.to)), bottom = y(Math.min(b.from, b.to))
+      return (
+        <g key={`band-${i}`}>
+          <rect className={`tsc-band tone-${b.tone}`} x={ML} y={bTop} width={plotW} height={Math.max(0, bottom - bTop)} />
+          {b.label && plotW > 360 && bottom - bTop >= 14 && (
+            <text className="tsc-band-label" x={ML + 4} y={bTop + 11}>{b.label}</text>
+          )}
+        </g>
+      )
+    })}
+
+    {gapBoxes.map(g => (
+      <rect key={g.id} className="tsc-gap" x={g.x} y={top} width={g.w} height={plotH} fill={`url(#${hatchId})`} />
+    ))}
+
+    {shade.boxes.map(sp => (
+      <rect key={`span-${sp.id}`} className={`tsc-span${shade.color ? " tinted" : ""}`} x={sp.x} y={top} width={sp.w} height={plotH}
+        style={shade.color ? { fill: shade.color } : undefined} />
+    ))}
+
+    {domain.ticks.map((v, i) => (
+      <g key={`y-${v}`}>
+        <line className={i === 0 ? "tsc-baseline" : "tsc-grid"} x1={ML} x2={ML + plotW} y1={y(v)} y2={y(v)} />
+        {labelled.has(v) && <text className="tsc-tick" x={ML - TICK_GAP} y={y(v) + 3.5} textAnchor="end">{formatY(v)}</text>}
+      </g>
+    ))}
+
+    {xTicks.map(tk => {
+      const tx = x(tk.t)
+      // Skip ticks so close to an edge that their label would hang off it.
+      if (tx < ML + 14 || tx > ML + plotW - 14) return null
+      return (
+        <g key={`x-${tk.t}`}>
+          <line className="tsc-baseline" x1={tx} x2={tx} y1={top + plotH} y2={top + plotH + 4} />
+          <text className="tsc-tick" x={tx} y={svgH - 6} textAnchor="middle">{tk.label}</text>
+        </g>
+      )
+    })}
+
+    {rail.map(r => r.boxes.map(sp => (
+      <rect key={`edge-${r.row}-${sp.id}`} className={`tsc-span-edge${r.color ? " tinted" : ""}${hl && r.row && r.row !== hl ? " dim" : ""}`}
+        x={sp.x} y={r.y} width={sp.w} height={RAIL.height} rx={1} style={r.color ? { fill: r.color } : undefined} />
+    )))}
+
+    {props.thresholds?.map(th => {
+      const ty = y(th.value)
+      // Off the y domain: pass the value in yInclude to keep it in view.
+      if (th.value < domain.lo || th.value > domain.hi) return null
+      return (
+        <g key={`th-${th.value}`} className={`tsc-threshold tone-${th.tone}`}>
+          <line x1={ML} x2={ML + plotW} y1={ty} y2={ty} />
+          <text x={ML + 4} y={ty - 4}>{th.label}</text>
+        </g>
+      )
+    })}
+
+    {paths.map(({ s, area }) => area && (
+      <path key={`area-${s.id}`} className={`tsc-area${dim(s)}`} d={area} fill={s.color} />
+    ))}
+    {paths.map(({ s, line }) => (
+      <path key={`line-${s.id}`} className={`tsc-line${dim(s)}`} d={line} stroke={s.color} strokeDasharray={s.dash} />
+    ))}
+    {paths.map(({ s, last }) => last && (
+      <circle key={`end-${s.id}`} className={`tsc-dot${dim(s)}`} cx={last.x} cy={last.y} r={4} fill={s.color} />
+    ))}
+
+    {markers.map(({ m, s, x: mx, y: my }) => (
+      <path key={`mark-${m.series}-${m.t}`} className={`tsc-marker${dim(s)}`}
+        d={`M${mx} ${my - 5}L${mx + 5} ${my}L${mx} ${my + 5}L${mx - 5} ${my}Z`} />
+    ))}
+  </>
+
+  return { x, y, top, plotH, plotW, svgH, hl, dim, markers, allTimes, lineEnd, bucketOf, layers }
+}
+
 function TipExtra({ children }: { children: ReactNode }) {
   if (children === null || children === undefined || children === false) return null
   return <div className="tsc-tip-extra">{children}</div>
@@ -522,7 +452,9 @@ function tickTextWidth(text: string): number {
  *  from 0 to the decade at or above the largest value. A linear one fits the
  *  data plus yInclude, rounded out to clean ticks (about one per 36px), unless
  *  yMin / yMax pin an end — then ticks beyond that end are dropped. */
-function yDomain(props: Props, plotH: number): { ticks: number[]; lo: number; hi: number } {
+type YDomainResult = { ticks: number[]; lo: number; hi: number }
+
+function yDomain(props: Props, plotH: number): YDomainResult {
   const values = props.series.flatMap(s => numeric(s.points).map(p => p.v))
   const forced = [...(props.yInclude ?? [])]
   const all = [...values, ...forced]

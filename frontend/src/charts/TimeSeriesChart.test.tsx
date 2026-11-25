@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import type { ChartSeries } from './TimeSeriesChart'
@@ -21,6 +21,33 @@ const svgs = () => screen.getAllByRole('img')
 const tip = () => screen.queryByRole('status')
 
 describe('TimeSeriesChart', () => {
+  it('follows the pointer once per frame, at its newest x, and a leave drops a frame still waiting', () => {
+    // Frames asked for and not cancelled, run by runFrames().
+    const frames = new Map<number, FrameRequestCallback>()
+    let asked = 0
+    const runFrames = () => act(() => { for (const [h, cb] of frames) { frames.delete(h); cb(0) } })
+    const { requestAnimationFrame: raf, cancelAnimationFrame: caf } = globalThis
+    globalThis.requestAnimationFrame = cb => { frames.set(++asked, cb); return asked }
+    globalThis.cancelAnimationFrame = h => { frames.delete(h) }
+    try {
+      render(chart())
+      svgs()[0].getBoundingClientRect = () => ({ left: 0, width: 600, top: 0, height: 180, right: 600, bottom: 180, x: 0, y: 0, toJSON() {} }) as DOMRect
+      fireEvent.pointerMove(svgs()[0], { clientX: 100, pointerType: 'mouse' })
+      fireEvent.pointerMove(svgs()[0], { clientX: 590, pointerType: 'mouse' })
+      expect(frames.size).toBe(1)                       // one frame asked for
+      expect(tip()).toBeNull()                          // nothing until it runs
+      runFrames()
+      expect(tip()).toHaveTextContent('39 °C')          // the second move's x
+      fireEvent.pointerMove(svgs()[0], { clientX: 100, pointerType: 'mouse' })
+      fireEvent.pointerLeave(svgs()[0].closest('.tsc')!, { pointerType: 'mouse' })
+      expect(tip()).toBeNull()
+      runFrames()
+      expect(tip()).toBeNull()                          // the dropped move didn't come back
+    } finally {
+      Object.assign(globalThis, { requestAnimationFrame: raf, cancelAnimationFrame: caf })
+    }
+  })
+
   it('draws one line per series', () => {
     const { container } = render(chart())
     expect(container.querySelectorAll('.tsc-line')).toHaveLength(2)

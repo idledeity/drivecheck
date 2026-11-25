@@ -1,3 +1,4 @@
+import { memo } from "react"
 import DriveChip from "../DriveChip"
 import LineKey from "./LineKey"
 import type { ChartDrive } from "./historySeries"
@@ -6,6 +7,9 @@ import type { ChartDrive } from "./historySeries"
  *  tooltip rows, job lines, callouts: a thin chip led by the drive's line key,
  *  serial shortened to its last four characters. Short: the model alone,
  *  as the Trends legend names it. */
-export default function ChartDriveChip({ drive, short = false }: { drive: ChartDrive; short?: boolean }) {
+function ChartDriveChip({ drive, short = false }: { drive: ChartDrive; short?: boolean }) {
   return <DriveChip drive={drive.drive} serial="tail" thin short={short} lead={<LineKey {...drive.style} />} />
 }
+
+// Memoized: readings rows rebuild on every hover step, and their drives don't change.
+export default memo(ChartDriveChip)
