@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 /** Whether the primary pointer can hover (a mouse), not touch: false on a
  *  touchscreen laptop while touch is driving, even with a mouse attached.
@@ -54,6 +54,9 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
   const lastRef = useRef<{ x: number; y: number; key: K } | null>(null)
   const anchorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  // Tags this hook's triggers, to tell them from another surface's (another
+  // drive card has its own hook) when one is tapped.
+  const id = useId()
 
   // The handlers read openRef rather than `open`, which would be stale
   // inside a timer started before the last render.
@@ -153,7 +156,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
 
   /** Handlers for the element that opens `key`'s popover. */
   const trigger = (key: K) => ({
-    "data-popover-trigger": "",
+    "data-popover-trigger": id,
     onMouseEnter: arm(key, true),
     onMouseLeave: disarm,
     onMouseMove: arm(key, false),
@@ -227,9 +230,19 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
     // it on the way down instead. Only an outer one counts — opened earlier,
     // so earlier in the DOM (portals append) — not one opened from this
     // one, whose clicks are this popover's own. Triggers toggle on their own.
+    //
+    // A tap on another surface's trigger (another drive card) never reaches
+    // document either, since triggers stop their clicks too: close for it
+    // here, unless that trigger sits inside this popover (opening one from
+    // in here keeps this one open). This hook's own triggers toggle.
     const onInOther = (e: MouseEvent) => {
       const own = popoverRef.current
-      if (!own || !(e.target instanceof Element) || e.target.closest("[data-popover-trigger]")) return
+      if (!own || !(e.target instanceof Element)) return
+      const trig = e.target.closest("[data-popover-trigger]")
+      if (trig) {
+        if (trig.getAttribute("data-popover-trigger") !== id && !own.contains(trig)) onOutside()
+        return
+      }
       const inside = e.target.closest("[data-popover]")
       if (inside && inside !== own && inside.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING) onOutside()
     }
@@ -241,7 +254,7 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
       document.removeEventListener("click", onInOther, true)
       window.removeEventListener("scroll", onScroll, true)
     }
-  }, [open])
+  }, [open, id])
 
   // A pending timer mustn't fire after unmount.
   useEffect(() => () => { cancelOpen(); cancelClose() }, [])

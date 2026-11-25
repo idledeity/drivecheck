@@ -8,17 +8,18 @@ const CLOSE = 300 // the hook's default closeDelayMs
 
 // An outer trigger ("a") with a nested trigger ("b") inside it, plus a
 // neutral element elsewhere on the page.
-function Surface({ supportsHover = true, disabled = false }: { supportsHover?: boolean; disabled?: boolean }) {
+function Surface({ supportsHover = true, disabled = false, tag = '', children }: { supportsHover?: boolean; disabled?: boolean; tag?: string; children?: React.ReactNode }) {
   const pop = useHoverPopover<'a' | 'b'>({ supportsHover, delayMs: DELAY, disabled })
   return (
     <div>
-      <div data-testid="a" {...pop.trigger('a')}>
-        <button data-testid="b" {...pop.trigger('b')} />
+      <div data-testid={`${tag}a`} {...pop.trigger('a')}>
+        <button data-testid={`${tag}b`} {...pop.trigger('b')} />
       </div>
-      <div data-testid="elsewhere" />
+      <div data-testid={`${tag}elsewhere`} />
       {pop.open && (
-        <div data-testid="pop" data-key={pop.open} style={pop.pos} {...pop.popoverProps}>
-          <button data-testid="inside" />
+        <div data-testid={`${tag}pop`} data-key={pop.open} style={pop.pos} {...pop.popoverProps}>
+          <button data-testid={`${tag}inside`} />
+          {children}
           <button data-testid="close" onClick={pop.close} />
         </div>
       )}
@@ -261,6 +262,22 @@ describe('useHoverPopover', () => {
       fireEvent.click(screen.getByTestId('a'))
       fireEvent.click(screen.getByTestId('elsewhere'))
       expect(openKey()).toBeNull()
+    })
+
+    it("closes when another surface's trigger is tapped", () => {
+      render(<><Surface supportsHover={false} /><Surface supportsHover={false} tag="2" /></>)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.click(screen.getByTestId('2a'))
+      expect(openKey()).toBeNull()
+      expect(screen.getByTestId('2pop').dataset.key).toBe('a')
+    })
+
+    it('stays open when a trigger inside the popover opens another', () => {
+      render(<Surface supportsHover={false}><Surface supportsHover={false} tag="n" /></Surface>)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.click(screen.getByTestId('na'))
+      expect(openKey()).toBe('a')
+      expect(screen.getByTestId('npop').dataset.key).toBe('a')
     })
 
     it('closes on scroll', () => {
