@@ -27,6 +27,8 @@ import { hasTrend } from "./charts/counters"
 import type { TrendMetric } from "./DriveTrendPopover"
 import { seriesStyle } from "./charts/drivePalette"
 import type { SeriesStyle } from "./charts/drivePalette"
+import HealthBadge from "./HealthBadge"
+import { healthDisplay } from "./healthBands"
 import "./DriveCard.css"
 
 interface Props {
@@ -56,7 +58,7 @@ interface Props {
 const HOVER_DELAY_MS = 400
 
 export default function DriveCard({ drive, selected, onSelect, onSelectToggle, onContextMenu, footerSignals, job, queuedJobs, newResults = [], lastTask = [], menuOpen = false, trendStyle = DEFAULT_TREND_STYLE }: Props) {
-  const health  = (drive.health_status && HEALTH_DISPLAY[drive.health_status]) || HEALTH_DISPLAY.Unrated
+  const health  = healthDisplay(drive.health_status)
   const tempHot = drive.signal_flags?.temp === "warn"
   const sigMap  = footerSignals ?? DEFAULT_FOOTER_SIGNALS
   const sigKeys = sigMap[drive.drive_type ?? "default"] ?? sigMap["default"]
@@ -198,7 +200,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
 
   return (
     <div
-      className={`drive-card bar-${health.bar}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
+      className={`drive-card bar-${health.tone}${selected ? " sel" : ""}${drive.locked ? " locked" : ""}`}
       title={drive.locked ? "Write protected — destructive operations blocked" : undefined}
       onClick={(e) => {
         if (longPress.consumeLongPress()) return
@@ -217,10 +219,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           {drive.capacity_bytes && <span className="dc-model dc-cap">{formatCapacity(drive.capacity_bytes)}</span>}
           {drive.label && <span className="dc-label">({drive.label})</span>}
         </div>
-        <span className={`dc-badge dc-badge-${health.bar}`} {...pop.trigger("health")}>
-          <span>{health.label}</span>
-          {drive.health_pct !== null && <span className="dc-badge-score">{drive.health_pct}</span>}
-        </span>
+        <HealthBadge status={drive.health_status} score={drive.health_pct} {...pop.trigger("health")} />
       </div>
 
       {/* Row 2: traits (left) + serial (right) */}
@@ -365,15 +364,6 @@ type PopoverKey = "task" | "queued" | "batch" | "last" | "complete" | "health" |
 const isTrendKey = (key: PopoverKey): key is `${typeof TREND}${TrendMetric}` => key.startsWith(TREND)
 // Without a color from the grid (e.g. in tests): the first series color.
 const DEFAULT_TREND_STYLE = seriesStyle(0)
-
-const HEALTH_DISPLAY: Record<string, { bar: "green" | "aging" | "warn" | "red" | "critical" | "grey"; label: string }> = {
-  Healthy:  { bar: "green",    label: "Healthy"  },
-  Aging:    { bar: "aging",    label: "Aging"    },
-  Degraded: { bar: "warn",     label: "Degraded" },
-  Failing:  { bar: "red",      label: "Failing"  },
-  Critical: { bar: "critical", label: "Critical" },
-  Unrated:  { bar: "grey",  label: "Unrated"  },
-}
 
 function TzBarFill({ percent }: { percent: number | null }) {
   return percent === null

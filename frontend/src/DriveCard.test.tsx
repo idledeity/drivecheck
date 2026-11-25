@@ -56,16 +56,16 @@ describe('health badge', () => {
     ['Critical', 'Critical', 'critical'],
   ] as const)('shows "%s" as "%s" in its own color', (status, label, color) => {
     renderCard({ drive: makeDrive({ health_status: status }) })
-    expect(screen.getByText(label).closest('.dc-badge')).toHaveClass(`dc-badge-${color}`)
+    expect(screen.getByText(label).closest('.health-badge')).toHaveClass(`health-badge-${color}`)
     expect(screen.getByText(label).closest('.drive-card')).toHaveClass(`bar-${color}`)
   })
 
   it('shows the score beside the status, and none when unrated', () => {
     renderCard({ drive: makeDrive({ health_status: 'Aging', health_pct: 90 }) })
-    expect(screen.getByText('Aging').closest('.dc-badge')).toHaveTextContent('Aging90')
+    expect(screen.getByText('Aging').closest('.health-badge')).toHaveTextContent('Aging90')
     cleanup()
     renderCard({ drive: makeDrive({ health_status: null, health_pct: null }) })
-    expect(screen.getByText('Unrated').closest('.dc-badge')!.querySelector('.dc-badge-score')).toBeNull()
+    expect(screen.getByText('Unrated').closest('.health-badge')!.querySelector('.health-badge-score')).toBeNull()
   })
 
   it('shows Unrated when health_status is null', () => {

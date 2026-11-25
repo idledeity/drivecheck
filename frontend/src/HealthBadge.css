@@ -1,0 +1,44 @@
+/* Health badge (HealthBadge): drive cards, health overview, Health > Report.
+   Spacing is in em (10px → the card's px values), so a size is just a font
+   size and keeps the card's proportions. */
+.health-badge {
+  font-size: 10px;
+  font-weight: 700;
+  /* 1px more above than below: the line box keeps room for descenders, so
+     capitals and digits sat high (measured ~1.75px above centre). */
+  padding: 0.3em 0.8em 0.1em;
+  border-radius: 99px;
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 0.5em;
+  /* Its own, not the surrounding text's: elsewhere a normal line height made
+     it taller than on the card (whose row sets line-height: 1). */
+  line-height: 1;
+}
+/* The score beside the status, in a small inner pill tinted with the badge's
+   own text colour; the badge's right padding shrinks so the pill sits snug. */
+.health-badge:has(.health-badge-score) { padding-right: 0.2em; }
+.health-badge-score {
+  font-variant-numeric: tabular-nums;
+  /* Centred in the badge (1px clear top and bottom) while its text stays on
+     the label's line: reaches 2px above the text, none below. */
+  padding: 0.2em 0.5em 0;
+  margin: -0.2em 0 0;
+  border-radius: 99px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+/* Outside the card (health overview, Health > Report): a little larger. */
+.health-badge-lg { font-size: 11.5px; }
+
+.health-badge-green { background: var(--gbg); color: var(--gnb); }
+.health-badge-warn  { background: var(--wbg); color: var(--wa); }
+.health-badge-red   { background: var(--rbg); color: var(--re); }
+.health-badge-aging { background: var(--agb); color: var(--ag); }
+.health-badge-critical {
+  background: var(--cr);
+  color: #000;
+  /* Red edge, black ring, red fill, all inside the pill's box: rings drawn
+     outside made it look 4px taller than the other pills. */
+  box-shadow: inset 0 0 0 1px var(--cr), inset 0 0 0 2px #000;
+}
+.health-badge-grey  { background: rgba(255,255,255,0.06); color: var(--t3); outline: 0.5px solid var(--bd); outline-offset: -0.5px; }

@@ -33,8 +33,7 @@ describe('HealthTab', () => {
       ],
     })
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('69', { selector: '.hov-score-num' })).toBeInTheDocument()
-    expect(screen.getByText('Degraded')).toBeInTheDocument()
+    expect(screen.getByText('Degraded').closest('.health-badge')).toHaveTextContent('Degraded69')
     expect(screen.getByText('Reallocated sectors').closest('.hf')).toHaveTextContent(
       'Reallocated sectors1069Power-on hours60,000 h−<0.1')
   })

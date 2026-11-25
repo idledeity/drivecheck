@@ -116,7 +116,7 @@
    minmax(0,max-content) track — without this, op has no minimum below its
    own content width, so all the shrinking pressure on the row fell on the
    drive group alone. Now both grid tracks (drive, op) can give up space
-   equally. Pill badge (mirrors .dc-badge-grey's neutral background+border)
+   equally. Pill badge (mirrors .health-badge-grey's neutral background+border)
    and bold weight distinguish the op name as the row's primary emphasis,
    same treatment regardless of job status — running/queued/finished/failed
    all read consistently now. */

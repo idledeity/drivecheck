@@ -7,6 +7,7 @@ import AsOf from "./AsOf"
 import ReadSmartButton from "./ReadSmartButton"
 import HoverReveal from "./HoverReveal"
 import HealthFactors from "./HealthFactors"
+import HealthBadge from "./HealthBadge"
 import { healthBandText } from "./healthBands"
 import { isStale, useNow } from "./useNow"
 import "./DriveOverview.css"
@@ -41,23 +42,24 @@ export default function DriveOverview({ drive, header = true }: { drive: Drive; 
   )
 }
 
-// The health score as a bar, number and status word, with what the status
+// The drive card's status/score pill over the score as a bar, with what the status
 // means (and roughly how often such drives fail) behind the (i).
 export function HealthScoreBar({ score, status }: { score: number | null; status: string | null }) {
   const colorCls = scoreColorCls(status)
   return (
     <div className="hov-score-row">
+      <div className="hov-score-head">
+        <HealthBadge status={status} score={score} className="health-badge-lg" />
+        <HoverReveal text={healthBandText(status)}>
+          <IconInfoCircle size={12} className="cfg-tooltip-icon" aria-label="About this health status" />
+        </HoverReveal>
+      </div>
       <div className="hov-score-track">
         <div
           className={`hov-score-fill ${colorCls}`}
           style={{ width: score !== null ? `${score}%` : "0%" }}
         />
       </div>
-      <span className={`hov-score-num ${colorCls}`}>{score ?? "—"}</span>
-      <span className={`hov-score-label ${colorCls}`}>{status ?? "Unrated"}</span>
-      <HoverReveal text={healthBandText(status)}>
-        <IconInfoCircle size={12} className="cfg-tooltip-icon" aria-label="About this health status" />
-      </HoverReveal>
     </div>
   )
 }

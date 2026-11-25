@@ -45,3 +45,20 @@ export function healthBandText(status: string | null): string {
 
 /** Each status's tone class (as the chart bands and chips use them). */
 export const HEALTH_CLASS: Record<string, string> = { Healthy: "ok", Aging: "aging", Degraded: "warn", Failing: "crit", Critical: "critical" }
+
+// The colour tone and word the health badge (HealthBadge) and card use.
+export type HealthTone = "green" | "aging" | "warn" | "red" | "critical" | "grey"
+
+const HEALTH_DISPLAY: Record<string, { tone: HealthTone; label: string }> = {
+  Healthy:  { tone: "green",    label: "Healthy"  },
+  Aging:    { tone: "aging",    label: "Aging"    },
+  Degraded: { tone: "warn",     label: "Degraded" },
+  Failing:  { tone: "red",      label: "Failing"  },
+  Critical: { tone: "critical", label: "Critical" },
+  Unrated:  { tone: "grey",     label: "Unrated"  },
+}
+
+// A health status's colour tone and word; anything unknown shows as Unrated.
+export function healthDisplay(status: string | null | undefined) {
+  return (status && HEALTH_DISPLAY[status]) || HEALTH_DISPLAY.Unrated
+}
