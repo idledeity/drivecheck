@@ -7,7 +7,7 @@ const job = (over: Partial<Job>): Job => ({
   created_at: '2026-11-19T10:00:00', started_at: null, finished_at: null, batch: null,
   ...over,
 } as Job)
-const batch = (stop_on_failure: boolean) => ({ id: 'b', step: 1, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure })
+const batch = (stop_on_failure: boolean) => ({ id: 'b', step: 1, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure, smart: null })
 
 describe('jobCancelConfirmation', () => {
   it('lets a plain job that has not started go without asking', () => {

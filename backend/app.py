@@ -31,7 +31,7 @@ from analysis.stored_facts import snapshot_extras
 from analysis.drive_history import RANGES as HISTORY_RANGES, build_history
 from analysis.smart_attributes import judge_report
 from analysis.smart_detail import build_smart_detail
-from analysis.smart_delta import compare_signals
+from analysis.smart_delta import compare_signals, compare_span
 from analysis.self_tests import build_self_tests, recent_hours
 from database import db
 from settings import user_settings
@@ -178,10 +178,10 @@ def _step_check(check: dict | None) -> dict | None:
 
 def _batch_info(batch_id: str | None, step: int | None, batches: dict) -> dict | None:
     """The batch a job is a step of, for grouping it in the UI, or None for a
-    standalone job. batches: db.get_batches() for the jobs being served."""
+    standalone job. batches: _batches_for() the jobs being served."""
     if batch_id is None:
         return None
-    batch = batches.get(batch_id)
+    batch, smart = batches.get(batch_id, (None, None))
     recipe_cls = RECIPES.get(batch.recipe) if batch else None
     return {
         "id": batch_id,
@@ -190,11 +190,17 @@ def _batch_info(batch_id: str | None, step: int | None, batches: dict) -> dict |
         "recipe_name": recipe_cls.name if recipe_cls else (batch.recipe if batch else None),
         "params": batch.params if batch else None,
         "stop_on_failure": batch.stop_on_failure if batch else None,
+        # SMART across the steps run so far (see compare_span), the same on every step.
+        "smart": smart,
     }
 
 
 def _batches_for(batch_ids) -> dict:
-    return db.get_batches(sorted({b for b in batch_ids if b is not None}))
+    """{batch id: (Batch, its SMART comparison so far)} for these jobs' batches."""
+    ids = sorted({b for b in batch_ids if b is not None})
+    batches = db.get_batches(ids)
+    steps = db.get_batch_step_snapshots(ids)
+    return {bid: (batch, compare_span(steps.get(bid, []))) for bid, batch in batches.items()}
 
 
 def _job_to_dict(job, batches: dict | None = None):
@@ -761,7 +767,7 @@ def create_batches():
         return jsonify({"error": "unknown recipe"}), 404
     if not created:
         return jsonify({"error": f"none of the selected drives can run {recipe_cls.name}"}), 422
-    batches = {batch.id: batch for batch, _ in created}
+    batches = {batch.id: (batch, None) for batch, _ in created}  # nothing run yet: no SMART to compare
     return jsonify([
         {"id": batch.id, "drive_guid": batch.drive_guid, "jobs": [_job_to_dict(j, batches) for j in jobs]}
         for batch, jobs in created

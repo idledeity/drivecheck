@@ -719,3 +719,6 @@
     mask-image: linear-gradient(to right, black calc(100% - 16px), transparent 100%);
   }
 }
+
+/* SMART counters that rose during the task (SmartRiseMark): a health fact, so red. */
+.dc-smart-rise { flex: none; color: var(--re); font-weight: 500; }

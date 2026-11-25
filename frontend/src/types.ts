@@ -245,6 +245,9 @@ export type JobBatch = {
   recipe_name: string | null
   params: Record<string, unknown> | null
   stop_on_failure: boolean | null
+  // SMART from the first step's "before" to the last run step's "after"
+  // (error counters and smart_passed only); null until a step has both.
+  smart: (NonNullable<JobSmart["comparison"]> & { from_step: number; to_step: number }) | null
 }
 
 // A check run on a batch step once it completes; description says what it fails on.

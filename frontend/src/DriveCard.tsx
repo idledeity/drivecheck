@@ -13,6 +13,7 @@ import { JobDetailRows } from "./JobDetails"
 import { TaskRow } from "./BatchRow"
 import { batchOutcome, batchState, batchSteps, groupTasks, itemDuration, itemFinishedAt, type TaskItem } from "./taskItems"
 import { STATUS_ICON } from "./jobStatusIcon"
+import { smartRises } from "./smartRises"
 import CancelJobButton from "./CancelJobButton"
 import { useJobs } from "./jobsContext"
 import DriveOverview from "./DriveOverview"
@@ -181,6 +182,7 @@ export default function DriveCard({ drive, selected, onSelect, onSelectToggle, o
           <button className="dc-batch-pill" {...pop.trigger("batch")} aria-label={`${batch.recipe_name ?? "Batch"}, step ${batch.step + 1} of ${batchTotal}`}>
             <span className="dc-batch-pill-name">{batch.recipe_name ?? "Batch"}</span>
             <span className="dc-batch-pill-n">{batch.step + 1}/{batchTotal}</span>
+            <SmartRiseMark comparison={batch.smart} />
           </button>
         )}
         {otherQueued.length > 0 && (
@@ -409,6 +411,17 @@ function useShortPillsToFit(ref: React.RefObject<HTMLDivElement | null>, deps: u
   }, deps)
 }
 
+// SMART error counters that rose during a task (a batch: across its steps so
+// far), in red: a health fact, so a card may colour it. The first rise, plus
+// how many more; all of them on hover. Nothing when none rose.
+function SmartRiseMark({ comparison, lead = false }: { comparison: Parameters<typeof smartRises>[0]; lead?: boolean }) {
+  const rises = smartRises(comparison)
+  if (!rises.length) return null
+  const more = rises.length > 1 ? ` +${rises.length - 1}` : ""
+  const mark = <span className="dc-smart-rise" title={`Got worse: ${rises.map(r => r.full).join(", ")}`}>{rises[0].short}{more}</span>
+  return lead ? <>{mark}{" · "}</> : mark
+}
+
 // An idle card's last task, on the lines a running task uses: its status
 // icon, pill and when it finished, then its outcome and how long it ran.
 // Grey throughout: on a card, green and red mean the drive's health; the
@@ -416,6 +429,7 @@ function useShortPillsToFit(ref: React.RefObject<HTMLDivElement | null>, deps: u
 function LastTask({ item, trigger }: { item: TaskItem; trigger: Record<string, unknown> }) {
   const status = item.kind === "job" ? item.job.status : batchState(item.steps).status
   let pill: React.ReactNode, outcome: string
+  const smart = item.kind === "job" ? item.job.smart.comparison : item.steps[0].batch!.smart
   if (item.kind === "job") {
     pill = <span className="dc-tn-op">{item.job.operation_name}</span>
     outcome = jobResultText(item.job)
@@ -441,7 +455,7 @@ function LastTask({ item, trigger }: { item: TaskItem; trigger: Record<string, u
         <span className="dc-tz-time">{formatRelativeTime(new Date(itemFinishedAt(item)).toISOString())}</span>
       </div>
       <div className="dc-tz-msg">
-        <span className="dc-tz-msg-text" title={outcome}>{outcome}</span>
+        <span className="dc-tz-msg-text" title={outcome}><SmartRiseMark comparison={smart} lead />{outcome}</span>
         {duration >= 0 && <span className="dc-tz-time">ran {formatDuration(duration / 1000)}</span>}
       </div>
     </div>

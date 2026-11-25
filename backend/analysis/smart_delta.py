@@ -46,3 +46,31 @@ def compare_signals(before: dict | None, after: dict | None) -> dict | None:
         and (changes[name]["before"] is not None or changes[name]["after"] is not None)
     ]
     return {"changes": changes, "worsened": worsened, "uncompared": uncompared}
+
+
+def compare_span(steps: list[tuple[int, dict | None, dict | None]]) -> dict | None:
+    """Compare a batch's SMART across its steps so far: the first step's
+    "before" against the "after" of the last step that has one, given the
+    steps as (step, smart_before, smart_after) in step order.
+
+    Uses the two ends rather than adding up each step's changes, so anything
+    that changed between steps (a gap long enough for a step to take its own
+    "before") is counted too. Returns compare_signals() trimmed to the error
+    counters and smart_passed, plus "from_step"/"to_step"; None if no step has
+    a usable "before" followed by a usable "after".
+    """
+    first = next(((s, b) for s, b, _ in steps if _signals(b) is not None), None)
+    last = next(((s, a) for s, _, a in reversed(steps) if _signals(a) is not None), None)
+    if first is None or last is None or last[0] < first[0]:
+        return None
+    comparison = compare_signals(_signals(first[1]), _signals(last[1]))
+    keep = set(WORSENING_COUNTERS) | {"smart_passed"}
+    comparison["changes"] = {k: v for k, v in comparison["changes"].items() if k in keep}
+    return {**comparison, "from_step": first[0], "to_step": last[0]}
+
+
+def _signals(snapshot: dict | None) -> dict | None:
+    """A stored snapshot summary's signals, or None if missing or failed."""
+    if not snapshot or "error" in snapshot:
+        return None
+    return snapshot.get("signals") or None

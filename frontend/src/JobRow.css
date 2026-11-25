@@ -349,3 +349,14 @@
 @media (max-width: 640px) { .batch-steps { padding-left: 4px; } }
 /* With move buttons beside it, centre the time on the buttons. */
 .queue-right:has(.queue-move) { align-items: center; }
+
+/* SMART counters that rose during a run (smartRises.ts), ahead of the outcome.
+   Same red as JobDetails' "Got worse during this run": a health fact. */
+.queue-smart { color: var(--wa); }
+.queue-smart.worse { color: var(--re); }
+
+/* A batch's SMART change across its steps, under the strip (BatchRow). */
+.batch-smart { margin-top: 3px; font-size: 11.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.batch-smart.worse { color: var(--re); }
+.batch-smart.unknown { color: var(--wa); }
+.batch-smart.same { color: var(--t4); }

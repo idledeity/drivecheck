@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { IconX } from "@tabler/icons-react"
-import type { Drive, Job } from "./types"
+import type { Drive, Job, JobBatch } from "./types"
 import { formatClock, formatDuration, formatRelativeTime } from "./format"
 import { useConfirm } from "./confirmContext"
 import { batchCancelConfirmation } from "./jobCancelConfirmation"
 import { batchOutcome, batchState, type TaskItem } from "./taskItems"
 import { JobRow, QueueMoveButtons, type QueueSlot } from "./JobRow"
 import { STATUS_ICON } from "./jobStatusIcon"
+import { smartRiseNote, smartRises } from "./smartRises"
 import DriveChip from "./DriveChip"
 import "./JobRow.css"
 
@@ -43,6 +44,7 @@ export function BatchRow({ steps, drive, onCancel, onCancelBatch, compact = fals
     : state.finishedAt
       ? `${state.startedAt ? `${formatDuration((new Date(state.finishedAt).getTime() - new Date(state.startedAt).getTime()) / 1000)} · ` : ""}${formatRelativeTime(state.finishedAt)}`
       : null
+  const smart = batchSmartLine(batch.smart, state.startedAt !== null, active)
   const segments = Array.from({ length: state.total }, (_, i) => steps.find(j => j.batch?.step === i)?.status ?? "queued")
 
   const cancelBatch = (e: React.MouseEvent) => {
@@ -79,6 +81,7 @@ export function BatchRow({ steps, drive, onCancel, onCancelBatch, compact = fals
       <div className="batch-strip" aria-hidden="true">
         {segments.map((status, i) => <span key={i} className={`batch-seg ${status}`} />)}
       </div>
+      {smart && <div className={`batch-smart ${smart.tone}`} title={smart.title}>{smart.text}</div>}
       {open && (
         <div className="batch-steps">
           {steps.map(job => <JobRow key={job.id} job={job} drive={drive} onCancel={onCancel} compact={compact} step />)}
@@ -100,6 +103,23 @@ export function TaskRow({ item, drive, onCancel, onCancelBatch, compact, queue }
   return item.kind === "job"
     ? <JobRow job={item.job} drive={drive} onCancel={onCancel} compact={compact} queue={queue} />
     : <BatchRow steps={item.steps} drive={drive} onCancel={onCancel} onCancelBatch={onCancelBatch} compact={compact} queue={queue} />
+}
+
+// The batch's SMART change across its steps run so far (batch.smart: first
+// step's "before" → last step's "after"), as a line under the strip once a
+// step has run. Each step's own change is on its step line.
+function batchSmartLine(span: JobBatch["smart"], ran: boolean, active: boolean): { text: string; title: string; tone: string } | null {
+  // Nothing yet while the first step runs (no "after" to compare with).
+  if (!ran || (active && !span)) return null
+  const during = active ? "SMART so far" : "SMART during batch"
+  const rises = smartRises(span)
+  if (rises.length) {
+    const text = `${during}: ${rises.map(r => r.full).join(", ")}`
+    return { text, title: text, tone: "worse" }
+  }
+  const note = smartRiseNote(span, true, "this batch")
+  if (note) return { text: `${during}: not compared`, title: note.title, tone: "unknown" }
+  return { text: `${during}: no error counters rose`, title: "No error counter rose and SMART status didn't fail", tone: "same" }
 }
 
 // The time, ticking once a second while `live` (a running batch's elapsed time).

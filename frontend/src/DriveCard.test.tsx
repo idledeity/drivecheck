@@ -183,7 +183,7 @@ describe('task zone', () => {
   })
 
   it('shows a last batch as its recipe pill with the steps it completed', () => {
-    const batch = { id: 'b1', step: 0, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true }
+    const batch = { id: 'b1', step: 0, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true, smart: null }
     renderCard({ lastTask: [
       makeJob({ id: 's0', status: 'completed', batch, finished_at: '2026-01-01T10:00:00' }),
       makeJob({ id: 's1', status: 'failed', batch: { ...batch, step: 1 }, operation_name: 'Bad Block Scan', finished_at: '2026-01-01T11:00:00' }),
@@ -191,6 +191,18 @@ describe('task zone', () => {
     ] })
     expect(document.querySelector('.dc-tz-last .dc-batch-pill')).toHaveTextContent('Initial Scan1/3')
     expect(screen.getByText('Failed at Bad Block Scan · 1 skipped')).toBeInTheDocument()
+  })
+
+  it('marks SMART counters that rose: in a running batch\'s pill, and ahead of a last task\'s outcome', () => {
+    const rose = { changes: { reallocated: { before: 0, after: 3, change: 3 }, pending: { before: 0, after: 1, change: 1 } }, worsened: ['reallocated', 'pending'], uncompared: [] }
+    const batch = { id: 'b1', step: 1, recipe: 'r', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true, smart: { ...rose, from_step: 0, to_step: 0 } }
+    renderCard({ job: makeJob({ id: 's1', status: 'running', batch }) })
+    const mark = screen.getByRole('button', { name: 'Initial Scan, step 2 of 2' }).querySelector('.dc-smart-rise')
+    expect(mark).toHaveTextContent('+3 Realloc +1')
+    expect(mark).toHaveAttribute('title', 'Got worse: Reallocated sectors 0 → 3, Pending sectors 0 → 1')
+    cleanup()
+    renderCard({ lastTask: [makeJob({ status: 'completed', smart: { before: null, after: null, comparison: rose }, finished_at: '2026-01-01T10:00:00' })] })
+    expect(document.querySelector('.dc-tz-msg-text .dc-smart-rise')).toHaveTextContent('+3 Realloc +1')
   })
 
   it('says so when the drive has never run a task', () => {
@@ -205,7 +217,7 @@ describe('task zone', () => {
   })
 
   it("shows a batch step's batch: a pill with its step, and the bar split per step", () => {
-    const batch = { id: 'b1', step: 1, recipe: 'initial_scan', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true }
+    const batch = { id: 'b1', step: 1, recipe: 'initial_scan', recipe_name: 'Initial Scan', params: {}, stop_on_failure: true, smart: null }
     renderCard({
       job: makeJob({ id: 's1', status: 'running', batch, progress: { percent: 40, message: null, eta_seconds: null } }),
       // The batch's last step, then a lone job behind it.

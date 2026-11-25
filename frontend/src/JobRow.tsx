@@ -8,6 +8,7 @@ import { useJobTiming } from "./useJobTiming"
 import DriveChip from "./DriveChip"
 import CancelJobButton from "./CancelJobButton"
 import { STATUS_ICON } from "./jobStatusIcon"
+import { smartRiseNote } from "./smartRises"
 import "./JobRow.css"
 
 
@@ -37,6 +38,9 @@ export function JobRow({ job, drive, onCancel, compact = false, step = false, qu
   const ranFor = finished && job.started_at && job.finished_at
     ? formatDuration((new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000)
     : null
+  // "Not compared" only when a snapshot was taken: jobs from before snapshots
+  // existed have none, and their details already say so.
+  const smartNote = finished && (job.smart.before || job.smart.after) ? smartRiseNote(job.smart.comparison, true, "this run") : null
 
   const timing = useJobTiming(job)
 
@@ -59,6 +63,8 @@ export function JobRow({ job, drive, onCancel, compact = false, step = false, qu
             in red. Inline on wide rows, its own wrapping line on narrow ones. */}
         {finished && (
           <span className={`queue-outcome${job.status === "failed" || job.status === "interrupted" ? " bad" : ""}`} title={jobResultText(job)}>
+            {/* First, so a long outcome clips its own text rather than this. */}
+            {smartNote && <><span className={`queue-smart${smartNote.worse ? " worse" : ""}`} title={smartNote.title}>{smartNote.text}</span>{" · "}</>}
             {jobResultText(job)}
           </span>
         )}

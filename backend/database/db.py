@@ -1012,6 +1012,25 @@ def get_batches(batch_ids: list[str]) -> dict[str, Batch]:
     }
 
 
+def get_batch_step_snapshots(batch_ids: list[str]) -> dict[str, list[tuple[int, dict | None, dict | None]]]:
+    """Each batch's steps as (step, smart_before, smart_after) in step order,
+    by batch id; a step without a snapshot (not run yet, skipped, capture
+    failed) has None there. Unknown ids are left out."""
+    if not batch_ids:
+        return {}
+    with _connection() as conn:
+        rows = conn.execute(
+            f"SELECT batch_id, batch_step, smart_before_json, smart_after_json FROM jobs "
+            f"WHERE batch_id IN ({_in(batch_ids)}) ORDER BY batch_id, batch_step",
+            batch_ids,
+        ).fetchall()
+    steps: dict[str, list] = {}
+    for batch_id, step, before, after in rows:
+        steps.setdefault(batch_id, []).append(
+            (step, json.loads(before) if before else None, json.loads(after) if after else None))
+    return steps
+
+
 def set_queue_positions(positions: dict[str, int | None]) -> None:
     """Update queued jobs' run order without rewriting the rest of their rows."""
     if not positions:

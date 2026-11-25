@@ -537,3 +537,18 @@ def test_latest_tasks_are_each_drives_last_finished_job_or_its_whole_batch():
     for row in db.get_latest_tasks():
         by_drive.setdefault(row["drive_guid"], set()).add(row["id"])
     assert by_drive == {"guid-1": {"new"}, "guid-2": {"s0", "s1", "s2"}}
+
+
+def test_batch_step_snapshots_come_in_step_order_per_batch():
+    for job_id, batch_id, step in [("b1s1", "b1", 1), ("b1s0", "b1", 0), ("b2s0", "b2", 0)]:
+        job = _finished_job(job_id)
+        job.batch_id, job.batch_step = batch_id, step
+        job.smart_before = {"signals": {"pending": step}}
+        db.record_job(job)
+    db.record_job(_finished_job("standalone"))
+    steps = db.get_batch_step_snapshots(["b1", "b2", "unknown"])
+    assert steps == {
+        "b1": [(0, {"signals": {"pending": 0}}, None), (1, {"signals": {"pending": 1}}, None)],
+        "b2": [(0, {"signals": {"pending": 0}}, None)],
+    }
+    assert db.get_batch_step_snapshots([]) == {}

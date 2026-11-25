@@ -131,7 +131,7 @@ describe('HistoryTab', () => {
   })
 
   it('lists a finished batch as one entry with its steps, and leaves out one still running', async () => {
-    const b = (id: string, step: number) => ({ id, step, recipe: 'r', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: true })
+    const b = (id: string, step: number) => ({ id, step, recipe: 'r', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: true, smart: null })
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse([
       done({ id: 'a0', drive_guid: 'd1', operation_name: 'Short', batch: b('A', 0) }),
       done({ id: 'a1', drive_guid: 'd1', operation_name: 'Scan', status: 'failed', batch: b('A', 1) }),

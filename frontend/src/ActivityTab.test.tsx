@@ -132,7 +132,7 @@ describe('ActivityTab', () => {
 
   describe('batches', () => {
     const batch = (id: string, step: number, stopOnFailure = true) =>
-      ({ id, step, recipe: 'initial_scan', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: stopOnFailure })
+      ({ id, step, recipe: 'initial_scan', recipe_name: `Recipe ${id}`, params: {}, stop_on_failure: stopOnFailure, smart: null })
     const step = (job: Job, id: string, n: number): Job => ({ ...job, batch: batch(id, n) })
     const box = (id: string) => screen.getByRole('group', { name: `Batch: Recipe ${id}` })
     const header = (id: string) => box(id).querySelector(':scope > .queue-row-main')!

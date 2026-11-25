@@ -3,7 +3,7 @@ import { batchOutcome, batchState, groupTasks, itemDuration } from './taskItems'
 import { makeJob } from './test/fixtures'
 import type { Job } from './types'
 
-const batch = (id: string, step: number) => ({ id, step, recipe: 'r', recipe_name: 'Stress', params: {}, stop_on_failure: true })
+const batch = (id: string, step: number) => ({ id, step, recipe: 'r', recipe_name: 'Stress', params: {}, stop_on_failure: true, smart: null })
 const step = (id: string, n: number, o: Partial<Job>): Job => makeJob({ id, batch: batch('b', n), operation_name: `Op ${n}`, ...o })
 
 describe('groupTasks', () => {
