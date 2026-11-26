@@ -15,7 +15,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "summary", label: "Summary" },
   { id: "all",     label: "All Drives" },
   { id: "health",  label: "Health"  },
-  { id: "info",    label: "Info"    },
+  { id: "info",    label: "Drive Info" },
   { id: "tasks",   label: "Tasks"   },
   { id: "report",  label: "Report"  },
 ]
