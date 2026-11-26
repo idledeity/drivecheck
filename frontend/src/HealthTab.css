@@ -32,24 +32,33 @@
 .rep-export-btn:hover { background: rgba(24,196,238,0.16); }
 
 .rep-section { padding: 4px 0 8px; }
+.rep-section + .rep-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bd);
+}
 
-.rep-identity-grid {
+/* The card popover's self-test rows (SelfTestLights.css), at page size. */
+.rep-selftests {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 8px 0 12px;
-}
-.rep-row {
-  display: flex;
+  gap: 4px;
+  max-width: 560px;
   font-size: 12px;
-  gap: 8px;
 }
-.rep-row-label {
-  color: var(--t4);
-  min-width: 84px;
-  flex-shrink: 0;
+
+.dth-list { display: flex; flex-direction: column; gap: 6px; }
+.rep-more-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cy);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
-.rep-row-value { color: var(--t2); }
+.rep-more-btn:hover { color: var(--cy2); }
 
 .rep-section-title {
   font-size: 10px;

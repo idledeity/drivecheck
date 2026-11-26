@@ -58,10 +58,28 @@ const KINDS = [
 /** The card's self-test popover: each kind's latest finished test, then the
  *  age of the SMART read the card's values come from. */
 export function SelfTestPopover({ drive, reading }: { drive: Drive; reading: boolean }) {
-  const { latest, hours_reset, log_missing, log_seen_at } = drive.self_test_coverage
   return (
     <div className="stl-pop">
       <div className="stl-pop-title">Self-tests</div>
+      <SelfTestCoverageRows coverage={drive.self_test_coverage} />
+      <div className="stl-pop-read">
+        <span>SMART read</span>
+        {reading
+          ? <span className="stl-reading">reading…</span>
+          : drive.last_polled_at
+            ? <AsOf at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
+            : <span>never</span>}
+      </div>
+    </div>
+  )
+}
+
+/** Each kind's latest finished self-test, with a warning when the drive has
+ *  stopped returning its log: the card's popover and Health › Analysis. */
+export function SelfTestCoverageRows({ coverage }: { coverage: SelfTestCoverage }) {
+  const { latest, hours_reset, log_missing, log_seen_at } = coverage
+  return (
+    <>
       {log_missing && log_seen_at && (
         <div className="stl-pop-warn">
           The drive hasn't returned its self-test log since {formatTimestamp(log_seen_at)}. Last known results shown.
@@ -72,15 +90,7 @@ export function SelfTestPopover({ drive, reading }: { drive: Drive; reading: boo
         Ages in power-on hours.
         {hours_reset && " The drive's power-on hours were reset, so older tests' ages are unknown."}
       </div>
-      <div className="stl-pop-read">
-        <span>SMART read</span>
-        {reading
-          ? <span className="stl-reading">reading…</span>
-          : drive.last_polled_at
-            ? <AsOf at={drive.last_polled_at} staleAfterS={drive.stale_after_s.smart} />
-            : <span>never</span>}
-      </div>
-    </div>
+    </>
   )
 }
 

@@ -10,15 +10,16 @@ import ReadSmartButton from "./ReadSmartButton"
 import { HealthScoreBar } from "./DriveOverview"
 import HealthFactors, { formatPoints } from "./HealthFactors"
 import TrendsPanel from "./TrendsPanel"
-import { DriveInfoGroups } from "./InfoTab"
+import { SelfTestCoverageRows } from "./SelfTestLights"
+import DriveTestHistory from "./DriveTestHistory"
 import { driveInfoText, useDriveInfo } from "./driveInfo"
 import type { DriveInfo } from "./driveInfo"
 import "./HealthTab.css"
 
-type SubTab = "report" | "smart" | "trends"
+type SubTab = "analysis" | "smart" | "trends"
 
 const SUBTABS: { id: SubTab; label: string }[] = [
-  { id: "report",   label: "Report"   },
+  { id: "analysis", label: "Analysis" },
   { id: "smart",    label: "SMART"    },
   { id: "trends",   label: "Trends"   },
 ]
@@ -29,7 +30,7 @@ interface Props {
 }
 
 export default function HealthTab({ drives, selectedGuids }: Props) {
-  const [subTab, setSubTab] = useState<SubTab>("report")
+  const [subTab, setSubTab] = useState<SubTab>("analysis")
 
   return (
     <div className="health-tab">
@@ -45,7 +46,7 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
         ))}
       </nav>
       <div className="health-subtab-body">
-        {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} onOpenSmart={() => setSubTab("smart")} />}
+        {subTab === "analysis" && <AnalysisPanel drives={drives} selectedGuids={selectedGuids} onOpenSmart={() => setSubTab("smart")} />}
         {subTab === "smart"    && <SmartPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "trends"   && <TrendsPanel drives={drives} selectedGuids={selectedGuids} />}
       </div>
@@ -53,10 +54,11 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
   )
 }
 
-// ── Report ────────────────────────────────────────────────────────────────────
+// ── Analysis ──────────────────────────────────────────────────────────────────
 
-function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; selectedGuids: string[]; onOpenSmart: () => void }) {
+function AnalysisPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; selectedGuids: string[]; onOpenSmart: () => void }) {
   // Each drive's full read as shown, so the download matches the page.
+  // (The download moves to the Report tab once that exists.)
   const shown = useRef(new Map<string, SmartDetailResponse | null>())
   const onShown = useCallback((guid: string, data: SmartDetailResponse | null) => {
     shown.current.set(guid, data)
@@ -66,7 +68,7 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
   const infoFor = (guid: string): DriveInfo | null => (info.state === "ok" ? info.data[guid] ?? null : null)
 
   if (selectedGuids.length === 0) {
-    return <p className="health-empty">Select one or more drives to view a report.</p>
+    return <p className="health-empty">Select one or more drives to see their health analysis.</p>
   }
 
   const selectedDrives = selectedGuids
@@ -92,18 +94,19 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
         <button className="rep-export-btn" onClick={handleExport}>Download report</button>
       </div>
       {selectedDrives.map(drive => (
-        <DriveReport key={drive.guid} drive={drive} info={infoFor(drive.guid)} onOpenSmart={onOpenSmart} onShown={onShown} />
+        <DriveAnalysis key={drive.guid} drive={drive} onOpenSmart={onOpenSmart} onShown={onShown} />
       ))}
     </div>
   )
 }
 
-/* One drive's report: identity, then health, signals and SMART values all
-   from its latest full SMART read, as one point in time. It holds still
-   while read; a newer full read offers Refresh (SmartReadLine). */
-function DriveReport({ drive, info, onOpenSmart, onShown }: {
+/* One drive's health analysis: health, signals and SMART values from its
+   latest full SMART read, as one point in time (it holds still while read; a
+   newer full read offers Refresh, SmartReadLine). Then its self-test coverage
+   and what DriveCheck's own tests and scans found. What the drive is lives
+   on Info. */
+function DriveAnalysis({ drive, onOpenSmart, onShown }: {
   drive: Drive
-  info: DriveInfo | null
   onOpenSmart: () => void
   onShown: (guid: string, data: SmartDetailResponse | null) => void
 }) {
@@ -114,15 +117,6 @@ function DriveReport({ drive, info, onOpenSmart, onShown }: {
   return (
     <div className="rep-section">
       <DriveChipHeader drive={drive} />
-
-      <div className="rep-identity-grid">
-        <RepRow label="Type"     value={drive.drive_type ?? "—"} />
-        {drive.first_seen && <RepRow label="First seen" value={formatTimestamp(drive.first_seen)} />}
-        {/* Until the drive's details load, the basics from the drive list. */}
-        {!info && <RepRow label="Capacity" value={drive.capacity_bytes ? formatCapacity(drive.capacity_bytes) : "—"} />}
-        {!info && <RepRow label="Device" value={drive.device} />}
-      </div>
-      {info && <DriveInfoGroups info={info} compact />}
 
       {loaded.state === "loading" ? (
         <p className="smart-empty">Loading SMART data…</p>
@@ -158,15 +152,14 @@ function DriveReport({ drive, info, onOpenSmart, onShown }: {
           <SmartSummary data={data} onOpenSmart={onOpenSmart} />
         </>
       )}
-    </div>
-  )
-}
 
-function RepRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rep-row">
-      <span className="rep-row-label">{label}</span>
-      <span className="rep-row-value">{value}</span>
+      <h4 className="rep-section-title">Self-tests (the drive's log)</h4>
+      <div className="rep-selftests">
+        <SelfTestCoverageRows coverage={drive.self_test_coverage} />
+      </div>
+
+      <h4 className="rep-section-title">DriveCheck tests and scans</h4>
+      <DriveTestHistory drive={drive} />
     </div>
   )
 }

@@ -1206,8 +1206,8 @@ Tabbed panel below card grid. Responds to current card selection.
 
 **Tabs:** Health · History · Queue · Run task
 
-**Current tabs (2026-11-25 layout):** Summary · All Drives · Health · Info ·
-Tasks (Report to come). Each answers one question; duplicating values across
+**Current tabs (2026-11-25 layout):** Summary · All Drives · Health
+(Analysis · SMART · Trends) · Info · Tasks (Report to come). Each answers one question; duplicating values across
 them is fine.
 
 ### Summary and All Drives tabs
@@ -1226,6 +1226,19 @@ their own.
   them separate.
 Replaced Health › Overview; `DriveOverview` lives on in the card's health
 popover.
+
+### Health › Analysis
+
+Is this drive OK, and why (`HealthTab.tsx` `DriveAnalysis`). Per selected
+drive, stacked: from its latest full read as one point in time (SmartReadLine
+dates it, offers Refresh) — score bar + factors, signal tiles, SMART values
+needing attention; then self-test coverage (`SelfTestCoverageRows`, shared
+with the card's self-test popover, incl. the log-missing warning) and
+DriveCheck's own finished Test and Scan tasks on the drive
+(`DriveTestHistory`: `/api/jobs/history?guid=…&exclude_category=Debug,Maintenance`
+merged with the live list, a batch as one row, 5 then Show all). No drive
+details — that's Info. The text download stays here until the Report tab
+takes it.
 
 ### Info Tab (drive details)
 

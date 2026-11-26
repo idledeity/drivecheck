@@ -13,16 +13,16 @@ afterEach(() => {
 })
 
 describe('HealthTab', () => {
-  it('defaults to the report sub-tab without fetching anything', () => {
+  it('defaults to the analysis sub-tab without fetching anything', () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
-    expect(screen.getByRole('button', { name: 'Report' })).toHaveClass('active')
-    expect(screen.getByText(/Select one or more drives to view a report/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Analysis' })).toHaveClass('active')
+    expect(screen.getByText(/Select one or more drives to see their health analysis/)).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('fetches SMART data for selected drives when report tab is opened', async () => {
+  it('fetches SMART data for selected drives when analysis tab is opened', async () => {
     render(<HealthTab drives={[makeDrive({ guid: 'd1' })]} selectedGuids={['d1']} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Analysis' }))
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/smart/detail'))
   })
 
@@ -33,14 +33,14 @@ describe('HealthTab', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/smart/detail'))
   })
 
-  it('switches to the report sub-tab and shows download button', async () => {
+  it('switches to the analysis sub-tab and shows download button', async () => {
     const drive = makeDrive({ guid: 'd1' })
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Analysis' }))
     expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument()
   })
 
-  it('report: health and signals come from the full read, not the live drive, dated once', async () => {
+  it('analysis: health and signals come from the full read, not the live drive, dated once', async () => {
     const fullAt = new Date(Date.now() - 3 * 3600_000).toISOString()
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse({
       captured_at: fullAt, probe: 'smartctl_telemetry', detail: null, self_test_log: [],
@@ -53,7 +53,7 @@ describe('HealthTab', () => {
       last_polled_at: new Date(Date.now() - 20 * 60_000).toISOString(), last_full_read_at: fullAt,
     })
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Analysis' }))
     expect((await screen.findByText('Full SMART read', { exact: false })).closest('.smart-asof'))
       .toHaveTextContent(/^Full SMART read 3h ago · Read now$/)
     expect(screen.getByText('72')).toBeInTheDocument()
@@ -67,9 +67,20 @@ describe('HealthTab', () => {
 
   it('marks the active sub-tab button', async () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
-    expect(screen.getByRole('button', { name: 'Report' })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Analysis' })).toHaveClass('active')
     await userEvent.click(screen.getByRole('button', { name: 'Trends' }))
     expect(screen.getByRole('button', { name: 'Trends' })).toHaveClass('active')
-    expect(screen.getByRole('button', { name: 'Report' })).not.toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Analysis' })).not.toHaveClass('active')
+  })
+
+  it('analysis: lists self-test coverage and DriveCheck\'s own tests and scans', async () => {
+    vi.mocked(fetch).mockImplementation((url: string | URL | Request) => Promise.resolve(fetchJsonResponse(
+      String(url).startsWith('/api/jobs/history') ? [] : null)))
+    const drive = makeDrive({ guid: 'd1' })
+    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
+    expect(screen.getByRole('heading', { name: "Self-tests (the drive's log)" })).toBeInTheDocument()
+    expect(screen.getByText('Long (Extended)')).toBeInTheDocument()
+    expect(await screen.findByText("DriveCheck hasn't run any tests or scans on this drive.")).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('/api/jobs/history?guid=d1&limit=100&exclude_category=Debug,Maintenance')
   })
 })
