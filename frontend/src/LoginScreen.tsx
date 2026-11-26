@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { FormEvent } from "react"
-import { IconLogin2 } from "@tabler/icons-react"
+import { IconAlertTriangle, IconLogin2 } from "@tabler/icons-react"
+import { isPlaintextSignIn } from "./plaintextSignIn"
 
 export default function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => void }) {
   const [username, setUsername] = useState("")
@@ -41,6 +42,15 @@ export default function LoginScreen({ onSignedIn }: { onSignedIn: (username: str
           <span>Password</span>
           <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} />
         </label>
+        {isPlaintextSignIn() && (
+          <p className="login-warning">
+            <IconAlertTriangle size={14} className="login-warning-icon" />
+            <span>
+              This connection isn't encrypted (HTTP): your password and session are sent in
+              plain text. Turn on <code>server.https</code> unless a reverse proxy handles HTTPS.
+            </span>
+          </p>
+        )}
         {error && <p className="login-error" role="alert">{error}</p>}
         <button type="submit" className="tinted-btn tint-cy login-submit" disabled={busy || !username || !password}>
           <IconLogin2 size={14} />
