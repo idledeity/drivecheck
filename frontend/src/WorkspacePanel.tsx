@@ -4,11 +4,12 @@ import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
 import InfoTab from "./InfoTab"
 import SummaryTab, { AllDrivesTab } from "./SummaryTab"
+import ReportTab from "./ReportTab"
 import TasksTab from "./TasksTab"
 import { useJobs } from "./jobsContext"
 import "./WorkspacePanel.css"
 
-type Tab = "summary" | "all" | "health" | "info" | "tasks"
+type Tab = "summary" | "all" | "health" | "info" | "tasks" | "report"
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "summary", label: "Summary" },
@@ -16,6 +17,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "health",  label: "Health"  },
   { id: "info",    label: "Info"    },
   { id: "tasks",   label: "Tasks"   },
+  { id: "report",  label: "Report"  },
 ]
 
 interface Props {
@@ -63,6 +65,7 @@ export default function WorkspacePanel({ drives, selected }: Props) {
             {tab === "all"     && <AllDrivesTab drives={drives} selectedGuids={selected} />}
             {tab === "health" && <HealthTab drives={drives} selectedGuids={selected} />}
             {tab === "tasks"  && <TasksTab drives={drives} selected={selected} />}
+            {tab === "report" && <ReportTab drives={drives} selectedGuids={selected} />}
             {tab === "info"   && <InfoTab drives={drives} selectedGuids={selected} />}
           </div>
         </>

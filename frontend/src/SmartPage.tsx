@@ -5,6 +5,7 @@ import { formatFieldValue, hasNewerRead, hasSmartData, useSmartDetail } from "./
 import { formatClock } from "./format"
 import AsOf from "./AsOf"
 import ReadSmartButton from "./ReadSmartButton"
+import { useExportMode } from "./exportMode"
 import "./SmartPage.css"
 
 /*
@@ -43,12 +44,24 @@ function DriveSmart({ guid, drive }: { guid: string; drive?: Drive }) {
       </p>
     )
   }
-  const detail = loaded.data.detail
-  const { self_test_log } = loaded.data
-
   return (
     <>
       <SmartReadLine data={loaded.data} drive={drive} onRefresh={loaded.reload} />
+      <SmartDetailSections data={loaded.data} />
+    </>
+  )
+}
+
+/** Every section of a full read: key values, the attribute table, the error
+ *  and health logs, the drive's self-test log, then the rest smartctl
+ *  reported. Also the Report's appendix. Needs data.detail. */
+export function SmartDetailSections({ data }: { data: SmartDetailResponse }) {
+  const detail = data.detail
+  if (!detail) return null
+  const { self_test_log } = data
+
+  return (
+    <>
 
       {/* Every section collapses. The main ones start open; the less
           important (unnamed values, the extended -x logs) start closed with a
@@ -241,17 +254,22 @@ function GenericTable({ table }: { table: SmartTable }) {
  * hundreds of values).
  */
 function Section({ title, minor = false, children }: { title: string; minor?: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(!minor)
+  const exporting = useExportMode()
+  const [open, setOpenState] = useState(!minor)
   const [rendered, setRendered] = useState(!minor)
+  // Exports (the Report's print / HTML) keep the main sections and leave
+  // out the minor ones (the rest of smartctl's output, the raw -x logs):
+  // pages of numbers few readers need, still there on screen.
+  if (exporting && minor) return null
   return (
-    <details className={`smart-section${minor ? " smart-section-minor" : ""}`} open={open}
+    <details className={`smart-section${minor ? " smart-section-minor" : ""}`} open={exporting || open}
              onToggle={e => {
                const nowOpen = (e.currentTarget as HTMLDetailsElement).open
-               setOpen(nowOpen)
+               setOpenState(nowOpen)
                if (nowOpen) setRendered(true)
              }}>
       <summary className={minor ? "smart-section-title-minor" : "smart-section-title"}>{title}</summary>
-      {rendered && children}
+      {(exporting || rendered) && children}
     </details>
   )
 }

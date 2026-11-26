@@ -33,13 +33,6 @@ describe('HealthTab', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/drives/d1/smart/detail'))
   })
 
-  it('switches to the analysis sub-tab and shows download button', async () => {
-    const drive = makeDrive({ guid: 'd1' })
-    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Analysis' }))
-    expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument()
-  })
-
   it('analysis: health and signals come from the full read, not the live drive, dated once', async () => {
     const fullAt = new Date(Date.now() - 3 * 3600_000).toISOString()
     vi.mocked(fetch).mockResolvedValue(fetchJsonResponse({

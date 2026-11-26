@@ -1,5 +1,6 @@
 import { formatRelativeTime, formatTimestamp } from "./format"
 import { isStale, useNow } from "./useNow"
+import { useExportMode } from "./exportMode"
 import "./AsOf.css"
 
 /**
@@ -15,11 +16,12 @@ export default function AsOf({ at, prefix, staleAfterS, className }: {
   className?: string
 }) {
   const now = useNow()
-  const stale = isStale(at, staleAfterS, now)
+  const exporting = useExportMode()
+  const stale = !exporting && isStale(at, staleAfterS, now)
   const title = stale ? `Overdue: last read ${formatTimestamp(at)}` : formatTimestamp(at)
   return (
     <time className={`asof${stale ? " asof-stale" : ""}${className ? ` ${className}` : ""}`} dateTime={at} title={title}>
-      {prefix && <>{prefix} </>}{formatRelativeTime(at)}
+      {prefix && <>{prefix} </>}{exporting ? formatTimestamp(at) : formatRelativeTime(at)}
     </time>
   )
 }

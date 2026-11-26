@@ -1207,7 +1207,7 @@ Tabbed panel below card grid. Responds to current card selection.
 **Tabs:** Health · History · Queue · Run task
 
 **Current tabs (2026-11-25 layout):** Summary · All Drives · Health
-(Analysis · SMART · Trends) · Info · Tasks (Report to come). Each answers one question; duplicating values across
+(Analysis · SMART · Trends) · Info · Tasks · Report. Each answers one question; duplicating values across
 them is fine.
 
 ### Summary and All Drives tabs
@@ -1236,9 +1236,33 @@ needing attention; then self-test coverage (`SelfTestCoverageRows`, shared
 with the card's self-test popover, incl. the log-missing warning) and
 DriveCheck's own finished Test and Scan tasks on the drive
 (`DriveTestHistory`: `/api/jobs/history?guid=…&exclude_category=Debug,Maintenance`
-merged with the live list, a batch as one row, 5 then Show all). No drive
-details — that's Info. The text download stays here until the Report tab
-takes it.
+merged with the live list, a batch as one row, 5 then Show all;
+`driveTests.ts` `useDriveTestItems`). No drive details — that's Info.
+
+### Report Tab
+
+The full report per selected drive (`ReportTab.tsx`, `reportText.ts`,
+`ReportTab.css`): header (the drive's chip — user, 2026-11-25: the chip, not a
+name heading — then serial, first seen), then
+collapsible sections Verdict (badge + `verdictParagraph`: status + its
+`HEALTH_BAND_TEXT` meaning, the factor it rests on, others lowering it, floor,
+latest long/short self-test, DriveCheck task count + latest), Drive details
+(Info groups), Health (as Analysis), Testing (self-test coverage + a table of
+DriveCheck Test/Scan tasks: finished, task, result, ran, what got worse in
+SMART; 10 then Show all on screen) and Full SMART read (`SmartDetailSections`,
+collapsed). A contents line links to each section, opening it. User,
+2026-11-25: the page may have browser niceties; exports are for sharing.
+- Data loads once per drive (`DriveReportLoader` → `ReportData`), so exports
+  render without refetching.
+- **Print / Save as PDF** and **Download HTML** render the same `ReportDoc`s
+  into a portal `#report-export` under `ExportModeContext` (`exportMode.ts`):
+  sections open, `AsOf` shows dates not ages, the full read's minor sections
+  left out (~5 A4 pages a drive instead of ~13), light theme via token
+  overrides on `#report-export`. Print: `@media print` hides every other body
+  child, one drive per page. HTML: the copy's outerHTML plus every CSS rule
+  on the page inlined, `body.report-file` shows it centred.
+- **Copy text / Download text**: `buildReportText` (verdict wrapped, details,
+  health, signals, self-tests, every task).
 
 ### Info Tab (drive details)
 

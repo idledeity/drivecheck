@@ -1,0 +1,177 @@
+/* Workspace → Report. Also the export copy (#report-export): printed, or
+   saved as an HTML file with these same rules inlined. */
+
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.report-toolbar .tinted-btn { padding: 4px 10px; font-size: 12px; }
+.report-toolbar .tinted-btn:disabled { opacity: 0.45; cursor: default; }
+
+.report-doc + .report-doc {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--bd);
+}
+
+.report-head { margin-bottom: 10px; }
+.report-chip { margin: 4px 0 6px; }
+.report-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--t4);
+}
+.report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--t3);
+}
+
+.report-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.report-toc a { color: var(--cy); text-decoration: none; }
+.report-toc a:hover { color: var(--cy2); text-decoration: underline; }
+
+.report-section {
+  border-top: 1px solid var(--bd);
+  padding: 8px 0 4px;
+  scroll-margin-top: 12px;
+}
+.report-section-title {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t3);
+  padding: 4px 0;
+}
+.report-section-title:hover { color: var(--t1); }
+.report-section-body { padding: 6px 0 8px; }
+
+.report-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.report-verdict p {
+  margin: 0;
+  max-width: 820px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--t2);
+}
+@media (max-width: 640px) {
+  .report-verdict { flex-direction: column; gap: 8px; }
+}
+
+.report-table-wrap { overflow-x: auto; }
+.report-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+.report-table th,
+.report-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 10px 4px 0;
+  color: var(--t2);
+}
+.report-table th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  border-bottom: 1px solid var(--bd);
+  white-space: nowrap;
+}
+.report-table tbody tr + tr td { border-top: 1px solid rgba(127,127,127,0.12); }
+.report-nowrap { white-space: nowrap; }
+.report-more-btn {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cy);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.report-more-btn:hover { color: var(--cy2); }
+.report-bad { color: var(--re) !important; }
+.report-dim { color: var(--t5) !important; }
+
+/* ── The export copy ──
+   Rendered off screen until printed or saved; light, for paper and for
+   reading outside the app. Everything else on the page is hidden when it
+   prints. */
+
+#report-export {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  width: 900px;
+
+  --bp: #ffffff; --bt: #ffffff; --bb: #ffffff; --bi: #f5f6f8;
+  --bd: #d6d9df; --bd2: #b8bdc7;
+  --t1: #111318; --t2: #23262d; --t3: #444a55; --t4: #5b616d; --t5: #8a909b;
+  --cy: #0a7ea4; --cy2: #0a7ea4;
+  --gn: #1a8a3a; --gnb: #1a8a3a; --gbg: rgba(26,138,58,0.10);
+  --wa: #a86200; --wbg: rgba(168,98,0,0.10);
+  --re: #c62828; --rbg: rgba(198,40,40,0.08);
+  --ag: #687a0c; --agb: rgba(104,122,12,0.12);
+  --cr: #a3243b;
+  background: #ffffff;
+  color: var(--t2);
+  font-size: 12px;
+}
+#report-export .report-section-title { cursor: default; list-style: none; color: var(--t1); }
+#report-export .report-section-title::-webkit-details-marker { display: none; }
+#report-export .smart-open-btn,
+#report-export .hov-score-head button,
+#report-export .hov-score-head .cfg-tooltip-icon { display: none; }
+#report-export .report-doc + .report-doc { border-top: 0; }
+
+/* Opened as a saved file: show it, centred. */
+body.report-file { background: #ffffff; margin: 0; }
+body.report-file #report-export {
+  position: static;
+  width: auto;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+body.report-file #report-export .report-doc + .report-doc {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 2px solid var(--bd);
+}
+
+@media print {
+  body > :not(#report-export) { display: none !important; }
+  body { background: #ffffff !important; }
+  #report-export {
+    position: static;
+    width: auto;
+  }
+  #report-export .report-doc + .report-doc { break-before: page; margin-top: 0; padding-top: 0; }
+  #report-export .report-section,
+  #report-export .info-group,
+  #report-export .report-table tr { break-inside: avoid; }
+  #report-export .report-section:last-child { break-inside: auto; }
+  #report-export .smart-section { break-inside: auto; }
+}
