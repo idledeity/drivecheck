@@ -54,6 +54,10 @@ class DriveTraits:
     rpm: int                | None = None   # None for SSDs/NVMe
     bus: str                | None = None   # "SATA III · 6 Gb/s" | "SAS (SPL-4)" | etc.
     logical_block_size: int | None = None   # bytes per LBA; sizes LBA/sector counters
+    # Raw facts a traits probe read, kept for views that show more than the
+    # fields above (Drive Info) — e.g. {"smartctl_info": <smartctl -i -j output>}.
+    # Merged key by key across traits probes (_merge_traits).
+    extras: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -337,3 +341,6 @@ class DriveState:
     locked: bool = False
     # ISO timestamp of first detection, preserved across restarts.
     first_seen: str | None = None
+    # When the traits probe chain last ran for this drive (discovery or the
+    # traits channel): the age of everything in traits.
+    traits_read_at: datetime | None = None

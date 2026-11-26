@@ -10,6 +10,9 @@ import ReadSmartButton from "./ReadSmartButton"
 import DriveOverview, { HealthScoreBar } from "./DriveOverview"
 import HealthFactors, { formatPoints } from "./HealthFactors"
 import TrendsPanel from "./TrendsPanel"
+import { DriveInfoGroups } from "./InfoTab"
+import { driveInfoText, useDriveInfo } from "./driveInfo"
+import type { DriveInfo } from "./driveInfo"
 import "./HealthTab.css"
 
 type SubTab = "overview" | "report" | "smart" | "trends"
@@ -77,6 +80,9 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
     shown.current.set(guid, data)
   }, [])
 
+  const info = useDriveInfo(selectedGuids)
+  const infoFor = (guid: string): DriveInfo | null => (info.state === "ok" ? info.data[guid] ?? null : null)
+
   if (selectedGuids.length === 0) {
     return <p className="health-empty">Select one or more drives to view a report.</p>
   }
@@ -87,7 +93,7 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
 
   const handleExport = () => {
     const text = selectedDrives
-      .map(d => buildReportText(d, shown.current.get(d.guid) ?? null))
+      .map(d => buildReportText(d, shown.current.get(d.guid) ?? null, infoFor(d.guid)))
       .join("\n\n" + "=".repeat(40) + "\n\n")
     const blob = new Blob([text], { type: "text/plain" })
     const url  = URL.createObjectURL(blob)
@@ -104,7 +110,7 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
         <button className="rep-export-btn" onClick={handleExport}>Download report</button>
       </div>
       {selectedDrives.map(drive => (
-        <DriveReport key={drive.guid} drive={drive} onOpenSmart={onOpenSmart} onShown={onShown} />
+        <DriveReport key={drive.guid} drive={drive} info={infoFor(drive.guid)} onOpenSmart={onOpenSmart} onShown={onShown} />
       ))}
     </div>
   )
@@ -113,8 +119,9 @@ function ReportPanel({ drives, selectedGuids, onOpenSmart }: { drives: Drive[]; 
 /* One drive's report: identity, then health, signals and SMART values all
    from its latest full SMART read, as one point in time. It holds still
    while read; a newer full read offers Refresh (SmartReadLine). */
-function DriveReport({ drive, onOpenSmart, onShown }: {
+function DriveReport({ drive, info, onOpenSmart, onShown }: {
   drive: Drive
+  info: DriveInfo | null
   onOpenSmart: () => void
   onShown: (guid: string, data: SmartDetailResponse | null) => void
 }) {
@@ -128,13 +135,12 @@ function DriveReport({ drive, onOpenSmart, onShown }: {
 
       <div className="rep-identity-grid">
         <RepRow label="Type"     value={drive.drive_type ?? "—"} />
-        <RepRow label="Capacity" value={drive.capacity_bytes ? formatCapacity(drive.capacity_bytes) : "—"} />
-        {drive.form_factor && <RepRow label="Form factor" value={drive.form_factor} />}
-        {drive.bus         && <RepRow label="Bus"         value={drive.bus} />}
-        {drive.rpm         && <RepRow label="RPM"         value={drive.rpm.toLocaleString()} />}
-        <RepRow label="Device" value={drive.device} />
         {drive.first_seen && <RepRow label="First seen" value={formatTimestamp(drive.first_seen)} />}
+        {/* Until the drive's details load, the basics from the drive list. */}
+        {!info && <RepRow label="Capacity" value={drive.capacity_bytes ? formatCapacity(drive.capacity_bytes) : "—"} />}
+        {!info && <RepRow label="Device" value={drive.device} />}
       </div>
+      {info && <DriveInfoGroups info={info} compact />}
 
       {loaded.state === "loading" ? (
         <p className="smart-empty">Loading SMART data…</p>
@@ -183,7 +189,7 @@ function RepRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function buildReportText(drive: Drive, data: SmartDetailResponse | null): string {
+function buildReportText(drive: Drive, data: SmartDetailResponse | null, info: DriveInfo | null): string {
   const health   = data?.health
   const passed   = data?.signals?.smart_passed
   const lines: (string | null)[] = [
@@ -193,14 +199,19 @@ function buildReportText(drive: Drive, data: SmartDetailResponse | null): string
     `Drive:        ${drive.model ?? drive.device}`,
     `Manufacturer: ${drive.manufacturer ?? "—"}`,
     `Serial:       ${drive.serial ?? "—"}`,
-    `Capacity:     ${drive.capacity_bytes ? formatCapacity(drive.capacity_bytes) : "—"}`,
     `Type:         ${drive.drive_type ?? "—"}`,
-    drive.form_factor ? `Form factor:  ${drive.form_factor}` : null,
-    drive.bus         ? `Bus:          ${drive.bus}` : null,
-    drive.rpm         ? `RPM:          ${drive.rpm.toLocaleString()}` : null,
-    `Device:       ${drive.device}`,
     drive.first_seen ? `First seen:   ${formatTimestamp(drive.first_seen)}` : null,
     ``,
+    // The drive's details (identity, media, interface, connection); without
+    // them, the basics from the drive list.
+    ...(info ? driveInfoText(info) : [
+      `Capacity:     ${drive.capacity_bytes ? formatCapacity(drive.capacity_bytes) : "—"}`,
+      drive.form_factor ? `Form factor:  ${drive.form_factor}` : null,
+      drive.bus         ? `Bus:          ${drive.bus}` : null,
+      drive.rpm         ? `RPM:          ${drive.rpm.toLocaleString()}` : null,
+      `Device:       ${drive.device}`,
+      ``,
+    ]),
   ]
   if (!data) {
     lines.push(`No full SMART read for this drive yet.`)

@@ -33,6 +33,8 @@ from analysis.smart_attributes import judge_report
 from analysis.smart_detail import build_smart_detail
 from analysis.smart_delta import compare_signals, compare_span
 from analysis.self_tests import build_self_tests, recent_hours
+from analysis.drive_info import build_drive_info
+from drives.connection import connection_facts
 from database import db
 from settings import user_settings
 
@@ -371,6 +373,40 @@ def drives_history():
         }
 
     return jsonify(build_history(guids, range_key, describe_job=describe_job))
+
+
+@app.route("/api/drives/info")
+def drives_info():
+    """Physical attributes of one or more drives (guids, comma-separated,
+    required): identity, media, interface and connection, grouped, each group
+    with the time its values were read. See analysis.drive_info."""
+    guids = list(dict.fromkeys(_csv_arg("guids") or []))
+    if not guids:
+        return jsonify({"error": "'guids' must list at least one drive"}), 400
+    states = {s.context.guid: s for s in collector.get_drive_states()}
+    unknown = [g for g in guids if g not in states]
+    if unknown:
+        return jsonify({"error": f"unknown drive(s): {', '.join(unknown)}"}), 404
+
+    now = clock.now_iso()
+    result = {}
+    for guid in guids:
+        state = states[guid]
+        row = db.get_latest_raw_snapshot(guid)
+        full = (_json_or_none(row["raw_json"]) or {}).get("smartctl") if row else None
+        result[guid] = build_drive_info(
+            info=state.traits.extras.get("smartctl_info"),
+            info_at=clock.iso(state.traits_read_at) if state.traits_read_at else None,
+            full=full,
+            full_at=row["captured_at"] if row else None,
+            connection=connection_facts(state.context.block_device),
+            connection_at=now,
+            manufacturer=state.traits.manufacturer,
+            white_label=state.traits.white_label,
+            block_device=state.context.block_device_path,
+            descriptors=[(d.device_name, d.access_type) for d in state.attachment.descriptors],
+        )
+    return jsonify(result)
 
 
 @app.route("/api/drives/<guid>/raw/latest")

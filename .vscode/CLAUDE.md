@@ -1206,6 +1206,31 @@ Tabbed panel below card grid. Responds to current card selection.
 
 **Tabs:** Health · History · Queue · Run task
 
+### Info Tab (drive details)
+
+What the selected drives are and how they're connected, not health
+(`InfoTab.tsx`, `driveInfo.ts`). One drive: grouped boxes; several: one table,
+a column per drive, label column sticky so it survives sideways scrolling on a
+phone. The same groups show in Health › Report's drive section and its
+downloaded text. `GET /api/drives/info?guids=…` → `analysis/drive_info.py`
+builds them when served from facts:
+- `traits.extras["smartctl_info"]`: the traits probe's raw `smartctl -i`
+  output (in memory; `DriveState.traits_read_at` is its age). Free: `-i`
+  never loads parked heads. Falls back to the full read if a custom traits
+  probe didn't keep it.
+- the latest full read (raw snapshot `smartctl`): SAS manufacture date, SAS
+  per-port negotiated link rate and attached controller phy. ATA drives
+  report no manufacture date.
+- `drives/connection.py`: sysfs + `lspci -mm` (cached) at serve time — SCSI
+  address, ATA port, host driver, PCI address, card (subsystem) and chip
+  names, PCIe link.
+Groups Identity · Media · Interface · Connection, each with its `as_of`; a row
+from another source carries its own. Rows a drive doesn't report are left
+out. SCSI drives omit `physical_block_size` when it equals the logical size.
+No NVMe-specific smartctl fields yet (no real output to test against); NVMe
+link rate comes from the PCIe link. Physical bay/slot is out of scope (needs
+vendor tools — storcli/perccli, ssacli, arcconf — or SES/mpt3sas sysfs).
+
 ---
 
 ### Health Tab (sub-pages)

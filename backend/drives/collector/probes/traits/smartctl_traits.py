@@ -52,6 +52,9 @@ def run(descriptor: DriveDescriptor) -> DriveTraits:
         rpm=rotation_rate if rotation_rate and rotation_rate > 0 else None,
         bus=_parse_bus(data),
         logical_block_size=data.get("logical_block_size"),
+        # The whole -i output, for Drive Info (analysis.drive_info). {} on a
+        # timeout: nothing to keep, and the merge keeps the previous read's.
+        extras={"smartctl_info": data} if data else {},
     )
     logger.debug(
         "traits for %s: serial=%s model=%s type=%s",

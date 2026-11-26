@@ -200,8 +200,9 @@ def _merge_traits(base: DriveTraits, overlay: DriveTraits) -> DriveTraits:
     non-None value for a field wins, matching the "last probe has final
     authority" rule used for telemetry/vitals chains.
     """
-    updates = {f.name: getattr(overlay, f.name) for f in fields(overlay) if getattr(overlay, f.name) is not None}
-    return replace(base, **updates)
+    updates = {f.name: getattr(overlay, f.name) for f in fields(overlay)
+               if f.name != "extras" and getattr(overlay, f.name) is not None}
+    return replace(base, **updates, extras={**base.extras, **overlay.extras})
 
 
 class Collector:
@@ -686,6 +687,7 @@ class Collector:
         with self._lock:
             state.traits = traits
             state.context.traits = traits
+            state.traits_read_at = clock.now()
 
         db.upsert_drive_record(
             guid=state.context.guid,
@@ -879,6 +881,7 @@ class Collector:
                 context = DriveContext(guid=guid, descriptor=best_descriptor, traits=best_traits)
                 state = DriveState(context=context)
                 state.traits = best_traits
+                state.traits_read_at = clock.now()
                 state.attachment.descriptors = all_descriptors
                 state.attachment.active_index = 0
                 state.context.block_device = resolve_block_device(best_traits.serial)

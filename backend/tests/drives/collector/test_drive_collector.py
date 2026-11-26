@@ -546,3 +546,14 @@ def test_last_full_read_at_follows_the_latest_saved_snapshot(monkeypatch):
     assert collector.last_full_read_at("g1") is None  # an attribute read isn't one
     saved = collector.capture_smart("g1")
     assert collector.last_full_read_at("g1") == saved["captured_at"]
+
+
+def test_merge_traits_merges_extras_key_by_key():
+    from drives.collector.drive_collector import _merge_traits
+    base = DriveTraits(serial="A", extras={"smartctl_info": {"a": 1}, "other": 1})
+    overlay = DriveTraits(model="M", extras={"smartctl_info": {"b": 2}})
+    merged = _merge_traits(base, overlay)
+    assert merged.serial == "A" and merged.model == "M"
+    assert merged.extras == {"smartctl_info": {"b": 2}, "other": 1}
+    # An empty overlay (e.g. a timed-out read) keeps what was there.
+    assert _merge_traits(merged, DriveTraits()).extras == merged.extras

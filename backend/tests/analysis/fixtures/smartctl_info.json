@@ -1,0 +1,325 @@
+{
+  "_source": "smartctl -j -i on real drives (behind a MegaRAID SAS2008), the traits probe's read, captured 2026-11-25; serial numbers, WWN ids and logical unit IDs replaced with placeholders",
+  "exos_x16": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-i",
+        "-d",
+        "sat+megaraid,3",
+        "/dev/bus/1"
+      ],
+      "drive_database_version": {
+        "string": "7.3/5528"
+      },
+      "exit_status": 0
+    },
+    "device": {
+      "name": "/dev/bus/1",
+      "info_name": "/dev/bus/1 [megaraid_disk_03] [SAT]",
+      "type": "sat+megaraid,3",
+      "protocol": "ATA"
+    },
+    "model_family": "Seagate Exos X16",
+    "model_name": "ST14000NM001G-2KJ103",
+    "serial_number": "ZTM0AAA1",
+    "wwn": {
+      "naa": 5,
+      "oui": 3152,
+      "id": 1111111111
+    },
+    "firmware_version": "SN03",
+    "user_capacity": {
+      "blocks": 27344764928,
+      "bytes": 14000519643136
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 4096,
+    "rotation_rate": 7200,
+    "form_factor": {
+      "ata_value": 2,
+      "name": "3.5 inches"
+    },
+    "trim": {
+      "supported": false
+    },
+    "in_smartctl_database": true,
+    "ata_version": {
+      "string": "ACS-4 (minor revision not indicated)",
+      "major_value": 4064,
+      "minor_value": 65535
+    },
+    "sata_version": {
+      "string": "SATA 3.3",
+      "value": 511
+    },
+    "interface_speed": {
+      "max": {
+        "sata_value": 14,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      },
+      "current": {
+        "sata_value": 3,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      }
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    }
+  },
+  "hp_mb3000gcvbt": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-i",
+        "-d",
+        "sat+megaraid,5",
+        "/dev/bus/1"
+      ],
+      "drive_database_version": {
+        "string": "7.3/5528"
+      },
+      "exit_status": 0
+    },
+    "device": {
+      "name": "/dev/bus/1",
+      "info_name": "/dev/bus/1 [megaraid_disk_05] [SAT]",
+      "type": "sat+megaraid,5",
+      "protocol": "ATA"
+    },
+    "model_name": "MB3000GCVBT",
+    "serial_number": "WCC100000002",
+    "wwn": {
+      "naa": 5,
+      "oui": 5358,
+      "id": 2222222222
+    },
+    "firmware_version": "HPG3",
+    "user_capacity": {
+      "blocks": 5860533168,
+      "bytes": 3000592982016
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 512,
+    "rotation_rate": 7200,
+    "form_factor": {
+      "ata_value": 2,
+      "name": "3.5 inches"
+    },
+    "trim": {
+      "supported": false
+    },
+    "in_smartctl_database": false,
+    "ata_version": {
+      "string": "ATA8-ACS T13/1699-D revision 6",
+      "major_value": 510,
+      "minor_value": 40
+    },
+    "sata_version": {
+      "string": "SATA 3.0",
+      "value": 62
+    },
+    "interface_speed": {
+      "max": {
+        "sata_value": 14,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      },
+      "current": {
+        "sata_value": 3,
+        "string": "6.0 Gb/s",
+        "units_per_second": 60,
+        "bits_per_unit": 100000000
+      }
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    }
+  },
+  "netapp_x316_sas": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-i",
+        "-d",
+        "megaraid,0",
+        "/dev/bus/1"
+      ],
+      "exit_status": 0
+    },
+    "device": {
+      "name": "/dev/bus/1",
+      "info_name": "/dev/bus/1 [megaraid_disk_00]",
+      "type": "megaraid,0",
+      "protocol": "SCSI"
+    },
+    "scsi_vendor": "NETAPP",
+    "scsi_product": "X316_SMBPE06TA07",
+    "scsi_model_name": "NETAPP X316_SMBPE06TA07",
+    "scsi_revision": "NA00",
+    "scsi_version": "SPC-4",
+    "user_capacity": {
+      "blocks": 11721045168,
+      "bytes": 6001175126016
+    },
+    "logical_block_size": 512,
+    "physical_block_size": 4096,
+    "scsi_lb_provisioning": {
+      "name": "fully provisioned",
+      "value": 0,
+      "management_enabled": {
+        "name": "LBPME",
+        "value": 0
+      },
+      "read_zeros": {
+        "name": "LBPRZ",
+        "value": 0
+      }
+    },
+    "rotation_rate": 7200,
+    "form_factor": {
+      "scsi_value": 2,
+      "name": "3.5 inches"
+    },
+    "logical_unit_id": "0x5000c50000000003",
+    "serial_number": "ZAD1AAA3",
+    "device_type": {
+      "scsi_terminology": "Peripheral Device Type [PDT]",
+      "scsi_value": 0,
+      "name": "disk"
+    },
+    "scsi_transport_protocol": {
+      "name": "SAS (SPL-4)",
+      "value": 6
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "temperature_warning": {
+      "enabled": true
+    }
+  },
+  "hgst_hus726060_sas": {
+    "json_format_version": [
+      1,
+      0
+    ],
+    "smartctl": {
+      "version": [
+        7,
+        4
+      ],
+      "pre_release": false,
+      "svn_revision": "5530",
+      "platform_info": "x86_64-linux-6.12.90+deb13.1-amd64",
+      "build_info": "(local build)",
+      "argv": [
+        "smartctl",
+        "-j",
+        "-i",
+        "-d",
+        "megaraid,7",
+        "/dev/bus/1"
+      ],
+      "exit_status": 0
+    },
+    "device": {
+      "name": "/dev/bus/1",
+      "info_name": "/dev/bus/1 [megaraid_disk_07]",
+      "type": "megaraid,7",
+      "protocol": "SCSI"
+    },
+    "scsi_vendor": "HGST",
+    "scsi_product": "HUS726060ALS640",
+    "scsi_model_name": "HGST HUS726060ALS640",
+    "scsi_revision": "A280",
+    "scsi_version": "SPC-4",
+    "user_capacity": {
+      "blocks": 11721045168,
+      "bytes": 6001175126016
+    },
+    "logical_block_size": 512,
+    "scsi_lb_provisioning": {
+      "name": "fully provisioned",
+      "value": 0,
+      "management_enabled": {
+        "name": "LBPME",
+        "value": 0
+      },
+      "read_zeros": {
+        "name": "LBPRZ",
+        "value": 0
+      }
+    },
+    "rotation_rate": 7200,
+    "form_factor": {
+      "scsi_value": 2,
+      "name": "3.5 inches"
+    },
+    "logical_unit_id": "0x5000cca000000004",
+    "serial_number": "1EJ0AAA4",
+    "device_type": {
+      "scsi_terminology": "Peripheral Device Type [PDT]",
+      "scsi_value": 0,
+      "name": "disk"
+    },
+    "scsi_transport_protocol": {
+      "name": "SAS (SPL-4)",
+      "value": 6
+    },
+    "smart_support": {
+      "available": true,
+      "enabled": true
+    },
+    "temperature_warning": {
+      "enabled": true
+    }
+  }
+}

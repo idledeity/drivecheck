@@ -2,15 +2,17 @@ import { useState } from "react"
 import type { Drive } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
+import InfoTab from "./InfoTab"
 import TasksTab from "./TasksTab"
 import { useJobs } from "./jobsContext"
 import "./WorkspacePanel.css"
 
-type Tab = "health" | "tasks"
+type Tab = "health" | "tasks" | "info"
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "health", label: "Health" },
   { id: "tasks",  label: "Tasks"  },
+  { id: "info",   label: "Info"   },
 ]
 
 interface Props {
@@ -56,6 +58,7 @@ export default function WorkspacePanel({ drives, selected }: Props) {
           <div className="ws-body">
             {tab === "health" && <HealthTab drives={drives} selectedGuids={selected} />}
             {tab === "tasks"  && <TasksTab drives={drives} selected={selected} />}
+            {tab === "info"   && <InfoTab drives={drives} selectedGuids={selected} />}
           </div>
         </>
       )}
