@@ -209,11 +209,13 @@ describe('useHoverPopover', () => {
       expect(openKey()).toBeNull()
     })
 
-    it('toggles on tap, and a tap on another trigger switches to it', () => {
+    it('opens on tap; a tap on its trigger or another one only closes it', () => {
       render(<Surface supportsHover={false} />)
       const a = screen.getByTestId('a')
       fireEvent.click(a)
       expect(openKey()).toBe('a')
+      fireEvent.click(screen.getByTestId('b'))
+      expect(openKey()).toBeNull()
       fireEvent.click(screen.getByTestId('b'))
       expect(openKey()).toBe('b')
       fireEvent.click(screen.getByTestId('b'))
@@ -264,12 +266,53 @@ describe('useHoverPopover', () => {
       expect(openKey()).toBeNull()
     })
 
-    it("closes when another surface's trigger is tapped", () => {
+    it("only closes when another surface's trigger is tapped", () => {
       render(<><Surface supportsHover={false} /><Surface supportsHover={false} tag="2" /></>)
       fireEvent.click(screen.getByTestId('a'))
       fireEvent.click(screen.getByTestId('2a'))
       expect(openKey()).toBeNull()
-      expect(screen.getByTestId('2pop').dataset.key).toBe('a')
+      expect(screen.queryByTestId('2pop')).toBeNull()
+    })
+
+    it('keeps the closing click from reaching what is under it', () => {
+      const onElsewhere = vi.fn()
+      render(<div onClick={onElsewhere}><Surface supportsHover={false} /></div>)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.click(screen.getByTestId('elsewhere'))
+      expect(openKey()).toBeNull()
+      expect(onElsewhere).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByTestId('elsewhere'))
+      expect(onElsewhere).toHaveBeenCalledTimes(1)
+    })
+
+    it('closes on a click in a modal dialog, which still gets the click', () => {
+      const onConfirm = vi.fn()
+      render(<><Surface supportsHover={false} /><div aria-modal="true"><button data-testid="confirm" onClick={onConfirm} /></div></>)
+      fireEvent.click(screen.getByTestId('a'))
+      fireEvent.click(screen.getByTestId('confirm'))
+      expect(openKey()).toBeNull()
+      expect(onConfirm).toHaveBeenCalled()
+    })
+
+    it("with a mouse, lets a click on the open popover's own trigger through", () => {
+      const onSurfaceClick = vi.fn()
+      render(<div onClick={onSurfaceClick}><Surface /></div>)
+      fireEvent.mouseEnter(screen.getByTestId('a'), { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      expect(openKey()).toBe('a')
+      fireEvent.click(screen.getByTestId('a'))
+      expect(onSurfaceClick).toHaveBeenCalled()
+      expect(openKey()).toBe('a')
+    })
+
+    it('with a mouse, a click elsewhere only closes it', () => {
+      const onSurfaceClick = vi.fn()
+      render(<div onClick={onSurfaceClick}><Surface /></div>)
+      fireEvent.mouseEnter(screen.getByTestId('a'), { clientX: 10, clientY: 10 })
+      wait(DELAY)
+      fireEvent.click(screen.getByTestId('elsewhere'))
+      expect(openKey()).toBeNull()
+      expect(onSurfaceClick).not.toHaveBeenCalled()
     })
 
     it('stays open when a trigger inside the popover opens another', () => {

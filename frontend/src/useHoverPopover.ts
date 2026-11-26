@@ -27,9 +27,10 @@ const CLOSE_DELAY_MS = 300
  * grace period is what lets the pointer cross the gap, or another trigger,
  * on its way into the popover.
  *
- * On a touch device a tap toggles it instead ("pinned"), and the tap stops
- * there rather than reaching the surface underneath. A click anywhere else,
- * or a scroll outside the popover, closes it.
+ * On a touch device a tap opens it instead ("pinned"), and the tap stops
+ * there rather than reaching the surface underneath. A click anywhere else
+ * (another trigger included) only closes it, and a scroll outside the
+ * popover closes it too.
  *
  * Triggers can nest (a pill inside a task bar): the innermost one under the
  * pointer wins, since each stops its mousemove from reaching the outer.
@@ -207,54 +208,50 @@ export function useHoverPopover<K extends string>({ supportsHover, delayMs, clos
     return () => ro.disconnect()
   }, [open, pos])
 
-  // Click outside or scroll closes it; a position:fixed popover would
-  // otherwise drift away from its trigger. Triggers and the popover stop
-  // their own clicks, so only a click elsewhere gets here. Scrolling any
-  // popover's own content is fine: this one's, or one opened from inside it
-  // (portalled elsewhere in the DOM, e.g. a chart's job list in a card's
-  // trend popover).
+  // A click outside closes it, and that's all the click does: caught on the
+  // way down (capture, at document) and stopped there, so it never selects
+  // what's under it or opens another popover — the user was dismissing this
+  // one. Scroll closes it too; a position:fixed popover would otherwise drift
+  // away from its trigger.
+  //
+  // Not outside: this popover; one opened from inside it (portalled after it
+  // in the DOM, e.g. a chart's job list in a card's trend popover), which
+  // handles its own clicks; and a modal dialog (a confirm opened from in
+  // here), which closes this one but must still get its click. With a mouse,
+  // a click on this popover's own trigger goes through as well: the popover
+  // opened on hover, and the click is meant for what's under it (selecting
+  // the card). Scrolling any popover's own content is fine.
   useEffect(() => {
     if (!open) return
-    const onOutside = () => {
+    const dismiss = () => {
       pinnedRef.current = false
       cancelClose()
       openRef.current = null
       setOpenState(null)
     }
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Element && e.target.closest("[data-popover]")) return
-      onOutside()
-    }
-    // A popover opened from inside another: a click elsewhere in that outer
-    // popover never reaches document (popovers stop their clicks), so catch
-    // it on the way down instead. Only an outer one counts — opened earlier,
-    // so earlier in the DOM (portals append) — not one opened from this
-    // one, whose clicks are this popover's own. Triggers toggle on their own.
-    //
-    // A tap on another surface's trigger (another drive card) never reaches
-    // document either, since triggers stop their clicks too: close for it
-    // here, unless that trigger sits inside this popover (opening one from
-    // in here keeps this one open). This hook's own triggers toggle.
-    const onInOther = (e: MouseEvent) => {
+    const onClick = (e: MouseEvent) => {
       const own = popoverRef.current
       if (!own || !(e.target instanceof Element)) return
-      const trig = e.target.closest("[data-popover-trigger]")
-      if (trig) {
-        if (trig.getAttribute("data-popover-trigger") !== id && !own.contains(trig)) onOutside()
-        return
-      }
+      if (own.contains(e.target)) return
       const inside = e.target.closest("[data-popover]")
-      if (inside && inside !== own && inside.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING) onOutside()
+      if (inside && own.compareDocumentPosition(inside) & Node.DOCUMENT_POSITION_FOLLOWING) return
+      if (e.target.closest('[aria-modal="true"]')) { dismiss(); return }
+      if (supportsHover && e.target.closest("[data-popover-trigger]")?.getAttribute("data-popover-trigger") === id) return
+      e.preventDefault()
+      e.stopPropagation()
+      dismiss()
     }
-    document.addEventListener("click", onOutside)
-    document.addEventListener("click", onInOther, true)
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest("[data-popover]")) return
+      dismiss()
+    }
+    document.addEventListener("click", onClick, true)
     window.addEventListener("scroll", onScroll, true)
     return () => {
-      document.removeEventListener("click", onOutside)
-      document.removeEventListener("click", onInOther, true)
+      document.removeEventListener("click", onClick, true)
       window.removeEventListener("scroll", onScroll, true)
     }
-  }, [open, id])
+  }, [open, id, supportsHover])
 
   // A pending timer mustn't fire after unmount.
   useEffect(() => () => { cancelOpen(); cancelClose() }, [])
