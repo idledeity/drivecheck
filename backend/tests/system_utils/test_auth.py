@@ -150,3 +150,6 @@ def test_session_cookie_can_be_sent_over_plain_http():
     auth.save_credentials("admin", "correct horse")
     cookie = _login(app.test_client()).headers["Set-Cookie"]
     assert "Secure" not in cookie
+    # Not the HTTPS cookie's name, which a browser keeps a Secure copy of
+    # and won't let an http page overwrite.
+    assert cookie.startswith("drivecheck_session_http=")

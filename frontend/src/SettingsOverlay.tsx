@@ -5,6 +5,8 @@ import type { ConfigProp, LogRecord, ProbeWarning } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import ManageProbesDialog from "./ManageProbesDialog"
 import HoverReveal from "./HoverReveal"
+import { useConfirm } from "./confirmContext"
+import { answersWithin, goTo, pendingSchemeMove, type SchemeMove } from "./schemeSwitch"
 import "./SettingsOverlay.css"
 
 type SettingsTab = "config" | "logs" | "about"
@@ -131,6 +133,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
   const [rescanning, setRescanning] = useState(false)
   const [probeWarnings, setProbeWarnings] = useState<Record<string, ProbeWarning[]>>({})
+  const confirm = useConfirm()
 
   useEffect(() => {
     fetch("/api/config").then(r => r.json()).then(setConfigProps).catch(() => {})
@@ -191,6 +194,11 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
 
   const handleSave = async () => {
     if (errorCount > 0) return
+    if (pending["server.https"] === false && !await confirm({
+      title: "Turn off HTTPS?",
+      detail: "The password and session cookie will cross the network unencrypted. Only do this behind a reverse proxy that handles HTTPS.",
+      confirmLabel: "Turn off HTTPS",
+    })) return
     setSaving(true)
     setSaveError(null)
     try {
@@ -291,16 +299,32 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
 }
 
 // Shared by RestartButton and RestartPromptModal: POSTs /api/restart, then
-// polls /api/config until the backend answers again (or 30s elapses).
+// polls /api/config until the backend answers again (or 30s elapses). When
+// the restart switches server.https, this page's address goes dead instead:
+// the page moves to the new scheme once it answers there, and otherwise
+// `moved` says where to go (SchemeMovedModal).
 function useBackendRestart(onRestarted?: () => void) {
   const [restarting, setRestarting] = useState(false)
+  const [moved, setMoved] = useState<SchemeMove | null>(null)
 
   const doRestart = async () => {
     setRestarting(true)
+    const move = await pendingSchemeMove()
     try {
       await fetch("/api/restart", { method: "POST" })
     } catch {
       // The connection dropping here is expected once the process exits.
+    }
+
+    if (move) {
+      // Only http -> https can be checked from here; see answersWithin.
+      if (move.https && await answersWithin(move.url, 30_000)) {
+        goTo(move.url)
+        return
+      }
+      setRestarting(false)
+      setMoved(move)
+      return
     }
 
     const deadline = Date.now() + 30_000
@@ -316,7 +340,35 @@ function useBackendRestart(onRestarted?: () => void) {
     onRestarted?.()
   }
 
-  return { restarting, doRestart }
+  const dismissMoved = () => {
+    setMoved(null)
+    onRestarted?.()
+  }
+
+  return { restarting, doRestart, moved, dismissMoved }
+}
+
+// After a restart that switched server.https, when the page couldn't move
+// by itself: the new scheme's self-signed certificate isn't trusted yet, or
+// an https page may not check an http address.
+function SchemeMovedModal({ move, onDismiss }: { move: SchemeMove; onDismiss: () => void }) {
+  const scheme = move.https ? "HTTPS" : "plain HTTP"
+  const detail = move.https
+      ? "The browser may ask you to accept the self-signed certificate first."
+      : "It answers there once the restart finishes, in a few seconds."
+  return createPortal(
+    <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && onDismiss()}>
+      <div className="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="scheme-moved-title">
+        <p id="scheme-moved-title">The backend now serves {scheme}</p>
+        <p className="confirm-detail">{detail}</p>
+        <div className="restart-confirm-actions">
+          <button className="text-link-btn" onClick={onDismiss}>Close</button>
+          <a className="tinted-btn tint-cy" href={move.url}>Open {move.url}</a>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 interface RestartButtonProps {
@@ -330,7 +382,7 @@ interface RestartButtonProps {
 // gets a more deliberate confirm step with explicit warning text.
 function RestartButton({ label, onRestarted }: RestartButtonProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { restarting, doRestart } = useBackendRestart(onRestarted)
+  const { restarting, doRestart, moved, dismissMoved } = useBackendRestart(onRestarted)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
@@ -376,6 +428,7 @@ function RestartButton({ label, onRestarted }: RestartButtonProps) {
         </div>,
         document.body,
       )}
+      {moved && <SchemeMovedModal move={moved} onDismiss={dismissMoved} />}
     </>
   )
 }
@@ -391,7 +444,8 @@ interface RestartPromptModalProps {
 // button that opened it), this has no anchor to position against, so it's
 // a centered scrim modal instead.
 function RestartPromptModal({ keys, onRestarted, onDismiss }: RestartPromptModalProps) {
-  const { restarting, doRestart } = useBackendRestart(onRestarted)
+  const { restarting, doRestart, moved, dismissMoved } = useBackendRestart(onRestarted)
+  if (moved) return <SchemeMovedModal move={moved} onDismiss={dismissMoved} />
   return createPortal(
     <div className="confirm-scrim" onClick={e => e.target === e.currentTarget && !restarting && onDismiss()}>
       <div className="confirm-card">

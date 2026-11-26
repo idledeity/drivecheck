@@ -3,6 +3,8 @@ import { getDefaultNormalizer } from '@testing-library/dom'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsOverlay from './SettingsOverlay'
+import ConfirmProvider from './ConfirmProvider'
+import { goTo } from './schemeSwitch'
 import { fetchJsonResponse } from './test/fixtures'
 import type { ConfigProp, LogRecord, ProbeWarning } from './types'
 
@@ -99,6 +101,11 @@ function makeFetchRouter() {
   return { fn, state }
 }
 
+vi.mock('./schemeSwitch', async importOriginal => ({
+  ...await importOriginal<typeof import('./schemeSwitch')>(),
+  goTo: vi.fn(),
+}))
+
 let router: ReturnType<typeof makeFetchRouter>
 
 beforeEach(() => {
@@ -109,6 +116,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
+  vi.mocked(goTo).mockClear()
 })
 
 describe('SettingsOverlay shell', () => {
@@ -1034,5 +1042,65 @@ describe('AboutTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'About' }))
     expect(screen.getByText('drivecheck')).toBeInTheDocument()
     expect(screen.getByText('dev')).toBeInTheDocument()
+  })
+})
+
+describe('switching server.https', () => {
+  // jsdom serves the page from http://localhost:3000/.
+  const HTTPS_PROP = makeConfigProp({
+    key: 'server.https', label: 'HTTPS', type: 'bool', value: true, default: true, min: null, max: null,
+  })
+
+  async function restartFromAbout() {
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'About' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Backend' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Restart' }))
+  }
+
+  it('moves the page to https once the backend answers there', async () => {
+    router.state.configProps = [HTTPS_PROP]
+    await restartFromAbout()
+    await waitFor(() => expect(goTo).toHaveBeenCalledWith('https://localhost:3000/'))
+    expect(router.fn).toHaveBeenCalledWith('/api/restart', { method: 'POST' })
+    expect(router.fn).toHaveBeenCalledWith('https://localhost:3000/', { mode: 'no-cors', cache: 'no-store' })
+  })
+
+  it('offers a link when https never answers, e.g. an untrusted certificate', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    router.state.configProps = [HTTPS_PROP]
+    const base = router.fn.getMockImplementation()!
+    router.fn.mockImplementation((url: string, init?: RequestInit) =>
+      url.startsWith('https:') ? Promise.reject(new TypeError('certificate')) : base(url, init))
+    await restartFromAbout()
+    await vi.advanceTimersByTimeAsync(31_000)
+    expect(await screen.findByText('The backend now serves HTTPS')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open https://localhost:3000/' })).toHaveAttribute('href', 'https://localhost:3000/')
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
+  it('restarts in place when the scheme stays the same', async () => {
+    router.state.configProps = [{ ...HTTPS_PROP, value: false }]
+    await restartFromAbout()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restart Backend' })).toBeEnabled(), { timeout: 3000 })
+    expect(screen.queryByText(/The backend now serves/)).not.toBeInTheDocument()
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
+  it('asks before saving HTTPS off', async () => {
+    router.state.configProps = [HTTPS_PROP]
+    render(<ConfirmProvider><SettingsOverlay onClose={vi.fn()} /></ConfirmProvider>)
+    await userEvent.click(await screen.findByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    expect(screen.getByText('Turn off HTTPS?')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(router.fn).not.toHaveBeenCalledWith('/api/config', expect.objectContaining({ method: 'PATCH' }))
+
+    await userEvent.click(screen.getByRole('button', { name: /Save/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Turn off HTTPS' }))
+    await waitFor(() => expect(router.fn).toHaveBeenCalledWith('/api/config', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ 'server.https': false }),
+    })))
   })
 })

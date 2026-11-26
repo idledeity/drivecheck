@@ -12,6 +12,9 @@ for running behind a reverse proxy that terminates TLS.
 The Vite dev server uses the same certificate. It runs this module
 (`python -m system_utils.tls` from backend/, see __main__ below) to learn whether HTTPS is on and where the files
 are, which also creates the certificate if the dev server starts first.
+The backend records the scheme it actually serves in <data dir>/tls/serving.json
+each start (write_serving); the dev server watches that file and restarts
+itself when the backend's scheme no longer matches its own.
 """
 
 import fcntl
@@ -78,6 +81,20 @@ def enabled() -> bool:
 
 def tls_dir() -> Path:
     return paths.data_dir() / "tls"
+
+
+def serving_file() -> Path:
+    return tls_dir() / "serving.json"
+
+
+def write_serving(https: bool) -> None:
+    """Record the scheme this backend start serves, for the dev server to follow."""
+    path = serving_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".serving-")
+    with os.fdopen(fd, "w") as f:
+        json.dump({"https": https}, f)
+    os.replace(tmp, path)
 
 
 def certificate_files() -> tuple[str, str] | None:
@@ -215,7 +232,8 @@ def _lan_address() -> str | None:
 
 
 def _print_dev_server_config() -> int:
-    """For frontend/vite.config.ts: print {"https": bool, "cert": path, "key": path}."""
+    """For frontend/vite.config.ts: print {"https": bool, "cert": path, "key": path,
+    "serving": path of write_serving's file}."""
     cfg.load(_PROJECT_ROOT / "config.yaml")
     try:
         files = certificate_files()
@@ -223,6 +241,7 @@ def _print_dev_server_config() -> int:
         print(f"drivecheck TLS: {e}", file=sys.stderr)
         return 1
     out = {"https": False} if files is None else {"https": True, "cert": files[0], "key": files[1]}
+    out["serving"] = str(serving_file())
     print(json.dumps(out))
     return 0
 

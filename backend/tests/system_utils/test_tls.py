@@ -1,3 +1,4 @@
+import json
 import os
 import stat
 import subprocess
@@ -109,3 +110,12 @@ def test_a_missing_configured_file_is_an_error(tmp_path):
     cfg.set("server.tls_key", str(tmp_path / "nope.key"))
     with pytest.raises(tls.TlsConfigError, match="not found"):
         tls.certificate_files()
+
+
+def test_records_the_scheme_it_serves(isolated_data_dir):
+    path = isolated_data_dir / "tls" / "serving.json"
+    tls.write_serving(True)
+    assert json.loads(path.read_text()) == {"https": True}
+    tls.write_serving(False)
+    assert json.loads(path.read_text()) == {"https": False}
+    assert [p.name for p in path.parent.iterdir()] == ["serving.json"]

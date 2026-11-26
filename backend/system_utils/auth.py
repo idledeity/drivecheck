@@ -155,7 +155,11 @@ def install(app: Flask, *, secure_cookie: bool = True) -> None:
     the browser reaches the app over plain HTTP, or it can't sign in."""
     app.secret_key = _secret_key()
     app.config.update(
-        SESSION_COOKIE_NAME="drivecheck_session",
+        # A separate name over plain HTTP: browsers won't let an http page
+        # replace a Secure cookie of the same name, so after switching
+        # server.https off, the cookie from HTTPS would silently swallow every
+        # new sign-in.
+        SESSION_COOKIE_NAME="drivecheck_session" if secure_cookie else "drivecheck_session_http",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SECURE=secure_cookie,
         SESSION_COOKIE_SAMESITE="Strict",

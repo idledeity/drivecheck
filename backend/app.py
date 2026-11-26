@@ -1036,6 +1036,7 @@ if __name__ == "__main__":
         logger.error("can't start with HTTPS: %s", e)
         sys.exit(1)
     scheme = "https" if ssl_context else "http"
+    tls.write_serving(ssl_context is not None)
 
     if args.reload:
         # Reloader mode forks a child process and can't use the make_server path.
