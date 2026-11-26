@@ -5,11 +5,9 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 12px;
 }
-.report-toolbar .tinted-btn { padding: 4px 10px; font-size: 12px; }
-.report-toolbar .tinted-btn:disabled { opacity: 0.45; cursor: default; }
 
 .report-doc + .report-doc {
   margin-top: 20px;

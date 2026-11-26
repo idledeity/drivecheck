@@ -187,6 +187,14 @@
   border-color: var(--tint-border-hover);
 }
 .tinted-btn:disabled { opacity: 0.5; cursor: default; }
+/* Small: page actions that sit beside content (copy, download, export),
+   about the size of the sub-tab buttons. */
+.tinted-btn.tinted-btn-sm {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
 
 .tint-cy {
   --tint-text: var(--cy);

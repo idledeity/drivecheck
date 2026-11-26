@@ -129,7 +129,7 @@ function CopyButton({ label, text }: { label: string; text: () => string }) {
     window.setTimeout(() => setState("idle"), 1500)
   }
   return (
-    <button className="tinted-btn tint-cy sum-copy-btn" onClick={copy}>
+    <button className="tinted-btn tinted-btn-sm tint-cy" onClick={copy}>
       {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label}
     </button>
   )

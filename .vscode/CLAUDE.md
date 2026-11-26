@@ -1206,6 +1206,10 @@ Tabbed panel below card grid. Responds to current card selection.
 
 **Tabs:** Health · History · Queue · Run task
 
+**Page actions** (copy, download, export buttons beside content) use
+`tinted-btn tinted-btn-sm tint-cy` — user, 2026-11-25: the full-size tinted
+button is too big for these. Full size stays for dialog/form actions.
+
 **Current tabs (2026-11-25 layout):** Summary · All Drives · Health
 (Analysis · SMART · Trends) · Drive Info · Tasks · Report. Each answers one question; duplicating values across
 them is fine.

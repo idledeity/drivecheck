@@ -70,10 +70,10 @@ export default function ReportTab({ drives, selectedGuids }: { drives: Drive[]; 
   return (
     <div className="report-tab">
       <div className="report-toolbar">
-        <button className="tinted-btn tint-cy" disabled={!ready} onClick={() => setExporting("print")}>Print / Save as PDF</button>
-        <button className="tinted-btn tint-cy" disabled={!ready} onClick={() => setExporting("html")}>Download HTML</button>
+        <button className="tinted-btn tinted-btn-sm tint-cy" disabled={!ready} onClick={() => setExporting("print")}>Print / Save as PDF</button>
+        <button className="tinted-btn tinted-btn-sm tint-cy" disabled={!ready} onClick={() => setExporting("html")}>Download HTML</button>
         <CopyTextButton disabled={!ready} text={text} />
-        <button className="tinted-btn tint-cy" disabled={!ready} onClick={() => download(text(), "text/plain", "txt")}>Download text</button>
+        <button className="tinted-btn tinted-btn-sm tint-cy" disabled={!ready} onClick={() => download(text(), "text/plain", "txt")}>Download text</button>
       </div>
 
       {selected.map(drive => (
@@ -251,7 +251,7 @@ function CopyTextButton({ text, disabled }: { text: () => string; disabled: bool
     window.setTimeout(() => setState("idle"), 1500)
   }
   return (
-    <button className="tinted-btn tint-cy" disabled={disabled} onClick={copy}>
+    <button className="tinted-btn tinted-btn-sm tint-cy" disabled={disabled} onClick={copy}>
       {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy text"}
     </button>
   )

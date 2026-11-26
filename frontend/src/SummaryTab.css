@@ -6,11 +6,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
   margin-bottom: 10px;
 }
-.sum-copy-btn { padding: 4px 10px; font-size: 12px; }
 
 .sum-sub { font-size: 11px; color: var(--t4); }
 .sum-crit { color: var(--re); }

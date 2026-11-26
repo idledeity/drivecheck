@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReportTab from './ReportTab'
@@ -33,7 +33,8 @@ describe('ReportTab', () => {
     }
     expect(screen.getByText('Full SMART read', { selector: 'summary' }).closest('details')).not.toHaveAttribute('open')
     expect(screen.getByText('Verdict', { selector: 'summary' }).closest('details')).toHaveAttribute('open')
-    expect(screen.getByRole('button', { name: 'Print / Save as PDF' })).toBeEnabled()
+    // The exports enable once the tab has every drive's data (the render after the report's own).
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Print / Save as PDF' })).toBeEnabled())
     expect(screen.getByRole('button', { name: 'Download HTML' })).toBeEnabled()
   })
 
