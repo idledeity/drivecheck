@@ -542,6 +542,20 @@ textarea.cfg-ctl-list:focus { border-color: var(--gn); box-shadow: 0 0 0 2px rgb
   padding: 6px 14px;
 }
 
+.cfg-file-name {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.cfg-file-name code {
+  color: var(--t2);
+}
+
 /* "Armed" confirm state, not part of the shared .tinted-btn rest/hover
    language — solid fill, not a tint, since this is one click from
    committing to the discard. */

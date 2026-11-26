@@ -13,7 +13,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, request, send_file
 from werkzeug.serving import make_server
 from werkzeug.utils import secure_filename
-from settings import cfg
+from settings import cfg, config_file
 from system_utils.logging import logger as _log
 from system_utils.logging import log_utils
 from system_utils import auth, clock, origin_guard, tls
@@ -52,7 +52,7 @@ cfg.register("server.debug",
     restart_required=True,
 )
 
-_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+_CONFIG_PATH = config_file.path()  # config.local.yaml if present; see config_file.py
 
 # Logging has to work *before* cfg.load() runs (load() itself logs), so it's
 # configured from a direct peek at the file rather than cfg.get().
@@ -806,6 +806,12 @@ def get_config():
     return jsonify(cfg.props())
 
 
+@app.route("/api/config/file", methods=["GET"])
+def get_config_file():
+    """Which YAML file Settings reads and saves (config.local.yaml when present)."""
+    return jsonify({"name": config_file.display_name()})
+
+
 @app.route("/api/probes/rescan", methods=["POST"])
 def rescan_probes():
     """Re-walk the native + custom probe directories and refresh the
@@ -1017,7 +1023,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--reload", action="store_true", default=False)
     parser.add_argument("--port", type=int, default=None,
-        help="Override server.port for this run only (doesn't touch config.yaml)")
+        help="Override server.port for this run only (doesn't touch the config file)")
     args = parser.parse_args()
 
     user_settings.init()

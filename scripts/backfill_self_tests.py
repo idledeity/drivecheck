@@ -21,7 +21,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "backend"))
 
-from settings import cfg  # noqa: E402
+from settings import cfg, config_file  # noqa: E402
 from system_utils import paths  # noqa: E402,F401  (registers data.dir)
 from database import db  # noqa: E402
 from drives.collector.probes.telemetry.smartctl_self_test_log import observed_self_tests  # noqa: E402
@@ -29,7 +29,7 @@ from drives.collector.probes.telemetry.smartctl_self_test_log import observed_se
 
 def main() -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    cfg.load(_REPO / "config.yaml")
+    cfg.load(config_file.path())
     db.init()
     reads, added = Counter(), Counter()
     for guid, captured_at, smartctl_json in db.iter_raw_snapshot_reports():

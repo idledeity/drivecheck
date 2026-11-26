@@ -17,7 +17,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "backend"))
 
-from settings import cfg  # noqa: E402
+from settings import cfg, config_file  # noqa: E402
 from system_utils import paths  # noqa: E402,F401  (registers data.dir)
 from database import db  # noqa: E402
 from jobs.summary_backfill import backfill_summary_logs  # noqa: E402
@@ -26,7 +26,7 @@ from operations.operation_registry import discover  # noqa: E402
 
 def main() -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    cfg.load(_REPO / "config.yaml")
+    cfg.load(config_file.path())
     db.init()
     discover()
     outcomes = backfill_summary_logs()

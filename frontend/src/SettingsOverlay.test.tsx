@@ -71,6 +71,7 @@ function makeFetchRouter() {
     // When true, every config-props response also carries
     // collector.allow_probe_editing = true, as the real backend's do.
     probeEditing: false,
+    configFile: 'config.yaml',
   }
   const withFlag = <T,>(body: T): T | ConfigProp[] =>
     state.probeEditing && Array.isArray(body) ? [...body, PROBE_EDITING_ON] : body
@@ -78,6 +79,7 @@ function makeFetchRouter() {
     const method = init?.method ?? 'GET'
     if (url === '/api/config' && method === 'GET') return Promise.resolve(fetchJsonResponse(withFlag(state.configProps)))
     if (url === '/api/config' && method === 'PATCH') return Promise.resolve(fetchJsonResponse(state.saveResponse, state.saveStatus))
+    if (url === '/api/config/file' && method === 'GET') return Promise.resolve(fetchJsonResponse({ name: state.configFile }))
     if (url === '/api/probes/status' && method === 'GET') return Promise.resolve(fetchJsonResponse(state.statusResponse))
     if (url === '/api/probes/rescan' && method === 'POST') return Promise.resolve(fetchJsonResponse(withFlag(state.rescanResponse ?? state.configProps)))
     if (url === '/api/probes/template' && method === 'POST') {
@@ -906,8 +908,19 @@ describe('ConfigTab', () => {
     const input = await screen.findByDisplayValue('elsewhere')
 
     expect(input).toBeDisabled()
-    expect(screen.getByText('config.yaml only')).toBeInTheDocument()
+    expect(await screen.findByText('config.yaml only')).toBeInTheDocument()
     expect(screen.queryByTitle('Reset to default')).not.toBeInTheDocument()
+  })
+
+  it('names the active config file in the footer and the file_only badge', async () => {
+    router.state.configFile = 'config.local.yaml'
+    router.state.configProps = [makeConfigProp({
+      key: 'collector.custom_probes_dir', label: 'Custom probes directory', section: 'Collector',
+      type: 'str', value: 'elsewhere', default: 'custom_probes', min: null, max: null, file_only: true,
+    })]
+    render(<SettingsOverlay onClose={vi.fn()} />)
+    expect(await screen.findByText('config.local.yaml only')).toBeInTheDocument()
+    expect(screen.getByText('config.local.yaml', { selector: '.cfg-file-name code' })).toBeInTheDocument()
   })
 })
 

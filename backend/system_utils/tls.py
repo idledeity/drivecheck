@@ -29,7 +29,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from settings import cfg
+from settings import cfg, config_file
 from system_utils import paths
 
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ def _lan_address() -> str | None:
 def _print_dev_server_config() -> int:
     """For frontend/vite.config.ts: print {"https": bool, "cert": path, "key": path,
     "serving": path of write_serving's file}."""
-    cfg.load(_PROJECT_ROOT / "config.yaml")
+    cfg.load(config_file.path())
     try:
         files = certificate_files()
     except TlsConfigError as e:

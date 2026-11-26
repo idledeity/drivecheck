@@ -39,6 +39,12 @@ Requires a Debian/Ubuntu (apt-based) host.
 
    Flask runs on port 4343 (see `config.yaml`).
 
+   To try settings without changing the tracked `config.yaml`, copy it to
+   `config.local.yaml` (gitignored): when that file exists the backend reads
+   and saves it instead. Set `DRIVECHECK_CONFIG=<path>` to use any other file
+   (relative paths are taken from the project root). Delete the local file to
+   go back to `config.yaml`.
+
 5. Start the frontend dev server:
 
    ```sh

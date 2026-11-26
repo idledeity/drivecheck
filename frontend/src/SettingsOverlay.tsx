@@ -133,10 +133,15 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
   const [rescanning, setRescanning] = useState(false)
   const [probeWarnings, setProbeWarnings] = useState<Record<string, ProbeWarning[]>>({})
+  // The YAML file these settings are read from and saved to: config.yaml, or
+  // config.local.yaml when that exists (see backend settings/config_file.py).
+  const [configFile, setConfigFile] = useState<string | null>(null)
   const confirm = useConfirm()
 
   useEffect(() => {
     fetch("/api/config").then(r => r.json()).then(setConfigProps).catch(() => {})
+    fetch("/api/config/file").then(r => r.json())
+      .then((d: { name?: string }) => setConfigFile(d.name ?? null)).catch(() => {})
     // Reflects what loaded at the collector's last restart, not necessarily
     // the current (possibly unsaved or unrestarted) prop values — PropRow
     // filters each row's warnings against its own live value to avoid
@@ -259,6 +264,7 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
                 onChoicesRefresh={setConfigProps}
                 warnings={probeWarnings[prop.key] ?? []}
                 probeEditing={probeEditing}
+                configFile={configFile}
               />
             ))}
           </div>
@@ -292,6 +298,11 @@ function ConfigTab({ onDirtyChange }: ConfigTabProps) {
           >
             {confirmingDiscard ? "Confirm?" : "Discard"}
           </button>
+        )}
+        {configFile && (
+          <span className="cfg-file-name" title="Settings are read from and saved to this file">
+            Saves to <code>{configFile}</code>
+          </span>
         )}
       </div>
     </div>
@@ -502,6 +513,7 @@ interface PropRowProps {
   onChoicesRefresh: (props: ConfigProp[]) => void
   warnings: ProbeWarning[]
   probeEditing: boolean
+  configFile: string | null
 }
 
 // A number input; for a prop with a none_label, also a checkbox for null
@@ -549,7 +561,7 @@ function NumberControl({ prop, value, error, onChange }: { prop: ConfigProp; val
   )
 }
 
-function PropRow({ prop, value, dirty, error, onChange, onChoicesRefresh, warnings, probeEditing }: PropRowProps) {
+function PropRow({ prop, value, dirty, error, onChange, onChoicesRefresh, warnings, probeEditing, configFile }: PropRowProps) {
   // Only entries still present in the row's current value are shown —
   // warnings reflect the last collector restart, so a path the user already
   // removed (or hasn't restarted into yet) shouldn't linger as a warning.
@@ -560,7 +572,7 @@ function PropRow({ prop, value, dirty, error, onChange, onChoicesRefresh, warnin
         <label className="cfg-prop-label">
           <HoverReveal text={prop.key} className="cfg-prop-name" mono>{prop.label}</HoverReveal>
           {prop.restart_required && dirty && <span className="cfg-restart-badge">Requires Restart</span>}
-          {prop.file_only && <span className="cfg-file-only-badge">config.yaml only</span>}
+          {prop.file_only && <span className="cfg-file-only-badge">{configFile ?? "config file"} only</span>}
           {prop.tooltip && (
             <HoverReveal text={prop.tooltip}>
               <IconInfoCircle size={12} className="cfg-tooltip-icon" />

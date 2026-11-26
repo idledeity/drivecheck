@@ -16,12 +16,12 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "backend"))
 
-from settings import cfg  # noqa: E402
+from settings import cfg, config_file  # noqa: E402
 from system_utils import auth, paths  # noqa: E402  (paths registers data.dir)
 
 
 def main() -> int:
-    cfg.load(_REPO / "config.yaml")
+    cfg.load(config_file.path())
     current = auth.load_credentials()
     default_user = current["username"] if current else "admin"
 
