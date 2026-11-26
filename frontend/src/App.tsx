@@ -392,7 +392,7 @@ export default function App() {
   const colorKey = driveColorOrder(drives).join(",")
   const trendStyles = useMemo(() => driveStyles(colorKey ? colorKey.split(",") : []), [colorKey])
 
-  const jobsContext: JobsContextValue = { jobs, unseen, cancelJob, moveJob, cancelBatch, moveBatch, runOperation, runRecipe, markJobsSeen }
+  const jobsContext: JobsContextValue = { jobs, unseen, lastTasks: lastTaskByDrive, cancelJob, moveJob, cancelBatch, moveBatch, runOperation, runRecipe, markJobsSeen }
 
   return (
     <JobsContext.Provider value={jobsContext}>

@@ -1,0 +1,125 @@
+/* Workspace → Summary. */
+
+.sum-empty { font-size: 12px; color: var(--t4); padding: 8px 0; margin: 0; }
+
+.sum-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.sum-copy-btn { padding: 4px 10px; font-size: 12px; }
+
+.sum-sub { font-size: 11px; color: var(--t4); }
+.sum-crit { color: var(--re); }
+
+.sum-health { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.sum-worst {
+  font-size: 11px;
+  color: var(--t4);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sum-test { white-space: nowrap; }
+.sum-test-ok   { color: var(--t2); }
+.sum-test-warn { color: var(--wa); }
+.sum-test-crit { color: var(--re); }
+.sum-test-none { color: var(--t5); }
+
+.sum-task { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sum-task .sum-sub {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Several drives ── */
+
+.sum-table-wrap {
+  overflow-x: auto;
+  background: var(--bi);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+}
+
+.sum-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  min-width: 100%;
+}
+
+.sum-table th,
+.sum-table td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  color: var(--t2);
+}
+
+.sum-table thead th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--bd);
+}
+
+.sum-table tbody th { font-weight: 400; }
+/* The chip shortens itself to fit; give it room for the model. */
+.sum-table tbody th .drive-chip-list { min-width: 240px; }
+.sum-table tbody tr + tr > * { border-top: 1px solid rgba(255,255,255,0.04); }
+.sum-table .sum-num { text-align: right; white-space: nowrap; }
+
+/* The drive column stays put while the rest scrolls sideways. */
+.sum-table tr > th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bi);
+}
+
+/* A selected drive's row: the selection purple, as on its card. */
+.sum-table tbody tr.sum-row-sel > * { background-color: rgba(168,85,247,0.08); }
+.sum-table tbody tr.sum-row-sel > th:first-child {
+  background-color: var(--bi);
+  background-image: linear-gradient(rgba(168,85,247,0.08), rgba(168,85,247,0.08));
+  box-shadow: inset 3px 0 0 var(--sel);
+}
+
+/* ── Summary: a block per drive, stacked ── */
+
+.sum-block + .sum-block {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bd);
+}
+
+.sum-block-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 16px;
+  margin: 10px 0 0;
+}
+.sum-block-row { min-width: 0; }
+/* Health carries the worst factor's text: give it room. */
+.sum-block-row:first-child { grid-column: span 2; }
+.sum-block-row dt {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t4);
+  margin-bottom: 3px;
+}
+.sum-block-row dd { margin: 0; font-size: 12.5px; color: var(--t2); }
+.sum-block-row .sum-worst,
+.sum-block-row .sum-task .sum-sub { max-width: none; white-space: normal; }

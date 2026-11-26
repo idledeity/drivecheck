@@ -15,7 +15,7 @@ afterEach(() => {
 
 function renderPanel(jobs: Partial<JobsContextValue> = {}) {
   const value: JobsContextValue = {
-    jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn(), ...jobs,
+    jobs: [], unseen: [], lastTasks: new Map(), cancelJob: vi.fn(), moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn(), ...jobs,
   }
   return render(
     <JobsContext.Provider value={value}>
@@ -25,17 +25,17 @@ function renderPanel(jobs: Partial<JobsContextValue> = {}) {
 }
 
 describe('WorkspacePanel', () => {
-  it('defaults to the Health tab, expanded', () => {
+  it('defaults to the Summary tab, expanded', () => {
     renderPanel()
-    expect(screen.getByRole('button', { name: 'Health' })).toHaveClass('active')
-    expect(screen.getByText(/Select one or more drives to view an overview/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Summary' })).toHaveClass('active')
+    expect(screen.getByText('Select one or more drives to see a summary.')).toBeInTheDocument()
   })
 
   it('collapses the body when the toggle is clicked', async () => {
     renderPanel()
-    expect(screen.getByText(/Select one or more drives to view an overview/)).toBeInTheDocument()
+    expect(screen.getByText('Select one or more drives to see a summary.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Collapse workspace panel' }))
-    expect(screen.queryByText(/Select one or more drives to view an overview/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Select one or more drives to see a summary.')).not.toBeInTheDocument()
   })
 
   it('switches to the Activity tab', async () => {

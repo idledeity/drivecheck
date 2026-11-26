@@ -20,7 +20,7 @@ async function setup(ops: OperationInfo[], runResult: string | null = null, guid
   const runOperation = vi.fn().mockResolvedValue(runResult)
   const onClose = vi.fn()
   render(
-    <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob: vi.fn(), moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation, runRecipe: vi.fn(), markJobsSeen: vi.fn() }}>
+    <JobsContext.Provider value={{ jobs: [], unseen: [], lastTasks: new Map(), cancelJob: vi.fn(), moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation, runRecipe: vi.fn(), markJobsSeen: vi.fn() }}>
       <RunTaskDialog drives={guids.map(guid => makeDrive({ guid }))} guids={guids} onClose={onClose} />
     </JobsContext.Provider>,
   )

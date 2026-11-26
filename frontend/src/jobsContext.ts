@@ -6,6 +6,8 @@ export type JobsContextValue = {
   jobs: Job[]
   /** Finished jobs since the user last marked results seen, newest first. */
   unseen: Job[]
+  /** Each drive's last finished task: one job, or every step of its batch. */
+  lastTasks: Map<string, Job[]>
   cancelJob: (jobId: string) => void
   /** Move a queued job one place earlier or later among its drive's queued jobs. */
   moveJob: (jobId: string, direction: "up" | "down") => void
@@ -25,6 +27,7 @@ export type JobsContextValue = {
 export const JobsContext = createContext<JobsContextValue>({
   jobs: [],
   unseen: [],
+  lastTasks: new Map(),
   cancelJob: () => {},
   moveJob: () => {},
   cancelBatch: () => {},

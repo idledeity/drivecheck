@@ -7,7 +7,7 @@ import { DriveChipHeader } from "./DriveChip"
 import SmartPanel, { SmartReadLine, SmartSummary } from "./SmartPage"
 import { useSmartDetail } from "./smartDetail"
 import ReadSmartButton from "./ReadSmartButton"
-import DriveOverview, { HealthScoreBar } from "./DriveOverview"
+import { HealthScoreBar } from "./DriveOverview"
 import HealthFactors, { formatPoints } from "./HealthFactors"
 import TrendsPanel from "./TrendsPanel"
 import { DriveInfoGroups } from "./InfoTab"
@@ -15,10 +15,9 @@ import { driveInfoText, useDriveInfo } from "./driveInfo"
 import type { DriveInfo } from "./driveInfo"
 import "./HealthTab.css"
 
-type SubTab = "overview" | "report" | "smart" | "trends"
+type SubTab = "report" | "smart" | "trends"
 
 const SUBTABS: { id: SubTab; label: string }[] = [
-  { id: "overview", label: "Overview" },
   { id: "report",   label: "Report"   },
   { id: "smart",    label: "SMART"    },
   { id: "trends",   label: "Trends"   },
@@ -30,7 +29,7 @@ interface Props {
 }
 
 export default function HealthTab({ drives, selectedGuids }: Props) {
-  const [subTab, setSubTab] = useState<SubTab>("overview")
+  const [subTab, setSubTab] = useState<SubTab>("report")
 
   return (
     <div className="health-tab">
@@ -46,27 +45,10 @@ export default function HealthTab({ drives, selectedGuids }: Props) {
         ))}
       </nav>
       <div className="health-subtab-body">
-        {subTab === "overview" && <OverviewPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "report"   && <ReportPanel drives={drives} selectedGuids={selectedGuids} onOpenSmart={() => setSubTab("smart")} />}
         {subTab === "smart"    && <SmartPanel drives={drives} selectedGuids={selectedGuids} />}
         {subTab === "trends"   && <TrendsPanel drives={drives} selectedGuids={selectedGuids} />}
       </div>
-    </div>
-  )
-}
-
-// ── Overview ──────────────────────────────────────────────────────────────────
-
-function OverviewPanel({ drives, selectedGuids }: { drives: Drive[]; selectedGuids: string[] }) {
-  if (selectedGuids.length === 0) {
-    return <p className="health-empty">Select one or more drives to view an overview.</p>
-  }
-  return (
-    <div className="health-multi">
-      {selectedGuids.map(guid => {
-        const drive = drives.find(d => d.guid === guid)
-        return drive ? <DriveOverview key={guid} drive={drive} /> : null
-      })}
     </div>
   )
 }

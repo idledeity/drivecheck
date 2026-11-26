@@ -1206,12 +1206,34 @@ Tabbed panel below card grid. Responds to current card selection.
 
 **Tabs:** Health · History · Queue · Run task
 
+**Current tabs (2026-11-25 layout):** Summary · All Drives · Health · Info ·
+Tasks (Report to come). Each answers one question; duplicating values across
+them is fine.
+
+### Summary and All Drives tabs
+
+The same facts per drive (`SummaryTab.tsx`, `driveSummary.ts`): health badge
++ worst factor, power-on / reallocated / pending / uncorrected / temp (flag
+colours), latest Short and Long self-test, last task (`JobsContext.lastTasks`,
+the same as the card's), SMART read age. All from `/api/drives`, no fetch of
+their own.
+- **Summary**: the selected drives, a block each, stacked; nothing selected
+  asks for a selection like the other tabs. Copy text (a block per drive).
+- **All Drives**: every drive, a table row each, whatever is selected
+  (selected rows marked in selection purple; drive column sticky). Copy
+  Markdown (a table) for forums, listings, notes. User, 2026-11-25: one tab
+  switching between table and blocks by selection count was confusing — keep
+  them separate.
+Replaced Health › Overview; `DriveOverview` lives on in the card's health
+popover.
+
 ### Info Tab (drive details)
 
 What the selected drives are and how they're connected, not health
-(`InfoTab.tsx`, `driveInfo.ts`). One drive: grouped boxes; several: one table,
-a column per drive, label column sticky so it survives sideways scrolling on a
-phone. The same groups show in Health › Report's drive section and its
+(`InfoTab.tsx`, `driveInfo.ts`). Each selected drive's grouped boxes,
+stacked (default — user prefers it). A By drive | Compare sub-tab bar (the
+Health tab's `.health-subtabs`) offers one table, a column per drive, label column sticky so it
+survives sideways scrolling on a phone. The same groups show in Health › Report's drive section and its
 downloaded text. `GET /api/drives/info?guids=…` → `analysis/drive_info.py`
 builds them when served from facts:
 - `traits.extras["smartctl_info"]`: the traits probe's raw `smartctl -i`

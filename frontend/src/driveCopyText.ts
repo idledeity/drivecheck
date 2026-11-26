@@ -10,7 +10,7 @@ export type DriveCopyField = {
 }
 
 /** Manufacturer and model as the card shows them, e.g. "NETAPP X316_SMBPE06TA07". */
-function makeModel(drive: Drive): string {
+export function makeModel(drive: Drive): string {
   return [drive.white_label ?? drive.manufacturer_short, drive.model ?? drive.device].filter(Boolean).join(" ")
 }
 

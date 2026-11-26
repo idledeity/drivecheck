@@ -13,47 +13,11 @@ afterEach(() => {
 })
 
 describe('HealthTab', () => {
-  it('defaults to the overview sub-tab without fetching anything', () => {
+  it('defaults to the report sub-tab without fetching anything', () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
-    expect(screen.getByRole('button', { name: 'Overview' })).toHaveClass('active')
-    expect(screen.getByText(/Select one or more drives/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Report' })).toHaveClass('active')
+    expect(screen.getByText(/Select one or more drives to view a report/)).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it('shows the health score and what made it for a selected drive', () => {
-    const drive = makeDrive({
-      guid: 'd1',
-      health_pct: 69,
-      health_status: 'Degraded',
-      health_factors: [
-        { key: 'reallocated', kind: 'media', label: 'Reallocated sectors', signal: 'reallocated', value: '10',
-          standalone: 69, weight: 0.3, role: 'start', points: 69 },
-        { key: 'power_on_hours', kind: 'wear', label: 'Power-on hours', signal: 'power_on_hours', value: '60,000 h',
-          standalone: 93, weight: 0.2, role: 'adds', points: -0.03 },
-      ],
-    })
-    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('Degraded').closest('.health-badge')).toHaveTextContent('Degraded69')
-    expect(screen.getByText('Reallocated sectors').closest('.hf')).toHaveTextContent(
-      'Reallocated sectors1069Power-on hours60,000 h−<0.1')
-  })
-
-  it('says nothing lowers the score of a clean drive, and what Healthy means', async () => {
-    const drive = makeDrive({ guid: 'd1', health_pct: 100, health_status: 'Healthy' })
-    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('Nothing lowers the score')).toBeInTheDocument()
-    await userEvent.click(screen.getByLabelText('About this health status'))
-    expect(screen.getByText(/^Healthy: No sign of trouble/)).toBeInTheDocument()
-  })
-
-  it('says when age or wear alone held the score up', () => {
-    const drive = makeDrive({
-      guid: 'd1', health_pct: 80, health_status: 'Aging', health_floor: 80,
-      health_factors: [{ key: 'power_on_hours', kind: 'wear', label: 'Power-on hours', signal: 'power_on_hours',
-                         value: '200,000 h', standalone: 82, weight: 0.2, role: 'start', points: 82 }],
-    })
-    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText(/^Held at 80/)).toBeInTheDocument()
   })
 
   it('fetches SMART data for selected drives when report tab is opened', async () => {
@@ -74,12 +38,6 @@ describe('HealthTab', () => {
     render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
     await userEvent.click(screen.getByRole('button', { name: 'Report' }))
     expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument()
-  })
-
-  it('dates the overview with its SMART read', () => {
-    const drive = makeDrive({ guid: 'd1', last_polled_at: new Date(Date.now() - 20 * 60_000).toISOString() })
-    render(<HealthTab drives={[drive]} selectedGuids={['d1']} />)
-    expect(screen.getByText('20m ago').closest('.hov-asof')).toHaveTextContent('SMART read 20m ago')
   })
 
   it('report: health and signals come from the full read, not the live drive, dated once', async () => {
@@ -109,9 +67,9 @@ describe('HealthTab', () => {
 
   it('marks the active sub-tab button', async () => {
     render(<HealthTab drives={[]} selectedGuids={[]} />)
-    expect(screen.getByRole('button', { name: 'Overview' })).toHaveClass('active')
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }))
     expect(screen.getByRole('button', { name: 'Report' })).toHaveClass('active')
-    expect(screen.getByRole('button', { name: 'Overview' })).not.toHaveClass('active')
+    await userEvent.click(screen.getByRole('button', { name: 'Trends' }))
+    expect(screen.getByRole('button', { name: 'Trends' })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Report' })).not.toHaveClass('active')
   })
 })

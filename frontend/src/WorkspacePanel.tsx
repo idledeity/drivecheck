@@ -3,16 +3,19 @@ import type { Drive } from "./types"
 import CollapseToggle from "./CollapseToggle"
 import HealthTab from "./HealthTab"
 import InfoTab from "./InfoTab"
+import SummaryTab, { AllDrivesTab } from "./SummaryTab"
 import TasksTab from "./TasksTab"
 import { useJobs } from "./jobsContext"
 import "./WorkspacePanel.css"
 
-type Tab = "health" | "tasks" | "info"
+type Tab = "summary" | "all" | "health" | "info" | "tasks"
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "health", label: "Health" },
-  { id: "tasks",  label: "Tasks"  },
-  { id: "info",   label: "Info"   },
+  { id: "summary", label: "Summary" },
+  { id: "all",     label: "All Drives" },
+  { id: "health",  label: "Health"  },
+  { id: "info",    label: "Info"    },
+  { id: "tasks",   label: "Tasks"   },
 ]
 
 interface Props {
@@ -21,7 +24,7 @@ interface Props {
 }
 
 export default function WorkspacePanel({ drives, selected }: Props) {
-  const [tab, setTab]           = useState<Tab>("health")
+  const [tab, setTab]           = useState<Tab>("summary")
   // Shown on the Tasks tab too, so it's visible while Tasks is closed.
   const { unseen } = useJobs()
   const [expanded, setExpanded] = useState(true)
@@ -56,6 +59,8 @@ export default function WorkspacePanel({ drives, selected }: Props) {
             </nav>
           </div>
           <div className="ws-body">
+            {tab === "summary" && <SummaryTab drives={drives} selectedGuids={selected} />}
+            {tab === "all"     && <AllDrivesTab drives={drives} selectedGuids={selected} />}
             {tab === "health" && <HealthTab drives={drives} selectedGuids={selected} />}
             {tab === "tasks"  && <TasksTab drives={drives} selected={selected} />}
             {tab === "info"   && <InfoTab drives={drives} selectedGuids={selected} />}

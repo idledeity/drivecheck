@@ -1,15 +1,26 @@
+import { useState } from "react"
 import type { Drive } from "./types"
 import AsOf from "./AsOf"
 import { DriveChipHeader } from "./DriveChip"
 import { formatInfoValue, unionLayout, useDriveInfo } from "./driveInfo"
 import type { DriveInfo, DriveInfoRow } from "./driveInfo"
+import "./HealthTab.css"   // .health-subtabs: the same sub-tab bar as Health
 import "./InfoTab.css"
 
+type View = "drives" | "table"
+
+const VIEWS: { id: View; label: string }[] = [
+  { id: "drives", label: "By drive" },
+  { id: "table",  label: "Compare"  },
+]
+
 /* Workspace → Info: what the selected drives are and how they're connected —
-   identity, media, interface, controller. Not health. One drive: grouped
-   boxes. Several: one table, a column per drive, for comparing. */
+   identity, media, interface, controller. Not health. Each drive's grouped
+   boxes, stacked; the Compare sub-tab shows them as one table instead, a
+   column per drive. */
 export default function InfoTab({ drives, selectedGuids }: { drives: Drive[]; selectedGuids: string[] }) {
   const loaded = useDriveInfo(selectedGuids)
+  const [view, setView] = useState<View>("drives")
 
   if (selectedGuids.length === 0) {
     return <p className="info-empty">Select one or more drives to see their details.</p>
@@ -22,15 +33,23 @@ export default function InfoTab({ drives, selectedGuids }: { drives: Drive[]; se
     .filter((d): d is { guid: string; drive: Drive | undefined; info: DriveInfo } => !!d.info)
   if (shown.length === 0) return <p className="info-empty">Loading drive details…</p>
 
-  if (shown.length === 1) {
-    return (
-      <div className="info-tab">
-        <DriveChipHeader drive={shown[0].drive} className="info-drive-header" />
-        <DriveInfoGroups info={shown[0].info} />
-      </div>
-    )
-  }
-  return <DriveInfoTable shown={shown} />
+  return (
+    <div className="info-tab">
+      <nav className="health-subtabs">
+        {VIEWS.map(v => (
+          <button key={v.id} className={`health-subtab${view === v.id ? " active" : ""}`} onClick={() => setView(v.id)}>
+            {v.label}
+          </button>
+        ))}
+      </nav>
+      {view === "table" ? <DriveInfoTable shown={shown} /> : shown.map(s => (
+        <section key={s.guid} className="info-drive">
+          <DriveChipHeader drive={s.drive} className="info-drive-header" />
+          <DriveInfoGroups info={s.info} />
+        </section>
+      ))}
+    </div>
+  )
 }
 
 /** One drive's groups as boxes; also the Report's drive section. */

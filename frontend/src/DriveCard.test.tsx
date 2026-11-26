@@ -409,7 +409,7 @@ describe('popovers (click-only / no-hover device)', () => {
   function renderWithJobs(job: ReturnType<typeof makeJob>) {
     const cancelJob = vi.fn()
     render(
-      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
+      <JobsContext.Provider value={{ jobs: [], unseen: [], lastTasks: new Map(), cancelJob, moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
         <DriveCard drive={makeDrive()} selected={false} onSelect={vi.fn()} onSelectToggle={vi.fn()} job={job} queuedJobs={[]} />
       </ConfirmProvider></JobsContext.Provider>,
     )
@@ -445,7 +445,7 @@ describe('popovers (click-only / no-hover device)', () => {
   it('cancels a queued job from the queued popover', async () => {
     const cancelJob = vi.fn()
     render(
-      <JobsContext.Provider value={{ jobs: [], unseen: [], cancelJob, moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
+      <JobsContext.Provider value={{ jobs: [], unseen: [], lastTasks: new Map(), cancelJob, moveJob: vi.fn(), cancelBatch: vi.fn(), moveBatch: vi.fn(), runOperation: vi.fn(), runRecipe: vi.fn(), markJobsSeen: vi.fn() }}><ConfirmProvider>
         <DriveCard
           drive={makeDrive()} selected={false} onSelect={vi.fn()} onSelectToggle={vi.fn()}
           job={makeJob({ status: 'running' })}
